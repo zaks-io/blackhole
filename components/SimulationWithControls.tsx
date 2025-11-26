@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import BlackHoleSimulation, { CAMERA_PRESETS } from './BlackHoleSimulation';
+import BlackHoleSimulation, { CAMERA_PRESETS, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
@@ -13,10 +13,23 @@ import { CONFIG } from '@/lib/config';
 export default function SimulationWithControls() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
   const [activePreset, setActivePreset] = useState<string>('orbit');
+  const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
+  const [ehtMode, setEhtMode] = useState(false);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
   }, []);
+
+  const handleEhtBlurReady = useCallback((controller: EhtBlurController) => {
+    setEhtBlurController(controller);
+  }, []);
+
+  const handleEhtToggle = useCallback(() => {
+    if (!ehtBlurController) return;
+    const newState = !ehtMode;
+    setEhtMode(newState);
+    ehtBlurController.setEnabled(newState);
+  }, [ehtBlurController, ehtMode]);
 
   const handlePresetSelect = useCallback((presetName: string) => {
     const preset = CAMERA_PRESETS[presetName];
@@ -49,11 +62,14 @@ export default function SimulationWithControls() {
         showDevControls={false}
         showStats={false}
         onCameraReady={handleCameraReady}
+        onEhtBlurReady={handleEhtBlurReady}
       />
       {cameraController && (
         <CameraPresetBar
           onPresetSelect={handlePresetSelect}
           activePreset={activePreset}
+          ehtMode={ehtMode}
+          onEhtToggle={handleEhtToggle}
         />
       )}
     </>
