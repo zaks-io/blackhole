@@ -40,6 +40,8 @@ export interface BlackHoleSimulationProps {
   showDevControls?: boolean;
   /** Show FPS stats counter (default: false) */
   showStats?: boolean;
+  /** Initial camera preset key (default: 'intro') */
+  initialCameraPreset?: keyof typeof CAMERA_PRESETS;
   /** Callback with camera controller when ready */
   onCameraReady?: (controller: CameraController) => void;
   /** Callback with EHT blur controller when ready */
@@ -90,6 +92,7 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
 export default function BlackHoleSimulation({
   showDevControls = false,
   showStats = false,
+  initialCameraPreset = 'intro',
   onCameraReady,
   onEhtBlurReady,
 }: BlackHoleSimulationProps) {
@@ -133,16 +136,16 @@ export default function BlackHoleSimulation({
       container.appendChild(renderer.domElement);
       cleanupRef.current.renderer = renderer;
 
-      // Create camera - start at intro position
+      // Create camera - start at specified preset position
       const camera = new THREE.PerspectiveCamera(
         CONFIG.camera.fov,
         window.innerWidth / window.innerHeight,
         CONFIG.camera.near,
         CONFIG.camera.far
       );
-      const introPos = CAMERA_PRESETS.intro.position;
-      camera.position.set(introPos.x, introPos.y, introPos.z);
-      camera.lookAt(0, 0, 0);
+      const initialPreset = CAMERA_PRESETS[initialCameraPreset];
+      camera.position.set(initialPreset.position.x, initialPreset.position.y, initialPreset.position.z);
+      camera.lookAt(initialPreset.lookAt.x, initialPreset.lookAt.y, initialPreset.lookAt.z);
 
       // Create controls
       const controls = new OrbitControls(camera, renderer.domElement);
@@ -169,6 +172,7 @@ export default function BlackHoleSimulation({
         fxaaEnabled: boolean;
         ehtBlurEnabled: boolean;
         ehtBlurStrength: number;
+        simulationSpeed: number;
       } = {
         ...defaultLensingParams,
         bloomThreshold: CONFIG.bloom.threshold,
@@ -179,10 +183,14 @@ export default function BlackHoleSimulation({
         supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
         ehtBlurEnabled: CONFIG.ehtBlur.enabled,
         ehtBlurStrength: CONFIG.ehtBlur.strength,
+        simulationSpeed: 3.0,
       };
 
       // EHT blur animation state
       const ehtBlurState = { intensity: CONFIG.ehtBlur.enabled ? 1.0 : 0.0 };
+
+      // Scaled simulation time (accumulates based on simulationSpeed)
+      let scaledTime = 0;
 
       // Composer and passes (will be set after texture loads)
       let composer: EffectComposer;
@@ -386,6 +394,9 @@ export default function BlackHoleSimulation({
             lensingPass?.updateParams({ maxSteps: value });
           });
 
+        simFolder.add(params, 'simulationSpeed', 0.0, 3.0, 0.1)
+          .name('Simulation Speed');
+
         // Disk folder
         const diskFolder = gui.addFolder('Accretion Disk');
         diskFolder.add(params, 'diskInnerRadius', 1.5, 6.0, 0.1)
@@ -472,6 +483,12 @@ export default function BlackHoleSimulation({
           .name('Pattern Speed')
           .onChange((value: number) => {
             lensingPass?.updateParams({ mhdPatternSpeed: value });
+          });
+
+        mhdFolder.add(params, 'mhdMinDensity', 0.0, 1.0, 0.05)
+          .name('Min Density')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ mhdMinDensity: value });
           });
 
         // Bloom folder
@@ -593,7 +610,7 @@ export default function BlackHoleSimulation({
           },
           resetDefault: () => {
             cameraController.moveTo({
-              position: { x: 0, y: 1 * CONFIG.rs, z: CONFIG.camera.initialDistance * CONFIG.rs },
+              position: { x: 0, y: 1 * CONFIG.rs, z: CONFIG.camera.initialDistance },
               lookAt: { x: 0, y: 0, z: 0 },
             }, { duration: 2 }).then(() => {
               cameraController.returnToManual();
@@ -664,7 +681,9 @@ export default function BlackHoleSimulation({
           stats?.begin();
 
           const deltaTime = clock.getDelta();
-          const elapsed = clock.getElapsedTime();
+
+          // Accumulate scaled time based on simulation speed
+          scaledTime += deltaTime * params.simulationSpeed;
 
           cameraController.update(deltaTime);
 
@@ -672,7 +691,7 @@ export default function BlackHoleSimulation({
             controls.update();
           }
 
-          lensingPass?.updateTime(elapsed);
+          lensingPass?.updateTime(scaledTime);
 
           camera.updateMatrixWorld();
           lensingPass?.updateCamera(camera);
@@ -727,7 +746,7 @@ export default function BlackHoleSimulation({
       return () => {
         window.removeEventListener('resize', onWindowResize);
       };
-    }, [showDevControls, showStats, onCameraReady, onEhtBlurReady]);
+    }, [showDevControls, showStats, initialCameraPreset, onCameraReady, onEhtBlurReady]);
 
     useEffect(() => {
       let cleanup: (() => void) | undefined;

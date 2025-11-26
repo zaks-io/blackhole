@@ -30,6 +30,7 @@ export interface LensingParams {
   mhdHotspotIntensity: number;
   mhdHotspotCount: number;
   mhdPatternSpeed: number;
+  mhdMinDensity: number;
   // Supersampling for anti-aliasing (1 = off, 2 = 2x2, 4 = 4x4)
   supersampleLevel: number;
   // Black hole edge softness (0 = hard edge, 1 = very soft)
@@ -76,6 +77,7 @@ const LensingShader = {
     mhdHotspotIntensity: { value: 0.7 },
     mhdHotspotCount: { value: 3 },
     mhdPatternSpeed: { value: 25.0 },
+    mhdMinDensity: { value: 0.5 },
     // Supersampling uniform
     supersampleLevel: { value: 1 },
     // Black hole edge softness uniform
@@ -172,6 +174,9 @@ export class LensingPass extends ShaderPass {
     }
     if (params.mhdPatternSpeed !== undefined) {
       this.uniforms['mhdPatternSpeed'].value = params.mhdPatternSpeed;
+    }
+    if (params.mhdMinDensity !== undefined) {
+      this.uniforms['mhdMinDensity'].value = params.mhdMinDensity;
     }
     if (params.supersampleLevel !== undefined) {
       this.uniforms['supersampleLevel'].value = params.supersampleLevel;

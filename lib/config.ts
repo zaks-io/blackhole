@@ -12,7 +12,7 @@ export const CONFIG = {
     fov: 60,
     minDistance: 5,
     maxDistance: 50,
-    initialDistance: 40,  // Start farther for intro
+    initialDistance: 10,  // Start farther for intro
     near: 0.1,
     far: 1000,
   },
@@ -30,7 +30,7 @@ export const CONFIG = {
   bloom: {
     threshold: 0.1,
     strength: 0.5,
-    radius: 0.3,
+    radius: 0.1,
   },
 
   // Accretion disk
@@ -41,7 +41,7 @@ export const CONFIG = {
     temperatureOuter: 3000,
     halfThickness: 0.1,
     volumeDensity: 0.15,
-    luminanceCompression: 0.15,
+    luminanceCompression: 0.2,
     textureContrast: 1.0,
     materialSpeed: 15.0,
     opacity: 0.85,
@@ -50,11 +50,12 @@ export const CONFIG = {
   // MHD turbulence effects
   mhd: {
     turbulenceIntensity: 0.8,
-    spiralArms: 4.0,
+    spiralArms: 1.0,
     spiralTightness: 6.0,
     hotspotIntensity: 0.7,
     hotspotCount: 3,
-    patternSpeed: 25.0,
+    patternSpeed: 3.0,
+    minDensity: 0,  // Minimum density for sparse areas (0-1)
   },
 
   // Ray marching settings
@@ -96,7 +97,7 @@ export const CONFIG = {
 
   // EHT-style blur effect (replicates telescope diffraction)
   ehtBlur: {
-    enabled: true,
+    enabled: false,
     strength: 1.2,
     iterations: 6,
   },
@@ -132,6 +133,7 @@ export function buildLensingParams(): LensingParams {
     mhdHotspotIntensity: CONFIG.mhd.hotspotIntensity,
     mhdHotspotCount: CONFIG.mhd.hotspotCount,
     mhdPatternSpeed: CONFIG.mhd.patternSpeed,
+    mhdMinDensity: CONFIG.mhd.minDensity,
     supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
     bhEdgeSoftness: CONFIG.antiAliasing.bhEdgeSoftness,
     photonSphereIntensity: CONFIG.photonSphere.intensity,
