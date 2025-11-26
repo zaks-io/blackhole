@@ -26,6 +26,12 @@ uniform float mhdHotspotIntensity;     // 0-1
 uniform int mhdHotspotCount;           // 0-5
 uniform float mhdPatternSpeed;         // Pattern rotation speed multiplier
 
+// Luminance compression for detail preservation
+uniform float diskLuminanceCompression;  // 0.0 = no compression, 1.0 = strong
+uniform float diskTextureContrast;       // 0.0 = normal, 2.0 = high contrast survives bloom
+uniform float diskMaterialSpeed;         // Multiplier for turbulence/material flow speed
+uniform float diskOpacity;               // Base opacity (0 = transparent, 1 = opaque)
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
@@ -92,7 +98,8 @@ float advectedFBM(float r, float phi, float t, int octaves) {
   float omega = sqrt(0.5 * rs / r) / r;
   
   // Advect phi by subtracting rotation (material moves counter-clockwise)
-  float advectedPhi = phi - omega * t;
+  // Apply material speed multiplier for user control
+  float advectedPhi = phi - omega * t * diskMaterialSpeed;
   
   // Convert to seamless cylindrical coordinates using cos/sin
   // This ensures no seam at phi = ±π
@@ -195,7 +202,7 @@ float getMHDDensity(float r, float phi, float t) {
   
   // Fine-scale filamentary structure with seamless coordinates
   float omega = sqrt(0.5 * rs / r) / r;
-  float advPhi = phi - omega * t * 0.5;
+  float advPhi = phi - omega * t * diskMaterialSpeed * 0.5;
   float fcx = cos(advPhi * 3.0);
   float fcy = sin(advPhi * 3.0);
   float fineNoise = snoise(vec2(r * 4.0 + fcx * 0.5, fcy * 0.5 + r * 0.2));
@@ -268,13 +275,24 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
   // Intensity: MHD density only - NO edge fade on brightness
   // Disk stays bright right to the edge
   float baseIntensity = pow(doppler, 3.0) / (1.0 + frac * 2.0);
-  float intensity = baseIntensity * mhdDensity;
   
-  // Alpha: smooth edge transition for compositing
+  // Apply Reinhard tonemapping to compress dynamic range while preserving local contrast
+  // This prevents the bright Doppler-boosted side from washing out texture detail
+  float compressedIntensity = baseIntensity / (1.0 + baseIntensity * diskLuminanceCompression);
+  
+  // Boost texture contrast on bright regions so it survives bloom blur
+  // Higher brightness = more contrast boost needed to remain visible after blur
+  float contrastMult = 1.0 + diskTextureContrast * sqrt(compressedIntensity);
+  float boostedDensity = 1.0 + (mhdDensity - 1.0) * contrastMult;
+  
+  // MHD modulation with boosted contrast
+  float intensity = compressedIntensity * boostedDensity;
+  
+  // Alpha: smooth edge transition for compositing + base opacity
   float edgeWidth = (diskOuterRadius - diskInnerRadius) * 0.08;
   float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + edgeWidth, r);
   float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - edgeWidth, r);
-  float alpha = innerFade * outerFade;
+  float alpha = innerFade * outerFade * diskOpacity;
   
   // Emissive boost for bloom - preserve texture/contrast on bright Doppler side
   // Use softer multipliers and clamp to prevent washout
