@@ -14,7 +14,8 @@ export default function SimulationWithControls() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
   const [activePreset, setActivePreset] = useState<string>('orbit');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
-  const [ehtMode, setEhtMode] = useState(true);
+  const [ehtMode, setEhtMode] = useState(false);
+  const [ehtBlurEnabled, setEhtBlurEnabled] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
@@ -26,16 +27,54 @@ export default function SimulationWithControls() {
   }, []);
 
   const handleEhtToggle = useCallback(() => {
+    if (!cameraController || !ehtBlurController) return;
+
+    if (ehtMode) {
+      // Exit EHT mode - go back to orbit
+      setEhtMode(false);
+      setEhtBlurEnabled(false);
+      ehtBlurController.setEnabled(false);
+      setActivePreset('orbit');
+
+      const orbitPreset = CAMERA_PRESETS.orbit;
+      cameraController.moveTo(
+        { position: orbitPreset.position, lookAt: orbitPreset.lookAt },
+        { duration: 2, ease: 'power2.inOut' }
+      ).then(() => {
+        cameraController.startOrbit({
+          distance: 20 * CONFIG.rs,
+          height: 1 * CONFIG.rs,
+          speed: 1,
+        });
+      });
+    } else {
+      // Enter EHT mode - move camera to EHT position then enable blur
+      setEhtMode(true);
+      setActivePreset('eht');
+
+      const ehtPreset = CAMERA_PRESETS.eht;
+      cameraController.moveTo(
+        { position: ehtPreset.position, lookAt: ehtPreset.lookAt },
+        { duration: ehtPreset.duration, ease: ehtPreset.ease }
+      ).then(() => {
+        setEhtBlurEnabled(true);
+        ehtBlurController.setEnabled(true);
+      });
+    }
+  }, [cameraController, ehtBlurController, ehtMode]);
+
+  const handleEhtBlurToggle = useCallback(() => {
     if (!ehtBlurController) return;
-    const newState = !ehtMode;
-    setEhtMode(newState);
+    const newState = !ehtBlurEnabled;
+    setEhtBlurEnabled(newState);
     ehtBlurController.setEnabled(newState);
-  }, [ehtBlurController, ehtMode]);
+  }, [ehtBlurController, ehtBlurEnabled]);
 
   const handleStart = useCallback(() => {
     if (!ehtBlurController || !cameraController) return;
     ehtBlurController.setEnabled(false);
     setEhtMode(false);
+    setEhtBlurEnabled(false);
     setIntroComplete(true);
 
     // Move camera from far intro position to orbit position
@@ -56,6 +95,13 @@ export default function SimulationWithControls() {
     const preset = CAMERA_PRESETS[presetName];
     if (!preset || !cameraController) return;
 
+    // Exit EHT mode when selecting other presets
+    if (ehtMode && presetName !== 'eht') {
+      setEhtMode(false);
+      setEhtBlurEnabled(false);
+      ehtBlurController?.setEnabled(false);
+    }
+
     setActivePreset(presetName);
 
     if (presetName === 'orbit') {
@@ -75,14 +121,14 @@ export default function SimulationWithControls() {
         { duration: preset.duration, ease: preset.ease }
       );
     }
-  }, [cameraController]);
+  }, [cameraController, ehtMode, ehtBlurController]);
 
   return (
     <>
       <BlackHoleSimulation
         showDevControls={false}
         showStats={false}
-        initialEhtBlurEnabled={true}
+        initialEhtBlurEnabled={false}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
       />
@@ -100,7 +146,9 @@ export default function SimulationWithControls() {
           onPresetSelect={handlePresetSelect}
           activePreset={activePreset}
           ehtMode={ehtMode}
+          ehtBlurEnabled={ehtBlurEnabled}
           onEhtToggle={handleEhtToggle}
+          onEhtBlurToggle={handleEhtBlurToggle}
           show={introComplete}
         />
       )}
@@ -198,4 +246,3 @@ export default function SimulationWithControls() {
     </>
   );
 }
-
