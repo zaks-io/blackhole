@@ -10,6 +10,7 @@ import { LensingPass, defaultLensingParams, LensingParams } from './passes/Lensi
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { CONFIG } from './config';
+import { CameraController } from './camera';
 
 // ============================================================================
 // Global State
@@ -18,6 +19,7 @@ import { CONFIG } from './config';
 let renderer: THREE.WebGLRenderer;
 let camera: THREE.PerspectiveCamera;
 let controls: OrbitControls;
+let cameraController: CameraController;
 let composer: EffectComposer;
 let lensingPass: LensingPass;
 let fxaaPass: ShaderPass;
@@ -81,6 +83,16 @@ async function init(): Promise<void> {
   controls.maxDistance = CONFIG.camera.maxDistance * CONFIG.rs;
   controls.target.set(0, 0, 0);
   controls.update();
+  
+  // Create camera controller for cinematic movements
+  cameraController = new CameraController(camera, controls);
+  
+  // Start orbiting by default
+  cameraController.startOrbit({
+    distance: 20 * CONFIG.rs,
+    height: 1 * CONFIG.rs,
+    speed: 1,
+  });
   
   // Initialize clock
   clock = new THREE.Clock();
@@ -414,14 +426,90 @@ function setupGUI(): void {
       lensingPass?.updateParams({ supersampleLevel: value });
     });
   
-  // Camera info (read-only)
+  // Camera Controls folder
   const cameraFolder = gui.addFolder('Camera');
+  
+  // Camera info (read-only)
   const cameraInfo = {
     get distance() {
       return camera.position.length().toFixed(1) + ' rs';
+    },
+    get mode() {
+      return cameraController.getMode();
     }
   };
   cameraFolder.add(cameraInfo, 'distance').name('Distance').listen().disable();
+  cameraFolder.add(cameraInfo, 'mode').name('Mode').listen().disable();
+  
+  // Orbit controls
+  const orbitParams = {
+    distance: 20,
+    height: 1,
+    speed: 1,
+    startOrbit: () => {
+      cameraController.startOrbit({
+        distance: orbitParams.distance * CONFIG.rs,
+        height: orbitParams.height * CONFIG.rs,
+        speed: orbitParams.speed,
+      });
+    },
+    stopOrbit: () => {
+      cameraController.stopOrbit();
+    },
+    returnToManual: () => {
+      cameraController.returnToManual();
+    },
+  };
+  
+  cameraFolder.add(orbitParams, 'distance', 10, 50, 1).name('Orbit Distance (rs)');
+  cameraFolder.add(orbitParams, 'height', -10, 20, 1).name('Orbit Height (rs)');
+  cameraFolder.add(orbitParams, 'speed', 1, 60, 1).name('Orbit Speed (°/s)');
+  cameraFolder.add(orbitParams, 'startOrbit').name('▶ Start Orbit');
+  cameraFolder.add(orbitParams, 'stopOrbit').name('⏸ Stop Orbit');
+  cameraFolder.add(orbitParams, 'returnToManual').name('✋ Manual Control');
+  
+  // Preset camera movements
+  const presetFolder = gui.addFolder('Camera Presets');
+  const presets = {
+    flybyClose: () => {
+      cameraController.moveTo({
+        position: { x: 8, y: 2, z: 8 },
+        lookAt: { x: 0, y: 0, z: 0 },
+      }, { duration: 3 });
+    },
+    topDown: () => {
+      cameraController.moveTo({
+        position: { x: 0, y: 30, z: 0.1 },
+        lookAt: { x: 0, y: 0, z: 0 },
+      }, { duration: 3 });
+    },
+    edgeOn: () => {
+      cameraController.moveTo({
+        position: { x: 35, y: 0.5, z: 0 },
+        lookAt: { x: 0, y: 0, z: 0 },
+      }, { duration: 3 });
+    },
+    dramatic: () => {
+      cameraController.moveTo({
+        position: { x: -15, y: 8, z: 20 },
+        lookAt: { x: 0, y: -1, z: 0 },
+      }, { duration: 4, ease: 'power3.inOut' });
+    },
+    resetDefault: () => {
+      cameraController.moveTo({
+        position: { x: 0, y: 1 * CONFIG.rs, z: CONFIG.camera.initialDistance * CONFIG.rs },
+        lookAt: { x: 0, y: 0, z: 0 },
+      }, { duration: 2 }).then(() => {
+        cameraController.returnToManual();
+      });
+    },
+  };
+  
+  presetFolder.add(presets, 'flybyClose').name('🎬 Close Flyby');
+  presetFolder.add(presets, 'topDown').name('🎬 Top Down');
+  presetFolder.add(presets, 'edgeOn').name('🎬 Edge On');
+  presetFolder.add(presets, 'dramatic').name('🎬 Dramatic');
+  presetFolder.add(presets, 'resetDefault').name('🔄 Reset & Manual');
 }
 
 // ============================================================================
@@ -475,11 +563,19 @@ function animate(): void {
   
   stats.begin();
   
-  // Update controls
-  controls.update();
-  
-  // Update time
+  // Get delta time for camera controller
+  const deltaTime = clock.getDelta();
   const elapsed = clock.getElapsedTime();
+  
+  // Update camera controller (handles orbit mode)
+  cameraController.update(deltaTime);
+  
+  // Update OrbitControls only when in manual mode
+  if (!cameraController.isActive()) {
+    controls.update();
+  }
+  
+  // Update time for lensing
   lensingPass?.updateTime(elapsed);
   
   // Update camera matrices
@@ -497,4 +593,19 @@ function animate(): void {
 // ============================================================================
 
 init().catch(console.error);
+
+// ============================================================================
+// Exports for LLM Tool Calls
+// ============================================================================
+
+/**
+ * Get the camera controller instance for external control
+ * Usage:
+ *   import { getCameraController } from './main';
+ *   const controller = getCameraController();
+ *   controller.moveTo({ position: {x, y, z}, lookAt: {x, y, z} }, { duration: 2 });
+ */
+export function getCameraController(): CameraController {
+  return cameraController;
+}
 

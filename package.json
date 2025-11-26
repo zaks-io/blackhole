@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "gsap": "^3.13.0",
     "lil-gui": "^0.20.0",
     "stats.js": "^0.17.0",
     "three": "^0.170.0"
