@@ -25,7 +25,7 @@ const CONFIG = {
   targetFPS: 60,
   
   // Bloom settings
-  bloomThreshold: 0.3,
+  bloomThreshold: 0,
   bloomStrength: 1.2,
   bloomRadius: 0.5,
   

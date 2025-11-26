@@ -33,7 +33,7 @@ vec3 sampleBlackbody(float temp) {
   return texture2D(blackbodyLUT, vec2(t, 0.5)).rgb;
 }
 
-vec3 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
+vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
   // Keplerian velocity
   float v = sqrt(0.5 * rs / r);
   vec3 tangent = normalize(vec3(-hitPos.z, 0.0, hitPos.x));
@@ -50,7 +50,13 @@ vec3 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
   vec3 color = sampleBlackbody(temp);
   float intensity = pow(doppler, 3.0) / (1.0 + frac * 2.0);
   
-  return color * intensity * 2.0;
+  // Edge falloff - fade over ~15% of disk width at each edge
+  float edgeWidth = (diskOuterRadius - diskInnerRadius) * 0.15;
+  float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + edgeWidth, r);
+  float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - edgeWidth, r);
+  float alpha = innerFade * outerFade * 0.85; // 0.85 base opacity
+  
+  return vec4(color * intensity * 2.0, alpha);
 }
 
 void main() {
@@ -67,6 +73,7 @@ void main() {
   float camDist = length(cameraPos);
   
   vec3 color = vec3(0.0);  // Start black
+  vec4 diskColor = vec4(0.0);  // Disk color with alpha for blending
   bool hitHorizon = false;
   bool hitDisk = false;
   bool escaped = false;
@@ -129,22 +136,32 @@ void main() {
       float hitR = length(hitPos.xz);
       
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-        color = sampleDisk(hitPos, rayDir, hitR);
+        diskColor = sampleDisk(hitPos, rayDir, hitR);
         hitDisk = true;
+        // Continue tracing to get background for blending
       }
     }
     
     rayPos = newPos;
   }
   
-  // If we ran out of steps without hitting anything, sample starfield
-  if (!hitHorizon && !hitDisk && !escaped) {
-    color = sampleStarfield(rayDir);
+  // Determine background color
+  vec3 backgroundColor = vec3(0.0);
+  if (!hitHorizon) {
+    // Ray escaped or ran out of steps - sample starfield
+    if (escaped) {
+      backgroundColor = color; // Already sampled in escape condition
+    } else {
+      backgroundColor = sampleStarfield(rayDir);
+    }
   }
+  // If hit horizon, background stays black
   
-  // Black if fell into horizon and didn't hit disk
-  if (hitHorizon && !hitDisk) {
-    color = vec3(0.0);
+  // Blend disk with background
+  if (hitDisk) {
+    color = mix(backgroundColor, diskColor.rgb, diskColor.a);
+  } else {
+    color = backgroundColor;
   }
   
   gl_FragColor = vec4(color, 1.0);
