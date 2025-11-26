@@ -352,7 +352,7 @@ function setupGUI(): void {
       lensingPass?.updateParams({ mhdHotspotCount: value });
     });
   
-  mhdFolder.add(params, 'mhdPatternSpeed', 0.0, 3.0, 0.1)
+  mhdFolder.add(params, 'mhdPatternSpeed', 0.0, 150.0, 0.5)
     .name('Pattern Speed')
     .onChange((value: number) => {
       lensingPass?.updateParams({ mhdPatternSpeed: value });

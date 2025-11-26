@@ -33,7 +33,7 @@ export const defaultLensingParams: LensingParams = {
   mhdSpiralTightness: 3.0,
   mhdHotspotIntensity: 0.7,
   mhdHotspotCount: 3,
-  mhdPatternSpeed: 1.0
+  mhdPatternSpeed: 5.0
 };
 
 const LensingShader = {
@@ -59,7 +59,7 @@ const LensingShader = {
     mhdSpiralTightness: { value: 3.0 },
     mhdHotspotIntensity: { value: 0.7 },
     mhdHotspotCount: { value: 3 },
-    mhdPatternSpeed: { value: 1.0 }
+    mhdPatternSpeed: { value: 5.0 }
   },
   vertexShader,
   fragmentShader

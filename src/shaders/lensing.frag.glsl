@@ -272,7 +272,12 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
   float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - edgeWidth, r);
   float alpha = innerFade * outerFade;
   
-  return vec4(color * intensity * 2.0, alpha);
+  // Emissive boost for bloom - preserve texture/contrast on bright Doppler side
+  // Use softer multipliers and clamp to prevent washout
+  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8;
+  emissiveBoost = clamp(emissiveBoost, 0.3, 1.6);
+  
+  return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
 }
 
 void main() {
