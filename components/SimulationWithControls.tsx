@@ -82,6 +82,7 @@ export default function SimulationWithControls() {
       <BlackHoleSimulation
         showDevControls={false}
         showStats={false}
+        initialEhtBlurEnabled={true}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
       />
