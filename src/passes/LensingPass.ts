@@ -11,6 +11,13 @@ export interface LensingParams {
   diskOuterRadius: number;
   diskTemperatureInner: number;
   diskTemperatureOuter: number;
+  // MHD parameters
+  mhdTurbulenceIntensity: number;
+  mhdSpiralArms: number;
+  mhdSpiralTightness: number;
+  mhdHotspotIntensity: number;
+  mhdHotspotCount: number;
+  mhdPatternSpeed: number;
 }
 
 export const defaultLensingParams: LensingParams = {
@@ -19,7 +26,14 @@ export const defaultLensingParams: LensingParams = {
   diskInnerRadius: 3.0,  // ISCO
   diskOuterRadius: 12.0,
   diskTemperatureInner: 10000,
-  diskTemperatureOuter: 3000
+  diskTemperatureOuter: 3000,
+  // MHD defaults - dramatic cinematic look
+  mhdTurbulenceIntensity: 0.8,
+  mhdSpiralArms: 2.0,
+  mhdSpiralTightness: 3.0,
+  mhdHotspotIntensity: 0.7,
+  mhdHotspotCount: 3,
+  mhdPatternSpeed: 1.0
 };
 
 const LensingShader = {
@@ -38,7 +52,14 @@ const LensingShader = {
     diskOuterRadius: { value: 12.0 },
     diskTemperatureInner: { value: 10000.0 },
     diskTemperatureOuter: { value: 3000.0 },
-    time: { value: 0.0 }
+    time: { value: 0.0 },
+    // MHD uniforms
+    mhdTurbulenceIntensity: { value: 0.8 },
+    mhdSpiralArms: { value: 2.0 },
+    mhdSpiralTightness: { value: 3.0 },
+    mhdHotspotIntensity: { value: 0.7 },
+    mhdHotspotCount: { value: 3 },
+    mhdPatternSpeed: { value: 1.0 }
   },
   vertexShader,
   fragmentShader
@@ -87,6 +108,25 @@ export class LensingPass extends ShaderPass {
     }
     if (params.diskTemperatureOuter !== undefined) {
       this.uniforms['diskTemperatureOuter'].value = params.diskTemperatureOuter;
+    }
+    // MHD parameters
+    if (params.mhdTurbulenceIntensity !== undefined) {
+      this.uniforms['mhdTurbulenceIntensity'].value = params.mhdTurbulenceIntensity;
+    }
+    if (params.mhdSpiralArms !== undefined) {
+      this.uniforms['mhdSpiralArms'].value = params.mhdSpiralArms;
+    }
+    if (params.mhdSpiralTightness !== undefined) {
+      this.uniforms['mhdSpiralTightness'].value = params.mhdSpiralTightness;
+    }
+    if (params.mhdHotspotIntensity !== undefined) {
+      this.uniforms['mhdHotspotIntensity'].value = params.mhdHotspotIntensity;
+    }
+    if (params.mhdHotspotCount !== undefined) {
+      this.uniforms['mhdHotspotCount'].value = params.mhdHotspotCount;
+    }
+    if (params.mhdPatternSpeed !== undefined) {
+      this.uniforms['mhdPatternSpeed'].value = params.mhdPatternSpeed;
     }
   }
   

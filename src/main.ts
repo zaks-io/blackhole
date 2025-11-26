@@ -26,7 +26,7 @@ const CONFIG = {
   
   // Bloom settings
   bloomThreshold: 0,
-  bloomStrength: 1.2,
+  bloomStrength: 0.4,
   bloomRadius: 0.5,
   
   // Disk parameters
@@ -63,6 +63,7 @@ const params: LensingParams & {
   bloomStrength: CONFIG.bloomStrength,
   bloomRadius: CONFIG.bloomRadius,
   autoSteps: true,
+  // MHD defaults from defaultLensingParams are spread above
 };
 
 // ============================================================================
@@ -317,6 +318,44 @@ function setupGUI(): void {
     .name('Outer Temp (K)')
     .onChange((value: number) => {
       lensingPass?.updateParams({ diskTemperatureOuter: value });
+    });
+  
+  // MHD Effects folder
+  const mhdFolder = gui.addFolder('MHD Turbulence');
+  mhdFolder.add(params, 'mhdTurbulenceIntensity', 0.0, 1.0, 0.05)
+    .name('Turbulence')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ mhdTurbulenceIntensity: value });
+    });
+  
+  mhdFolder.add(params, 'mhdSpiralArms', 1, 4, 1)
+    .name('Spiral Arms')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ mhdSpiralArms: value });
+    });
+  
+  mhdFolder.add(params, 'mhdSpiralTightness', 1.0, 6.0, 0.5)
+    .name('Spiral Tightness')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ mhdSpiralTightness: value });
+    });
+  
+  mhdFolder.add(params, 'mhdHotspotIntensity', 0.0, 1.0, 0.05)
+    .name('Hotspot Intensity')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ mhdHotspotIntensity: value });
+    });
+  
+  mhdFolder.add(params, 'mhdHotspotCount', 0, 5, 1)
+    .name('Hotspot Count')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ mhdHotspotCount: value });
+    });
+  
+  mhdFolder.add(params, 'mhdPatternSpeed', 0.0, 3.0, 0.1)
+    .name('Pattern Speed')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ mhdPatternSpeed: value });
     });
   
   // Bloom folder
