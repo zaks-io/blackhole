@@ -41,7 +41,6 @@ const CONFIG = {
 // ============================================================================
 
 let renderer: THREE.WebGLRenderer;
-let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let controls: OrbitControls;
 let composer: EffectComposer;
@@ -63,6 +62,8 @@ const params: LensingParams & {
   bloomStrength: CONFIG.bloomStrength,
   bloomRadius: CONFIG.bloomRadius,
   autoSteps: true,
+  // Supersampling default (1 = off for performance)
+  supersampleLevel: 1,
   // MHD defaults from defaultLensingParams are spread above
 };
 
@@ -83,9 +84,6 @@ async function init(): Promise<void> {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor(0x000000, 1.0);  // Black background
   document.body.appendChild(renderer.domElement);
-  
-  // Create scene (not used for geometry, but needed for composer)
-  scene = new THREE.Scene();
   
   // Create camera
   camera = new THREE.PerspectiveCamera(
@@ -400,6 +398,14 @@ function setupGUI(): void {
     .name('Radius')
     .onChange((value: number) => {
       if (bloomPass) bloomPass.radius = value;
+    });
+  
+  // Anti-aliasing folder
+  const aaFolder = gui.addFolder('Anti-Aliasing');
+  aaFolder.add(params, 'supersampleLevel', { 'Off (1x)': 1, '2x2 (4 samples)': 2, '4x4 (16 samples)': 4 })
+    .name('Supersampling')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ supersampleLevel: value });
     });
   
   // Camera info (read-only)

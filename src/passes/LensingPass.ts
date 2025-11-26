@@ -29,6 +29,8 @@ export interface LensingParams {
   mhdHotspotIntensity: number;
   mhdHotspotCount: number;
   mhdPatternSpeed: number;
+  // Supersampling for anti-aliasing (1 = off, 2 = 2x2, 4 = 4x4)
+  supersampleLevel: number;
 }
 
 export const defaultLensingParams: LensingParams = {
@@ -55,7 +57,9 @@ export const defaultLensingParams: LensingParams = {
   mhdSpiralTightness: 3.0,
   mhdHotspotIntensity: 0.7,
   mhdHotspotCount: 3,
-  mhdPatternSpeed: 25.0
+  mhdPatternSpeed: 25.0,
+  // Supersampling - 1 = off, 2 = 2x2 (4 samples), 4 = 4x4 (16 samples)
+  supersampleLevel: 1
 };
 
 const LensingShader = {
@@ -92,7 +96,9 @@ const LensingShader = {
     mhdSpiralTightness: { value: 3.0 },
     mhdHotspotIntensity: { value: 0.7 },
     mhdHotspotCount: { value: 3 },
-    mhdPatternSpeed: { value: 25.0 }
+    mhdPatternSpeed: { value: 25.0 },
+    // Supersampling uniform
+    supersampleLevel: { value: 1 }
   },
   vertexShader,
   fragmentShader
@@ -183,6 +189,9 @@ export class LensingPass extends ShaderPass {
     }
     if (params.mhdPatternSpeed !== undefined) {
       this.uniforms['mhdPatternSpeed'].value = params.mhdPatternSpeed;
+    }
+    if (params.supersampleLevel !== undefined) {
+      this.uniforms['supersampleLevel'].value = params.supersampleLevel;
     }
   }
   
