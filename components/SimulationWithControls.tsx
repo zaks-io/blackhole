@@ -14,7 +14,8 @@ export default function SimulationWithControls() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
   const [activePreset, setActivePreset] = useState<string>('orbit');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
-  const [ehtMode, setEhtMode] = useState(false);
+  const [ehtMode, setEhtMode] = useState(true);
+  const [introComplete, setIntroComplete] = useState(false);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
@@ -30,6 +31,26 @@ export default function SimulationWithControls() {
     setEhtMode(newState);
     ehtBlurController.setEnabled(newState);
   }, [ehtBlurController, ehtMode]);
+
+  const handleStart = useCallback(() => {
+    if (!ehtBlurController || !cameraController) return;
+    ehtBlurController.setEnabled(false);
+    setEhtMode(false);
+    setIntroComplete(true);
+
+    // Move camera from far intro position to orbit position
+    const orbitPreset = CAMERA_PRESETS.orbit;
+    cameraController.moveTo(
+      { position: orbitPreset.position, lookAt: orbitPreset.lookAt },
+      { duration: 2.5, ease: 'power2.inOut' }
+    ).then(() => {
+      cameraController.startOrbit({
+        distance: 20 * CONFIG.rs,
+        height: 1 * CONFIG.rs,
+        speed: 1,
+      });
+    });
+  }, [ehtBlurController, cameraController]);
 
   const handlePresetSelect = useCallback((presetName: string) => {
     const preset = CAMERA_PRESETS[presetName];
@@ -64,14 +85,115 @@ export default function SimulationWithControls() {
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
       />
+
+      {/* Intro Overlay */}
+      <div className={`intro-overlay ${introComplete ? 'hidden' : ''}`}>
+        <button onClick={handleStart} className="start-btn" disabled={!ehtBlurController}>
+          <span className="start-icon">◉</span>
+          <span className="start-label">START</span>
+        </button>
+      </div>
+
       {cameraController && (
         <CameraPresetBar
           onPresetSelect={handlePresetSelect}
           activePreset={activePreset}
           ehtMode={ehtMode}
           onEhtToggle={handleEhtToggle}
+          show={introComplete}
         />
       )}
+
+      <style jsx>{`
+        .intro-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 200;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          padding-bottom: 15vh;
+          background-image: radial-gradient(
+            ellipse at center,
+            rgba(255, 74, 30, 0.18) 0%,
+            rgba(0, 0, 0, 0.3) 50%
+          );
+          background-blend-mode: overlay;
+          opacity: 1;
+          transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .intro-overlay.hidden {
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .start-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          padding: 24px 48px;
+          background: rgba(10, 10, 10, 0.7);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 165, 0, 0.3);
+          border-radius: 16px;
+          cursor: pointer;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow:
+            0 4px 30px rgba(0, 0, 0, 0.5),
+            0 0 60px rgba(255, 165, 0, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .start-btn:hover:not(:disabled) {
+          background: rgba(255, 165, 0, 0.15);
+          border-color: rgba(255, 165, 0, 0.5);
+          box-shadow:
+            0 4px 30px rgba(0, 0, 0, 0.5),
+            0 0 80px rgba(255, 165, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .start-btn:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+
+        .start-btn:disabled {
+          opacity: 0.5;
+          cursor: default;
+        }
+
+        .start-icon {
+          font-size: 48px;
+          color: #ffa500;
+          line-height: 1;
+          transition: transform 0.2s ease;
+          text-shadow: 0 0 20px rgba(255, 165, 0, 0.5);
+        }
+
+        .start-btn:hover:not(:disabled) .start-icon {
+          transform: scale(1.1);
+        }
+
+        .start-label {
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: 12px;
+          font-weight: 500;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: rgba(255, 255, 255, 0.7);
+          transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .start-btn:hover:not(:disabled) .start-label {
+          color: rgba(255, 255, 255, 0.9);
+        }
+      `}</style>
     </>
   );
 }

@@ -8,6 +8,7 @@ interface CameraPresetBarProps {
   activePreset: string | null;
   ehtMode?: boolean;
   onEhtToggle?: () => void;
+  show?: boolean;
 }
 
 const PRESET_ICONS: Record<string, string> = {
@@ -24,14 +25,14 @@ const PRESET_LABELS: Record<string, string> = {
   edgeOn: 'Edge',
 };
 
-export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, onEhtToggle }: CameraPresetBarProps) {
+export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, onEhtToggle, show = true }: CameraPresetBarProps) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const presetKeys = Object.keys(CAMERA_PRESETS);
+  const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'intro');
 
   return (
     <div
-      className="preset-bar-container"
+      className={`preset-bar-container ${show ? '' : 'hidden'}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -67,8 +68,16 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, onEhtTo
           position: fixed;
           bottom: 32px;
           left: 50%;
-          transform: translateX(-50%);
+          transform: translateX(-50%) translateY(0);
           z-index: 100;
+          opacity: 1;
+          transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .preset-bar-container.hidden {
+          transform: translateX(-50%) translateY(100px);
+          opacity: 0;
+          pointer-events: none;
         }
 
         .preset-bar {
