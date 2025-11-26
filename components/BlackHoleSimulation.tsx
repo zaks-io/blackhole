@@ -85,6 +85,13 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
     lookAt: { x: 0, y: 0, z: 0 },
     duration: 3,
   },
+  eht: {
+    name: 'EHT View',
+    position: { x: 0, y: 30, z: 0.01 },
+    lookAt: { x: 0, y: 0, z: 0 },
+    duration: 2.5,
+    ease: 'power2.inOut',
+  },
 };
 
 // ============================================================================

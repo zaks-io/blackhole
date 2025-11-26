@@ -7,7 +7,9 @@ interface CameraPresetBarProps {
   onPresetSelect: (presetName: string) => void;
   activePreset: string | null;
   ehtMode?: boolean;
+  ehtBlurEnabled?: boolean;
   onEhtToggle?: () => void;
+  onEhtBlurToggle?: () => void;
   show?: boolean;
 }
 
@@ -25,10 +27,10 @@ const PRESET_LABELS: Record<string, string> = {
   edgeOn: 'Edge',
 };
 
-export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, onEhtToggle, show = true }: CameraPresetBarProps) {
+export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlurEnabled, onEhtToggle, onEhtBlurToggle, show = true }: CameraPresetBarProps) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'intro');
+  const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'intro' && key !== 'eht');
 
   return (
     <div
@@ -54,11 +56,21 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, onEhtTo
             <button
               className={`preset-btn eht-btn ${ehtMode ? 'active' : ''}`}
               onClick={onEhtToggle}
-              title="Toggle EHT Mode"
+              title="EHT View"
             >
               <span className="preset-icon">◉</span>
               <span className="preset-label">EHT</span>
             </button>
+            {ehtMode && onEhtBlurToggle && (
+              <button
+                className={`preset-btn blur-btn ${ehtBlurEnabled ? 'active' : ''}`}
+                onClick={onEhtBlurToggle}
+                title={ehtBlurEnabled ? 'Show Sharp View' : 'Show Blurred View'}
+              >
+                <span className="preset-icon">{ehtBlurEnabled ? '◐' : '◯'}</span>
+                <span className="preset-label">{ehtBlurEnabled ? 'Blur' : 'Sharp'}</span>
+              </button>
+            )}
           </>
         )}
       </div>
@@ -156,6 +168,19 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, onEhtTo
           box-shadow:
             0 0 20px rgba(255, 165, 0, 0.2),
             inset 0 0 10px rgba(255, 165, 0, 0.15);
+        }
+
+        .preset-btn.blur-btn {
+          color: rgba(255, 255, 255, 0.6);
+        }
+
+        .preset-btn.blur-btn.active {
+          color: #87ceeb;
+          background: rgba(135, 206, 235, 0.15);
+          border-color: rgba(135, 206, 235, 0.4);
+          box-shadow:
+            0 0 20px rgba(135, 206, 235, 0.15),
+            inset 0 0 10px rgba(135, 206, 235, 0.1);
         }
 
         .preset-icon {
