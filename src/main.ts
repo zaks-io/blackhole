@@ -7,6 +7,8 @@ import GUI from 'lil-gui';
 import Stats from 'stats.js';
 
 import { LensingPass, defaultLensingParams, LensingParams } from './passes/LensingPass';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 
 // ============================================================================
 // Configuration
@@ -18,7 +20,7 @@ const CONFIG = {
   
   // Camera limits
   cameraMinDistance: 5,
-  cameraMaxDistance: 100,
+  cameraMaxDistance: 50,
   cameraInitialDistance: 20,
   
   // Performance settings
@@ -45,6 +47,7 @@ let camera: THREE.PerspectiveCamera;
 let controls: OrbitControls;
 let composer: EffectComposer;
 let lensingPass: LensingPass;
+let fxaaPass: ShaderPass;
 let bloomPass: UnrealBloomPass;
 let stats: Stats;
 let gui: GUI;
@@ -56,12 +59,14 @@ const params: LensingParams & {
   bloomStrength: number;
   bloomRadius: number;
   autoSteps: boolean;
+  fxaaEnabled: boolean;
 } = {
   ...defaultLensingParams,
   bloomThreshold: CONFIG.bloomThreshold,
   bloomStrength: CONFIG.bloomStrength,
   bloomRadius: CONFIG.bloomRadius,
   autoSteps: true,
+  fxaaEnabled: true,
   // Supersampling default (1 = off for performance)
   supersampleLevel: 1,
   // MHD defaults from defaultLensingParams are spread above
@@ -221,6 +226,15 @@ function setupPostProcessing(): void {
   lensingPass.updateParams(params);
   composer.addPass(lensingPass);
   
+  // Create and add FXAA pass (screen-space edge anti-aliasing)
+  fxaaPass = new ShaderPass(FXAAShader);
+  fxaaPass.uniforms['resolution'].value.set(
+    1 / (window.innerWidth * renderer.getPixelRatio()),
+    1 / (window.innerHeight * renderer.getPixelRatio())
+  );
+  fxaaPass.enabled = params.fxaaEnabled;
+  composer.addPass(fxaaPass);
+  
   // Create and add bloom pass
   const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
   bloomPass = new UnrealBloomPass(resolution, params.bloomStrength, params.bloomRadius, params.bloomThreshold);
@@ -277,6 +291,12 @@ function setupGUI(): void {
       lensingPass?.updateParams({ rs: value });
       controls.minDistance = CONFIG.cameraMinDistance * value;
       controls.maxDistance = CONFIG.cameraMaxDistance * value;
+    });
+  
+  simFolder.add(params, 'bhEdgeSoftness', 0.0, 1.0, 0.05)
+    .name('Edge AA')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ bhEdgeSoftness: value });
     });
   
   simFolder.add(params, 'autoSteps')
@@ -402,6 +422,13 @@ function setupGUI(): void {
   
   // Anti-aliasing folder
   const aaFolder = gui.addFolder('Anti-Aliasing');
+  
+  aaFolder.add(params, 'fxaaEnabled')
+    .name('FXAA Enabled')
+    .onChange((value: boolean) => {
+      if (fxaaPass) fxaaPass.enabled = value;
+    });
+  
   aaFolder.add(params, 'supersampleLevel', { 'Off (1x)': 1, '2x2 (4 samples)': 2, '4x4 (16 samples)': 4 })
     .name('Supersampling')
     .onChange((value: number) => {
@@ -444,6 +471,14 @@ function onWindowResize(): void {
   composer?.setSize(width, height);
   
   lensingPass?.updateResolution(width, height);
+  
+  // Update FXAA resolution
+  if (fxaaPass) {
+    fxaaPass.uniforms['resolution'].value.set(
+      1 / (width * renderer.getPixelRatio()),
+      1 / (height * renderer.getPixelRatio())
+    );
+  }
   
   if (bloomPass) {
     bloomPass.resolution.set(width, height);
