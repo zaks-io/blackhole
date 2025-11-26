@@ -35,6 +35,9 @@ uniform float diskOpacity;               // Base opacity (0 = transparent, 1 = o
 // Supersampling level (1 = off, 2 = 2x2, 4 = 4x4)
 uniform int supersampleLevel;
 
+// Black hole edge softness (0 = hard edge, 1 = very soft)
+uniform float bhEdgeSoftness;
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
@@ -305,8 +308,8 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
   return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
 }
 
-// Trace a single ray and return the color
-vec3 traceRay(vec2 uv) {
+// Trace a single ray and return the color + TAA mask in alpha
+vec4 traceRay(vec2 uv) {
   // Ray from camera through pixel
   vec2 ndc = uv * 2.0 - 1.0;
   vec4 clip = vec4(ndc, -1.0, 1.0);
@@ -322,12 +325,18 @@ vec3 traceRay(vec2 uv) {
   bool hitHorizon = false;
   bool escaped = false;
   
+  // Track minimum radius for black hole edge mask
+  float minRadius = 1000.0;
+  
   float h = 0.2;
   
   for (int i = 0; i < 300; i++) {
     if (i >= maxSteps) break;
     
     float r = length(rayPos);
+    
+    // Track closest approach to black hole
+    minRadius = min(minRadius, r);
     
     if (r < rs) {
       hitHorizon = true;
@@ -404,7 +413,8 @@ vec3 traceRay(vec2 uv) {
     color = backgroundColor;
   }
   
-  return color;
+  
+  return vec4(color, 1.0);
 }
 
 // Simple hash function for jitter
@@ -419,16 +429,74 @@ vec2 hash2(vec2 p) {
   );
 }
 
+// Quick trace to detect if near black hole edge (returns minRadius)
+float traceEdgeDetect(vec2 uv) {
+  vec2 ndc = uv * 2.0 - 1.0;
+  vec4 clip = vec4(ndc, -1.0, 1.0);
+  vec4 viewPos = inverseProjection * clip;
+  viewPos = vec4(viewPos.xy, -1.0, 0.0);
+  vec3 rayDir = normalize((inverseView * viewPos).xyz);
+  vec3 rayPos = cameraPos;
+  
+  float camDist = length(cameraPos);
+  float minR = 1000.0;
+  float h = 0.3; // Larger step for speed
+  
+  // Quick march with fewer steps
+  for (int i = 0; i < 80; i++) {
+    float r = length(rayPos);
+    minR = min(minR, r);
+    
+    if (r < rs) return minR; // Hit horizon
+    if (r > max(camDist * 2.0, 100.0)) return minR; // Escaped
+    
+    vec3 rHat = rayPos / r;
+    float vDotR = dot(rayDir, rHat);
+    float vPerpSq = 1.0 - vDotR * vDotR;
+    float accel = -1.5 * rs * vPerpSq / (r * r);
+    
+    rayDir = normalize(rayDir + accel * rHat * h);
+    rayPos += rayDir * h;
+  }
+  return minR;
+}
+
 void main() {
-  vec3 color;
+  vec4 result;
+  vec2 pixelSize = 1.0 / resolution;
   
   if (supersampleLevel <= 1) {
-    // No supersampling - single sample
-    color = traceRay(vUv);
+    // No supersampling requested, but check if we're near the BH edge
+    // If bhEdgeSoftness > 0, do adaptive edge supersampling
+    if (bhEdgeSoftness > 0.0) {
+      float minR = traceEdgeDetect(vUv);
+      float photonSphere = rs * 1.5;
+      float edgeThreshold = rs * (2.0 + bhEdgeSoftness * 2.0); // 2-4 rs range
+      
+      // Near the photon sphere = potential edge aliasing
+      if (minR < edgeThreshold && minR > rs * 0.5) {
+        // Adaptive 2x2 supersampling for edge pixels
+        vec4 accum = vec4(0.0);
+        vec2 pixelCoord = vUv * resolution;
+        
+        for (int sy = 0; sy < 2; sy++) {
+          for (int sx = 0; sx < 2; sx++) {
+            vec2 cellIndex = vec2(float(sx), float(sy));
+            vec2 jitter = hash2(pixelCoord + cellIndex * 17.31) - 0.5;
+            vec2 offset = (cellIndex + 0.5 + jitter * 0.6) / 2.0 - 0.5;
+            accum += traceRay(vUv + offset * pixelSize);
+          }
+        }
+        result = accum / 4.0;
+      } else {
+        result = traceRay(vUv);
+      }
+    } else {
+      result = traceRay(vUv);
+    }
   } else {
-    // Supersampling with NxN jittered grid
-    color = vec3(0.0);
-    vec2 pixelSize = 1.0 / resolution;
+    // Full supersampling with NxN jittered grid
+    result = vec4(0.0);
     float n = float(supersampleLevel);
     float sampleCount = n * n;
     
@@ -449,12 +517,12 @@ void main() {
         vec2 cellOffset = (cellIndex + 0.5 + jitter * 0.8) / n - 0.5;
         vec2 sampleUv = vUv + cellOffset * pixelSize;
         
-        color += traceRay(sampleUv);
+        result += traceRay(sampleUv);
       }
     }
     
-    color /= sampleCount;
+    result /= sampleCount;
   }
   
-  gl_FragColor = vec4(color, 1.0);
+  gl_FragColor = result;
 }
