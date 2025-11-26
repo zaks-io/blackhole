@@ -1,23 +1,31 @@
 {
   "name": "blackhole-threejs-lens-v2",
   "version": "1.0.0",
-  "type": "module",
+  "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
     "gsap": "^3.13.0",
     "lil-gui": "^0.20.0",
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "stats.js": "^0.17.0",
+    "tailwindcss": "^4.1.17",
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@types/stats.js": "^0.17.3",
     "@types/three": "^0.170.0",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.3",
-    "vite-plugin-glsl": "^1.5.4"
+    "raw-loader": "^4.0.2",
+    "typescript": "^5.7.2"
   }
 }
