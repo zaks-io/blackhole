@@ -320,6 +320,30 @@ function setupGUI(): void {
       lensingPass?.updateParams({ diskTemperatureOuter: value });
     });
   
+  diskFolder.add(params, 'diskLuminanceCompression', 0.0, 0.5, 0.01)
+    .name('Lum. Compression')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ diskLuminanceCompression: value });
+    });
+  
+  diskFolder.add(params, 'diskTextureContrast', 0.0, 2.0, 0.1)
+    .name('Texture Contrast')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ diskTextureContrast: value });
+    });
+  
+  diskFolder.add(params, 'diskMaterialSpeed', 0.0, 50.0, 1.0)
+    .name('Material Speed')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ diskMaterialSpeed: value });
+    });
+  
+  diskFolder.add(params, 'diskOpacity', 0.0, 1.0, 0.05)
+    .name('Opacity')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ diskOpacity: value });
+    });
+  
   // MHD Effects folder
   const mhdFolder = gui.addFolder('MHD Turbulence');
   mhdFolder.add(params, 'mhdTurbulenceIntensity', 0.0, 1.0, 0.05)

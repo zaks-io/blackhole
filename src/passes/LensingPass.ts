@@ -14,6 +14,14 @@ export interface LensingParams {
   // Volumetric disk parameters
   diskHalfThickness: number;
   diskVolumeDensity: number;
+  // Luminance compression for detail preservation
+  diskLuminanceCompression: number;
+  // Texture contrast boost (survives bloom)
+  diskTextureContrast: number;
+  // Material/turbulence flow speed
+  diskMaterialSpeed: number;
+  // Base disk opacity (0 = transparent, 1 = opaque)
+  diskOpacity: number;
   // MHD parameters
   mhdTurbulenceIntensity: number;
   mhdSpiralArms: number;
@@ -33,13 +41,21 @@ export const defaultLensingParams: LensingParams = {
   // Volumetric disk defaults - subtle fuzz
   diskHalfThickness: 0.2,
   diskVolumeDensity: 0.15,
+  // Luminance compression - preserves detail on bright Doppler side
+  diskLuminanceCompression: 0.15,
+  // Texture contrast boost - makes detail survive bloom
+  diskTextureContrast: 1.0,
+  // Material flow speed - how fast turbulence rotates
+  diskMaterialSpeed: 15.0,
+  // Base disk opacity - allows stars to show through
+  diskOpacity: 0.85,
   // MHD defaults - dramatic cinematic look
   mhdTurbulenceIntensity: 0.8,
   mhdSpiralArms: 2.0,
   mhdSpiralTightness: 3.0,
   mhdHotspotIntensity: 0.7,
   mhdHotspotCount: 3,
-  mhdPatternSpeed: 5.0
+  mhdPatternSpeed: 25.0
 };
 
 const LensingShader = {
@@ -62,13 +78,21 @@ const LensingShader = {
     // Volumetric disk uniforms
     diskHalfThickness: { value: 0.2 },
     diskVolumeDensity: { value: 0.15 },
+    // Luminance compression uniform
+    diskLuminanceCompression: { value: 0.15 },
+    // Texture contrast uniform
+    diskTextureContrast: { value: 1.0 },
+    // Material speed uniform
+    diskMaterialSpeed: { value: 15.0 },
+    // Disk opacity uniform
+    diskOpacity: { value: 0.85 },
     // MHD uniforms
     mhdTurbulenceIntensity: { value: 0.8 },
     mhdSpiralArms: { value: 2.0 },
     mhdSpiralTightness: { value: 3.0 },
     mhdHotspotIntensity: { value: 0.7 },
     mhdHotspotCount: { value: 3 },
-    mhdPatternSpeed: { value: 5.0 }
+    mhdPatternSpeed: { value: 25.0 }
   },
   vertexShader,
   fragmentShader
@@ -124,6 +148,22 @@ export class LensingPass extends ShaderPass {
     }
     if (params.diskVolumeDensity !== undefined) {
       this.uniforms['diskVolumeDensity'].value = params.diskVolumeDensity;
+    }
+    // Luminance compression
+    if (params.diskLuminanceCompression !== undefined) {
+      this.uniforms['diskLuminanceCompression'].value = params.diskLuminanceCompression;
+    }
+    // Texture contrast
+    if (params.diskTextureContrast !== undefined) {
+      this.uniforms['diskTextureContrast'].value = params.diskTextureContrast;
+    }
+    // Material speed
+    if (params.diskMaterialSpeed !== undefined) {
+      this.uniforms['diskMaterialSpeed'].value = params.diskMaterialSpeed;
+    }
+    // Disk opacity
+    if (params.diskOpacity !== undefined) {
+      this.uniforms['diskOpacity'].value = params.diskOpacity;
     }
     // MHD parameters
     if (params.mhdTurbulenceIntensity !== undefined) {
