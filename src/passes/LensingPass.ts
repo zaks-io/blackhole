@@ -34,6 +34,8 @@ export interface LensingParams {
   supersampleLevel: number;
   // Black hole edge softness (0 = hard edge, 1 = very soft)
   bhEdgeSoftness: number;
+  // Photon sphere glow intensity (0 = off, 1 = full)
+  photonSphereIntensity: number;
 }
 
 // Default params built from centralized config
@@ -77,7 +79,9 @@ const LensingShader = {
     // Supersampling uniform
     supersampleLevel: { value: 1 },
     // Black hole edge softness uniform
-    bhEdgeSoftness: { value: 0.5 }
+    bhEdgeSoftness: { value: 0.5 },
+    // Photon sphere glow intensity uniform
+    photonSphereIntensity: { value: 0.5 }
   },
   vertexShader,
   fragmentShader
@@ -174,6 +178,9 @@ export class LensingPass extends ShaderPass {
     }
     if (params.bhEdgeSoftness !== undefined) {
       this.uniforms['bhEdgeSoftness'].value = params.bhEdgeSoftness;
+    }
+    if (params.photonSphereIntensity !== undefined) {
+      this.uniforms['photonSphereIntensity'].value = params.photonSphereIntensity;
     }
   }
   

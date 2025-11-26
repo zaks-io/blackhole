@@ -70,6 +70,11 @@ export const CONFIG = {
     fxaaEnabled: true,
   },
 
+  // Photon sphere settings
+  photonSphere: {
+    intensity: 0.5,  // 0 = off, 1 = full glow
+  },
+
   // Particle system settings
   particles: {
     count: 150,
@@ -122,6 +127,7 @@ export function buildLensingParams(): LensingParams {
     mhdPatternSpeed: CONFIG.mhd.patternSpeed,
     supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
     bhEdgeSoftness: CONFIG.antiAliasing.bhEdgeSoftness,
+    photonSphereIntensity: CONFIG.photonSphere.intensity,
   };
 }
 

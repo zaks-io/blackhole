@@ -272,6 +272,12 @@ function setupGUI(): void {
       lensingPass?.updateParams({ bhEdgeSoftness: value });
     });
   
+  simFolder.add(params, 'photonSphereIntensity', 0.0, 1.0, 0.05)
+    .name('Photon Sphere Glow')
+    .onChange((value: number) => {
+      lensingPass?.updateParams({ photonSphereIntensity: value });
+    });
+  
   simFolder.add(params, 'autoSteps')
     .name('Auto Ray Steps')
     .onChange(() => {

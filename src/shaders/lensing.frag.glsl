@@ -38,6 +38,9 @@ uniform int supersampleLevel;
 // Black hole edge softness (0 = hard edge, 1 = very soft)
 uniform float bhEdgeSoftness;
 
+// Photon sphere glow intensity (0 = off, 1 = full)
+uniform float photonSphereIntensity;
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
@@ -254,7 +257,7 @@ vec3 sampleBlackbody(float temp) {
   return texture2D(blackbodyLUT, vec2(t, 0.5)).rgb;
 }
 
-vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
+vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex) {
   // Get azimuthal angle for MHD effects
   float phi = atan(hitPos.z, hitPos.x);
   
@@ -263,24 +266,28 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
   vec3 tangent = normalize(vec3(-hitPos.z, 0.0, hitPos.x));
   vec3 vel = tangent * v;
   
-  // Doppler
+  // Doppler shift
   float vr = dot(vel, -rayDir);
   float doppler = sqrt((1.0 + vr) / (1.0 - vr));
+  
+  // Gravitational redshift: photons lose energy climbing out of gravity well
+  // Factor of sqrt(1 - rs/r) from Schwarzschild metric
+  float gravRedshift = sqrt(1.0 - rs / r);
   
   // Get MHD modulations
   float mhdDensity = getMHDDensity(r, phi, time);
   float mhdTemp = getMHDTemperature(r, phi, time);
   
-  // Temperature with MHD modulation
+  // Temperature with Doppler, gravitational redshift, and MHD modulation
   float frac = (r - diskInnerRadius) / (diskOuterRadius - diskInnerRadius);
   float baseTemp = mix(diskTemperatureInner, diskTemperatureOuter, frac);
-  float temp = baseTemp * doppler * mhdTemp;
+  float temp = baseTemp * doppler * gravRedshift * mhdTemp;
   
   vec3 color = sampleBlackbody(temp);
   
-  // Intensity: MHD density only - NO edge fade on brightness
+  // Intensity: Include gravitational redshift (photon energy loss)
   // Disk stays bright right to the edge
-  float baseIntensity = pow(doppler, 3.0) / (1.0 + frac * 2.0);
+  float baseIntensity = pow(doppler, 3.0) * gravRedshift / (1.0 + frac * 2.0);
   
   // Apply Reinhard tonemapping to compress dynamic range while preserving local contrast
   // This prevents the bright Doppler-boosted side from washing out texture detail
@@ -294,16 +301,25 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
   // MHD modulation with boosted contrast
   float intensity = compressedIntensity * boostedDensity;
   
-  // Alpha: smooth edge transition for compositing + base opacity
-  float edgeWidth = (diskOuterRadius - diskInnerRadius) * 0.08;
+  // Higher-order images (photon rings) are demagnified
+  // Each orbit around BH loses ~60% of brightness due to photon loss
+  float higherOrderDecay = pow(0.6, float(crossingIndex));
+  intensity *= higherOrderDecay;
+  
+  // Alpha: sharper ISCO edge (3% vs 8%) for more defined inner boundary
+  float edgeWidth = (diskOuterRadius - diskInnerRadius) * 0.03;
   float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + edgeWidth, r);
-  float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - edgeWidth, r);
+  float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - edgeWidth * 2.0, r);
+  
+  // Bright rim at ISCO - material piles up at innermost stable orbit
+  float innerRim = exp(-pow((r - diskInnerRadius) / (0.5 * rs), 2.0)) * 0.3;
+  
   float alpha = innerFade * outerFade * diskOpacity;
   
   // Emissive boost for bloom - preserve texture/contrast on bright Doppler side
   // Use softer multipliers and clamp to prevent washout
-  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8;
-  emissiveBoost = clamp(emissiveBoost, 0.3, 1.6);
+  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8 + innerRim;
+  emissiveBoost = clamp(emissiveBoost, 0.3, 2.0);
   
   return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
 }
@@ -325,8 +341,11 @@ vec4 traceRay(vec2 uv) {
   bool hitHorizon = false;
   bool escaped = false;
   
-  // Track minimum radius for black hole edge mask
+  // Track minimum radius for black hole edge mask and photon sphere glow
   float minRadius = 1000.0;
+  
+  // Track disk plane crossings for higher-order photon ring images
+  int diskCrossings = 0;
   
   float h = 0.2;
   
@@ -365,22 +384,32 @@ vec4 traceRay(vec2 uv) {
     vec3 newPos = rayPos + rayDir * step;
     float currY = newPos.y;
     
+    // Disk plane crossing detection - track multiple crossings for photon rings
     if (prevY * currY < 0.0) {
       float t = abs(prevY) / (abs(prevY) + abs(currY));
       vec3 hitPos = mix(rayPos, newPos, t);
       float hitR = length(hitPos.xz);
       
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-        vec4 newDisk = sampleDisk(hitPos, rayDir, hitR);
+        // Pass crossing index for higher-order image brightness decay
+        vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings);
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
         diskAccum.a += newDisk.a * remaining;
-        if (diskAccum.a > 0.99) break;
+        
+        // Allow multiple crossings (up to 4) for higher-order photon rings
+        // Only break early if we've accumulated enough opacity
+        if (diskAccum.a > 0.99 && diskCrossings >= 2) break;
       }
+      
+      // Increment crossing counter regardless of whether we hit the disk
+      // This tracks ray orbits around the black hole
+      diskCrossings++;
     }
     
     rayPos = newPos;
     
+    // Volumetric disk sampling
     float absY = abs(rayPos.y);
     if (absY < diskHalfThickness) {
       float hitR = length(rayPos.xz);
@@ -388,7 +417,7 @@ vec4 traceRay(vec2 uv) {
         float normalizedY = absY / diskHalfThickness;
         float verticalDensity = pow(1.0 - normalizedY, 2.0);
         vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
-        vec4 volColor = sampleDisk(projectedPos, rayDir, hitR);
+        vec4 volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings);
         float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * step;
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += volColor.rgb * volAlpha * remaining;
@@ -397,6 +426,7 @@ vec4 traceRay(vec2 uv) {
     }
   }
   
+  // Determine background color
   vec3 backgroundColor = vec3(0.0);
   if (!hitHorizon) {
     if (escaped) {
@@ -406,6 +436,7 @@ vec4 traceRay(vec2 uv) {
     }
   }
   
+  // Composite disk over background
   if (diskAccum.a > 0.0) {
     float remaining = 1.0 - diskAccum.a;
     color = diskAccum.rgb + backgroundColor * remaining;
@@ -413,6 +444,22 @@ vec4 traceRay(vec2 uv) {
     color = backgroundColor;
   }
   
+  // Photon sphere glow: rays passing near r = 1.5rs (photon sphere)
+  // create the bright ring visible in EHT images
+  if (!hitHorizon && minRadius < 2.5 * rs && minRadius > rs && photonSphereIntensity > 0.0) {
+    float photonSphereRadius = 1.5 * rs;
+    float psDistance = abs(minRadius - photonSphereRadius);
+    
+    // Gaussian glow centered on photon sphere
+    float sigma = 0.15 * rs;
+    float psGlow = exp(-psDistance * psDistance / (2.0 * sigma * sigma));
+    
+    // Scale by intensity and add warm white glow (slightly orange for hot gas)
+    vec3 glowColor = vec3(1.0, 0.92, 0.85) * psGlow * photonSphereIntensity * 0.2;
+    
+    // Additive blend - photon sphere is bright!
+    color += glowColor;
+  }
   
   return vec4(color, 1.0);
 }
