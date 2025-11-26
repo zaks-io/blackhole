@@ -14,6 +14,10 @@ uniform float diskTemperatureInner;
 uniform float diskTemperatureOuter;
 uniform float time;
 
+// Volumetric disk parameters
+uniform float diskHalfThickness;
+uniform float diskVolumeDensity;
+
 // MHD parameters
 uniform float mhdTurbulenceIntensity;  // 0-1
 uniform float mhdSpiralArms;           // 2-4
@@ -370,6 +374,27 @@ void main() {
     }
     
     rayPos = newPos;
+    
+    // Volumetric disk fuzz - sample when within disk thickness
+    float absY = abs(rayPos.y);
+    if (absY < diskHalfThickness) {
+      float hitR = length(rayPos.xz);
+      if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
+        // Power law falloff from disk plane
+        float normalizedY = absY / diskHalfThickness;
+        float verticalDensity = pow(1.0 - normalizedY, 2.0);
+        
+        // Sample disk at projected position (x, 0, z)
+        vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
+        vec4 volColor = sampleDisk(projectedPos, rayDir, hitR);
+        
+        // Volumetric accumulation (scaled by step size and density)
+        float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * step;
+        float remaining = 1.0 - diskAccum.a;
+        diskAccum.rgb += volColor.rgb * volAlpha * remaining;
+        diskAccum.a += volAlpha * remaining;
+      }
+    }
   }
   
   // Determine background color
