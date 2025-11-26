@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { createBlackbodyLUT } from '../utils/blackbodyLUT';
+import { buildLensingParams } from '../config';
 import vertexShader from '../shaders/lensing.vert.glsl';
 import fragmentShader from '../shaders/lensing.frag.glsl';
 
@@ -35,36 +36,8 @@ export interface LensingParams {
   bhEdgeSoftness: number;
 }
 
-export const defaultLensingParams: LensingParams = {
-  rs: 1.0,
-  maxSteps: 100,
-  diskInnerRadius: 3.0,  // ISCO
-  diskOuterRadius: 12.0,
-  diskTemperatureInner: 10000,
-  diskTemperatureOuter: 3000,
-  // Volumetric disk defaults - subtle fuzz
-  diskHalfThickness: 0.2,
-  diskVolumeDensity: 0.15,
-  // Luminance compression - preserves detail on bright Doppler side
-  diskLuminanceCompression: 0.15,
-  // Texture contrast boost - makes detail survive bloom
-  diskTextureContrast: 1.0,
-  // Material flow speed - how fast turbulence rotates
-  diskMaterialSpeed: 15.0,
-  // Base disk opacity - allows stars to show through
-  diskOpacity: 0.85,
-  // MHD defaults - dramatic cinematic look
-  mhdTurbulenceIntensity: 0.8,
-  mhdSpiralArms: 2.0,
-  mhdSpiralTightness: 3.0,
-  mhdHotspotIntensity: 0.7,
-  mhdHotspotCount: 3,
-  mhdPatternSpeed: 25.0,
-  // Supersampling - 1 = off, 2 = 2x2 (4 samples), 4 = 4x4 (16 samples)
-  supersampleLevel: 1,
-  // Black hole edge softness - 0.5 = moderate soft edge
-  bhEdgeSoftness: 0.5
-};
+// Default params built from centralized config
+export const defaultLensingParams: LensingParams = buildLensingParams();
 
 const LensingShader = {
   name: 'LensingShader',

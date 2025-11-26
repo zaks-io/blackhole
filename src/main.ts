@@ -9,34 +9,7 @@ import Stats from 'stats.js';
 import { LensingPass, defaultLensingParams, LensingParams } from './passes/LensingPass';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-const CONFIG = {
-  // Schwarzschild radius (base unit)
-  rs: 1.0,
-  
-  // Camera limits
-  cameraMinDistance: 5,
-  cameraMaxDistance: 50,
-  cameraInitialDistance: 20,
-  
-  // Performance settings
-  targetFPS: 60,
-  
-  // Bloom settings
-  bloomThreshold: 0,
-  bloomStrength: 0.4,
-  bloomRadius: 0.5,
-  
-  // Disk parameters
-  diskInnerRadius: 3.0,  // ISCO
-  diskOuterRadius: 12.0,
-  diskTemperatureInner: 10000,
-  diskTemperatureOuter: 3000,
-};
+import { CONFIG } from './config';
 
 // ============================================================================
 // Global State
@@ -62,13 +35,13 @@ const params: LensingParams & {
   fxaaEnabled: boolean;
 } = {
   ...defaultLensingParams,
-  bloomThreshold: CONFIG.bloomThreshold,
-  bloomStrength: CONFIG.bloomStrength,
-  bloomRadius: CONFIG.bloomRadius,
-  autoSteps: true,
-  fxaaEnabled: true,
-  // Supersampling default (1 = off for performance)
-  supersampleLevel: 1,
+  bloomThreshold: CONFIG.bloom.threshold,
+  bloomStrength: CONFIG.bloom.strength,
+  bloomRadius: CONFIG.bloom.radius,
+  autoSteps: CONFIG.rayMarching.autoSteps,
+  fxaaEnabled: CONFIG.antiAliasing.fxaaEnabled,
+  // Supersampling default from config
+  supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
   // MHD defaults from defaultLensingParams are spread above
 };
 
@@ -79,33 +52,33 @@ const params: LensingParams & {
 async function init(): Promise<void> {
   // Create renderer
   renderer = new THREE.WebGLRenderer({
-    antialias: false,
+    antialias: CONFIG.renderer.antialias,
     powerPreference: 'high-performance'
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.renderer.pixelRatioMax));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = CONFIG.renderer.toneMappingExposure;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor(0x000000, 1.0);  // Black background
   document.body.appendChild(renderer.domElement);
   
   // Create camera
   camera = new THREE.PerspectiveCamera(
-    60,
+    CONFIG.camera.fov,
     window.innerWidth / window.innerHeight,
-    0.1,
-    1000
+    CONFIG.camera.near,
+    CONFIG.camera.far
   );
-  camera.position.set(0, 5 * CONFIG.rs, CONFIG.cameraInitialDistance * CONFIG.rs);
+  camera.position.set(0, 1 * CONFIG.rs, CONFIG.camera.initialDistance * CONFIG.rs);
   camera.lookAt(0, 0, 0);
   
   // Create controls
   controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.minDistance = CONFIG.cameraMinDistance * CONFIG.rs;
-  controls.maxDistance = CONFIG.cameraMaxDistance * CONFIG.rs;
+  controls.enableDamping = CONFIG.controls.enableDamping;
+  controls.dampingFactor = CONFIG.controls.dampingFactor;
+  controls.minDistance = CONFIG.camera.minDistance * CONFIG.rs;
+  controls.maxDistance = CONFIG.camera.maxDistance * CONFIG.rs;
   controls.target.set(0, 0, 0);
   controls.update();
   
@@ -289,8 +262,8 @@ function setupGUI(): void {
     .name('Schwarzschild Radius')
     .onChange((value: number) => {
       lensingPass?.updateParams({ rs: value });
-      controls.minDistance = CONFIG.cameraMinDistance * value;
-      controls.maxDistance = CONFIG.cameraMaxDistance * value;
+      controls.minDistance = CONFIG.camera.minDistance * value;
+      controls.maxDistance = CONFIG.camera.maxDistance * value;
     });
   
   simFolder.add(params, 'bhEdgeSoftness', 0.0, 1.0, 0.05)
