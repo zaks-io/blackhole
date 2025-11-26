@@ -42,6 +42,8 @@ export interface BlackHoleSimulationProps {
   showStats?: boolean;
   /** Initial camera preset key (default: 'intro') */
   initialCameraPreset?: keyof typeof CAMERA_PRESETS;
+  /** Initial EHT blur enabled state (default: CONFIG.ehtBlur.enabled) */
+  initialEhtBlurEnabled?: boolean;
   /** Callback with camera controller when ready */
   onCameraReady?: (controller: CameraController) => void;
   /** Callback with EHT blur controller when ready */
@@ -93,6 +95,7 @@ export default function BlackHoleSimulation({
   showDevControls = false,
   showStats = false,
   initialCameraPreset = 'intro',
+  initialEhtBlurEnabled = CONFIG.ehtBlur.enabled,
   onCameraReady,
   onEhtBlurReady,
 }: BlackHoleSimulationProps) {
@@ -181,13 +184,13 @@ export default function BlackHoleSimulation({
         autoSteps: CONFIG.rayMarching.autoSteps,
         fxaaEnabled: CONFIG.antiAliasing.fxaaEnabled,
         supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
-        ehtBlurEnabled: CONFIG.ehtBlur.enabled,
+        ehtBlurEnabled: initialEhtBlurEnabled,
         ehtBlurStrength: CONFIG.ehtBlur.strength,
         simulationSpeed: 3.0,
       };
 
       // EHT blur animation state
-      const ehtBlurState = { intensity: CONFIG.ehtBlur.enabled ? 1.0 : 0.0 };
+      const ehtBlurState = { intensity: initialEhtBlurEnabled ? 1.0 : 0.0 };
 
       // Scaled simulation time (accumulates based on simulationSpeed)
       let scaledTime = 0;
