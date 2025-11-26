@@ -6,6 +6,8 @@ import { CAMERA_PRESETS } from './BlackHoleSimulation';
 interface CameraPresetBarProps {
   onPresetSelect: (presetName: string) => void;
   activePreset: string | null;
+  ehtMode?: boolean;
+  onEhtToggle?: () => void;
 }
 
 const PRESET_ICONS: Record<string, string> = {
@@ -22,7 +24,7 @@ const PRESET_LABELS: Record<string, string> = {
   edgeOn: 'Edge',
 };
 
-export function CameraPresetBar({ onPresetSelect, activePreset }: CameraPresetBarProps) {
+export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, onEhtToggle }: CameraPresetBarProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   const presetKeys = Object.keys(CAMERA_PRESETS);
@@ -45,6 +47,19 @@ export function CameraPresetBar({ onPresetSelect, activePreset }: CameraPresetBa
             <span className="preset-label">{PRESET_LABELS[key]}</span>
           </button>
         ))}
+        {onEhtToggle && (
+          <>
+            <div className="separator" />
+            <button
+              className={`preset-btn eht-btn ${ehtMode ? 'active' : ''}`}
+              onClick={onEhtToggle}
+              title="Toggle EHT Mode"
+            >
+              <span className="preset-icon">◉</span>
+              <span className="preset-label">EHT</span>
+            </button>
+          </>
+        )}
       </div>
 
       <style jsx>{`
@@ -116,6 +131,22 @@ export function CameraPresetBar({ onPresetSelect, activePreset }: CameraPresetBa
 
         .preset-btn.orbit-btn.active .preset-icon {
           animation: rotate 4s linear infinite;
+        }
+
+        .separator {
+          width: 1px;
+          height: 24px;
+          background: rgba(255, 255, 255, 0.15);
+          margin: 0 4px;
+        }
+
+        .preset-btn.eht-btn.active {
+          color: #ffa500;
+          background: rgba(255, 165, 0, 0.2);
+          border-color: rgba(255, 165, 0, 0.5);
+          box-shadow:
+            0 0 20px rgba(255, 165, 0, 0.2),
+            inset 0 0 10px rgba(255, 165, 0, 0.15);
         }
 
         .preset-icon {

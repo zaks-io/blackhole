@@ -93,6 +93,13 @@ export const CONFIG = {
     enableDamping: true,
     dampingFactor: 0.05,
   },
+
+  // EHT-style blur effect (replicates telescope diffraction)
+  ehtBlur: {
+    enabled: false,
+    strength: 1.2,
+    iterations: 6,
+  },
 };
 
 // ============================================================================

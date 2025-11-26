@@ -8,7 +8,10 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { HorizontalBlurShader } from 'three/examples/jsm/shaders/HorizontalBlurShader.js';
+import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShader.js';
 import GUI from 'lil-gui';
+import gsap from 'gsap';
 import Stats from 'stats.js';
 
 import { LensingPass, defaultLensingParams, LensingParams } from '@/lib/passes/LensingPass';
@@ -27,6 +30,11 @@ export interface CameraPreset {
   ease?: string;
 }
 
+export interface EhtBlurController {
+  setEnabled: (enabled: boolean) => void;
+  isEnabled: () => boolean;
+}
+
 export interface BlackHoleSimulationProps {
   /** Show lil-gui dev controls panel (default: false) */
   showDevControls?: boolean;
@@ -34,6 +42,8 @@ export interface BlackHoleSimulationProps {
   showStats?: boolean;
   /** Callback with camera controller when ready */
   onCameraReady?: (controller: CameraController) => void;
+  /** Callback with EHT blur controller when ready */
+  onEhtBlurReady?: (controller: EhtBlurController) => void;
 }
 
 // ============================================================================
@@ -75,6 +85,7 @@ export default function BlackHoleSimulation({
   showDevControls = false,
   showStats = false,
   onCameraReady,
+  onEhtBlurReady,
 }: BlackHoleSimulationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initRef = useRef(false);
@@ -90,6 +101,7 @@ export default function BlackHoleSimulation({
     stats?: Stats;
     lensingPass?: LensingPass;
     animationId?: number;
+    blurPasses?: { h: ShaderPass; v: ShaderPass }[];
   }>({});
 
     const init = useCallback(async (initId: number) => {
@@ -155,6 +167,8 @@ export default function BlackHoleSimulation({
         bloomRadius: number;
         autoSteps: boolean;
         fxaaEnabled: boolean;
+        ehtBlurEnabled: boolean;
+        ehtBlurStrength: number;
       } = {
         ...defaultLensingParams,
         bloomThreshold: CONFIG.bloom.threshold,
@@ -163,13 +177,19 @@ export default function BlackHoleSimulation({
         autoSteps: CONFIG.rayMarching.autoSteps,
         fxaaEnabled: CONFIG.antiAliasing.fxaaEnabled,
         supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
+        ehtBlurEnabled: CONFIG.ehtBlur.enabled,
+        ehtBlurStrength: CONFIG.ehtBlur.strength,
       };
+
+      // EHT blur animation state
+      const ehtBlurState = { intensity: CONFIG.ehtBlur.enabled ? 1.0 : 0.0 };
 
       // Composer and passes (will be set after texture loads)
       let composer: EffectComposer;
       let lensingPass: LensingPass;
       let fxaaPass: ShaderPass;
       let bloomPass: UnrealBloomPass;
+      let blurPasses: { h: ShaderPass; v: ShaderPass }[] = [];
 
       // Load starfield
       const loadStarfield = (): Promise<THREE.Texture> => {
@@ -252,7 +272,53 @@ export default function BlackHoleSimulation({
         bloomPass = new UnrealBloomPass(resolution, params.bloomStrength, params.bloomRadius, params.bloomThreshold);
         composer.addPass(bloomPass);
 
+        // EHT blur passes (multiple iterations for heavy blur)
+        // Always enabled with tiny blur to avoid transition artifacts
+        const iterations = CONFIG.ehtBlur.iterations;
+        for (let i = 0; i < iterations; i++) {
+          const hBlurPass = new ShaderPass(HorizontalBlurShader);
+          const vBlurPass = new ShaderPass(VerticalBlurShader);
+
+          // Set blur strength based on resolution and intensity (minimum tiny blur)
+          const blurAmount = params.ehtBlurStrength * Math.max(0.001, ehtBlurState.intensity);
+          hBlurPass.uniforms['h'].value = blurAmount / window.innerWidth;
+          vBlurPass.uniforms['v'].value = blurAmount / window.innerHeight;
+
+          // Always enabled to avoid transition artifacts
+          hBlurPass.enabled = true;
+          vBlurPass.enabled = true;
+
+          composer.addPass(hBlurPass);
+          composer.addPass(vBlurPass);
+
+          blurPasses.push({ h: hBlurPass, v: vBlurPass });
+        }
+        cleanupRef.current.blurPasses = blurPasses;
+
         updateStepCount();
+      };
+
+      // Update blur passes strength (always keep tiny minimum to avoid artifacts)
+      const updateBlurStrength = (intensity: number) => {
+        const effectiveIntensity = Math.max(0.001, intensity);
+        const blurAmount = params.ehtBlurStrength * effectiveIntensity;
+        blurPasses.forEach(({ h, v }) => {
+          h.uniforms['h'].value = blurAmount / window.innerWidth;
+          v.uniforms['v'].value = blurAmount / window.innerHeight;
+        });
+      };
+
+      // Toggle EHT blur with animation
+      const setEhtBlurEnabled = (enabled: boolean) => {
+        params.ehtBlurEnabled = enabled;
+        gsap.killTweensOf(ehtBlurState);
+
+        gsap.to(ehtBlurState, {
+          intensity: enabled ? 1.0 : 0.0,
+          duration: enabled ? 0.8 : 0.6,
+          ease: enabled ? 'power2.in' : 'power2.out',
+          onUpdate: () => updateBlurStrength(ehtBlurState.intensity),
+        });
       };
 
       const updateStepCount = () => {
@@ -443,6 +509,21 @@ export default function BlackHoleSimulation({
             lensingPass?.updateParams({ supersampleLevel: value });
           });
 
+        // EHT Mode folder
+        const ehtFolder = gui.addFolder('EHT Mode');
+
+        ehtFolder.add(params, 'ehtBlurEnabled')
+          .name('Enable EHT Blur')
+          .onChange((value: boolean) => {
+            setEhtBlurEnabled(value);
+          });
+
+        ehtFolder.add(params, 'ehtBlurStrength', 0.5, 5.0, 0.25)
+          .name('Blur Strength')
+          .onChange(() => {
+            updateBlurStrength(ehtBlurState.intensity);
+          });
+
         // Camera Controls folder
         const cameraFolder = gui.addFolder('Camera');
 
@@ -563,6 +644,15 @@ export default function BlackHoleSimulation({
           bloomPass.resolution.set(width, height);
         }
 
+        // Update blur passes for new resolution
+        if (blurPasses.length > 0) {
+          const blurAmount = params.ehtBlurStrength * ehtBlurState.intensity;
+          blurPasses.forEach(({ h, v }) => {
+            h.uniforms['h'].value = blurAmount / width;
+            v.uniforms['v'].value = blurAmount / height;
+          });
+        }
+
         updateStepCount();
       };
 
@@ -624,6 +714,12 @@ export default function BlackHoleSimulation({
       // Notify parent with camera controller
       onCameraReady?.(cameraController);
 
+      // Notify parent with EHT blur controller
+      onEhtBlurReady?.({
+        setEnabled: setEhtBlurEnabled,
+        isEnabled: () => params.ehtBlurEnabled,
+      });
+
       // Start animation
       animate(stats);
 
@@ -631,7 +727,7 @@ export default function BlackHoleSimulation({
       return () => {
         window.removeEventListener('resize', onWindowResize);
       };
-    }, [showDevControls, showStats, onCameraReady]);
+    }, [showDevControls, showStats, onCameraReady, onEhtBlurReady]);
 
     useEffect(() => {
       let cleanup: (() => void) | undefined;
