@@ -12,7 +12,7 @@ export const CONFIG = {
     fov: 60,
     minDistance: 5,
     maxDistance: 50,
-    initialDistance: 20,
+    initialDistance: 40,  // Start farther for intro
     near: 0.1,
     far: 1000,
   },
@@ -29,8 +29,8 @@ export const CONFIG = {
   // Bloom post-processing
   bloom: {
     threshold: 0.1,
-    strength: 0.7,
-    radius: 0.5,
+    strength: 0.5,
+    radius: 0.3,
   },
 
   // Accretion disk
@@ -96,7 +96,7 @@ export const CONFIG = {
 
   // EHT-style blur effect (replicates telescope diffraction)
   ehtBlur: {
-    enabled: false,
+    enabled: true,
     strength: 1.2,
     iterations: 6,
   },

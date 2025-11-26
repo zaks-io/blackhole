@@ -51,6 +51,12 @@ export interface BlackHoleSimulationProps {
 // ============================================================================
 
 export const CAMERA_PRESETS: Record<string, CameraPreset> = {
+  intro: {
+    name: 'Intro',
+    position: { x: -25, y: 5, z: 45 },
+    lookAt: { x: 0, y: 0, z: 0 },
+    duration: 1,
+  },
   orbit: {
     name: 'Orbit',
     position: { x: 0, y: 1, z: 20 },
@@ -127,14 +133,15 @@ export default function BlackHoleSimulation({
       container.appendChild(renderer.domElement);
       cleanupRef.current.renderer = renderer;
 
-      // Create camera
+      // Create camera - start at intro position
       const camera = new THREE.PerspectiveCamera(
         CONFIG.camera.fov,
         window.innerWidth / window.innerHeight,
         CONFIG.camera.near,
         CONFIG.camera.far
       );
-      camera.position.set(0, 1 * CONFIG.rs, CONFIG.camera.initialDistance * CONFIG.rs);
+      const introPos = CAMERA_PRESETS.intro.position;
+      camera.position.set(introPos.x, introPos.y, introPos.z);
       camera.lookAt(0, 0, 0);
 
       // Create controls
@@ -149,13 +156,6 @@ export default function BlackHoleSimulation({
 
       // Create camera controller for cinematic movements
       const cameraController = new CameraController(camera, controls);
-
-      // Start orbiting by default
-      cameraController.startOrbit({
-        distance: 20 * CONFIG.rs,
-        height: 1 * CONFIG.rs,
-        speed: 1,
-      });
 
       // Initialize clock
       const clock = new THREE.Clock();
