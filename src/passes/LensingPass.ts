@@ -11,6 +11,9 @@ export interface LensingParams {
   diskOuterRadius: number;
   diskTemperatureInner: number;
   diskTemperatureOuter: number;
+  // Volumetric disk parameters
+  diskHalfThickness: number;
+  diskVolumeDensity: number;
   // MHD parameters
   mhdTurbulenceIntensity: number;
   mhdSpiralArms: number;
@@ -27,6 +30,9 @@ export const defaultLensingParams: LensingParams = {
   diskOuterRadius: 12.0,
   diskTemperatureInner: 10000,
   diskTemperatureOuter: 3000,
+  // Volumetric disk defaults - subtle fuzz
+  diskHalfThickness: 0.2,
+  diskVolumeDensity: 0.15,
   // MHD defaults - dramatic cinematic look
   mhdTurbulenceIntensity: 0.8,
   mhdSpiralArms: 2.0,
@@ -53,6 +59,9 @@ const LensingShader = {
     diskTemperatureInner: { value: 10000.0 },
     diskTemperatureOuter: { value: 3000.0 },
     time: { value: 0.0 },
+    // Volumetric disk uniforms
+    diskHalfThickness: { value: 0.2 },
+    diskVolumeDensity: { value: 0.15 },
     // MHD uniforms
     mhdTurbulenceIntensity: { value: 0.8 },
     mhdSpiralArms: { value: 2.0 },
@@ -108,6 +117,13 @@ export class LensingPass extends ShaderPass {
     }
     if (params.diskTemperatureOuter !== undefined) {
       this.uniforms['diskTemperatureOuter'].value = params.diskTemperatureOuter;
+    }
+    // Volumetric disk parameters
+    if (params.diskHalfThickness !== undefined) {
+      this.uniforms['diskHalfThickness'].value = params.diskHalfThickness;
+    }
+    if (params.diskVolumeDensity !== undefined) {
+      this.uniforms['diskVolumeDensity'].value = params.diskVolumeDensity;
     }
     // MHD parameters
     if (params.mhdTurbulenceIntensity !== undefined) {
