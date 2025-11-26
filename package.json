@@ -1,0 +1,22 @@
+{
+  "name": "blackhole-threejs-lens-v2",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lil-gui": "^0.20.0",
+    "stats.js": "^0.17.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/stats.js": "^0.17.3",
+    "@types/three": "^0.170.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vite-plugin-glsl": "^1.5.4"
+  }
+}
