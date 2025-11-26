@@ -34,6 +34,6 @@ const BlackHoleSimulation = dynamic(
 );
 
 export default function DevPage() {
-  return <BlackHoleSimulation showDevControls={true} showStats={true} />;
+  return <BlackHoleSimulation showDevControls={true} showStats={true} initialCameraPreset="orbit" />;
 }
 

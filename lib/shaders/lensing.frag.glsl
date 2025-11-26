@@ -25,6 +25,7 @@ uniform float mhdSpiralTightness;      // How tightly wound
 uniform float mhdHotspotIntensity;     // 0-1
 uniform int mhdHotspotCount;           // 0-5
 uniform float mhdPatternSpeed;         // Pattern rotation speed multiplier
+uniform float mhdMinDensity;           // Minimum density for sparse areas (0-1)
 
 // Luminance compression for detail preservation
 uniform float diskLuminanceCompression;  // 0.0 = no compression, 1.0 = strong
@@ -100,33 +101,72 @@ float fbm(vec2 p, int octaves) {
   return value / maxValue;
 }
 
-// Advected FBM - noise that flows with Keplerian rotation
-// Uses seamless cylindrical mapping to avoid seams at phi = ±π
+// Stable disk texture using uniform rotation + minimal warping
 float advectedFBM(float r, float phi, float t, int octaves) {
-  // Keplerian angular velocity: omega = sqrt(GM/r^3) = sqrt(0.5*rs/r) / r
-  float omega = sqrt(0.5 * rs / r) / r;
-  
-  // Advect phi by subtracting rotation (material moves counter-clockwise)
-  // Apply material speed multiplier for user control
-  float advectedPhi = phi - omega * t * diskMaterialSpeed;
-  
-  // Convert to seamless cylindrical coordinates using cos/sin
-  // This ensures no seam at phi = ±π
-  float cx = cos(advectedPhi);
-  float cy = sin(advectedPhi);
-  
-  // Scale radius for noise frequency, use 2D circle for azimuth
-  // The noise samples a 3D-like space: (r, cos(phi), sin(phi))
-  // We combine into 2D by using r + offset*cos and offset*sin
-  float scale = 2.0;
-  vec2 noiseCoord = vec2(r * scale + cx * 1.5, cy * 1.5 + r * 0.3);
-  
-  return fbm(noiseCoord, octaves);
+  // Uniform rotation - entire pattern rotates together (prevents winding)
+  float rot = t * diskMaterialSpeed * 0.1;
+  float rotatedPhi = phi - rot;
+
+  // Convert to Cartesian for seamless sampling
+  float x = r * cos(rotatedPhi);
+  float y = r * sin(rotatedPhi);
+  vec2 pos = vec2(x, y);
+
+  // Minimal warping - just enough to break perfect symmetry
+  float warp = snoise(pos * 0.02 + t * 0.002) * 0.2;
+
+  // Anisotropic noise stretched along rotation direction
+  vec2 tangent = vec2(-sin(rotatedPhi), cos(rotatedPhi));
+  vec2 radial = vec2(cos(rotatedPhi), sin(rotatedPhi));
+
+  // Sample noise with tangential stretch (features elongated along orbit)
+  // Higher radial = smaller/more streaks, lower tangent = longer streaks
+  float tangentCoord = dot(pos, tangent) * 0.08 + warp;
+  float radialCoord = dot(pos, radial) * 1.2;  // Much higher = smaller streaks
+
+  return fbm(vec2(tangentCoord, radialCoord), octaves);
 }
 
 // ============================================================================
 // MHD Effects
 // ============================================================================
+
+// Large-scale turbulent streaks using uniform rotation + minimal warping
+float getLargeScaleTurbulence(float r, float phi, float t) {
+  // Uniform rotation (no winding)
+  float rot = t * diskMaterialSpeed * 0.08;
+  float rotatedPhi = phi - rot;
+
+  // Convert to Cartesian
+  float x = r * cos(rotatedPhi);
+  float y = r * sin(rotatedPhi);
+  vec2 pos = vec2(x, y);
+
+  // Minimal warping
+  float warp = snoise(pos * 0.015 + t * 0.002) * 0.15;
+
+  // Anisotropic stretch for arc-following streaks
+  vec2 tangent = vec2(-sin(rotatedPhi), cos(rotatedPhi));
+  vec2 radial = vec2(cos(rotatedPhi), sin(rotatedPhi));
+
+  float tangentCoord = dot(pos, tangent) * 0.06 + warp;
+  float radialCoord = dot(pos, radial) * 0.9;  // Higher = smaller streaks
+  float blobs = snoise(vec2(tangentCoord, radialCoord));
+
+  // Second layer at different rotation speed
+  float rot2 = t * diskMaterialSpeed * 0.06;
+  float x2 = r * cos(phi - rot2);
+  float y2 = r * sin(phi - rot2);
+  vec2 pos2 = vec2(x2, y2);
+
+  vec2 tangent2 = vec2(-sin(phi - rot2), cos(phi - rot2));
+  vec2 radial2 = vec2(cos(phi - rot2), sin(phi - rot2));
+  float tc2 = dot(pos2, tangent2) * 0.07;
+  float rc2 = dot(pos2, radial2) * 0.8;  // Higher = smaller streaks
+  float blobs2 = snoise(vec2(tc2 + 5.0, rc2 + 5.0));
+
+  return blobs * 0.6 + blobs2 * 0.4;
+}
 
 // Spiral density wave pattern
 float getSpiralDensity(float r, float phi, float t) {
@@ -195,31 +235,64 @@ float getHotspots(float r, float phi, float t) {
   return hotspotSum;
 }
 
+// Fine detail noise layer using uniform rotation + minimal warping
+float getFineDetail(float r, float phi, float t) {
+  // Uniform rotation (slightly faster for fine detail)
+  float rot = t * diskMaterialSpeed * 0.12;
+  float rotatedPhi = phi - rot;
+
+  // Convert to Cartesian
+  float x = r * cos(rotatedPhi);
+  float y = r * sin(rotatedPhi);
+  vec2 pos = vec2(x, y);
+
+  // Tangential stretch for fine arc-following streaks
+  vec2 tangent = vec2(-sin(rotatedPhi), cos(rotatedPhi));
+  vec2 radial = vec2(cos(rotatedPhi), sin(rotatedPhi));
+
+  float tangentCoord = dot(pos, tangent) * 0.15;
+  float radialCoord = dot(pos, radial) * 1.4;  // Higher = finer detail
+  float fine1 = snoise(vec2(tangentCoord, radialCoord));
+
+  // Second fine layer at different rotation speed
+  float rot2 = t * diskMaterialSpeed * 0.15;
+  float x2 = r * cos(phi - rot2);
+  float y2 = r * sin(phi - rot2);
+  vec2 pos2 = vec2(x2, y2);
+
+  vec2 tangent2 = vec2(-sin(phi - rot2), cos(phi - rot2));
+  vec2 radial2 = vec2(cos(phi - rot2), sin(phi - rot2));
+  float tc2 = dot(pos2, tangent2) * 0.18;
+  float rc2 = dot(pos2, radial2) * 1.2;  // Higher = finer detail
+  float fine2 = snoise(vec2(tc2 + 5.0, rc2 + 5.0));
+
+  return fine1 * 0.6 + fine2 * 0.4;
+}
+
 // Combined MHD density modulation
 float getMHDDensity(float r, float phi, float t) {
   float density = 1.0;
-  
-  // Turbulent clumpy structure (advected noise)
-  float turbulence = advectedFBM(r, phi, t, 4);
-  // Map from [-1,1] to density variation
-  float turbMod = 1.0 + turbulence * 0.5 * mhdTurbulenceIntensity;
-  
-  // Spiral density waves
+
+  // Large-scale turbulent streaks
+  float largeBlobs = getLargeScaleTurbulence(r, phi, t);
+  float blobMod = 1.0 + largeBlobs * 0.6 * mhdTurbulenceIntensity;  // Reduced
+
+  // Motion-blurred turbulence for tangential streaks
+  float turbulence = advectedFBM(r, phi, t, 3);
+  float turbMod = 1.0 + turbulence * 0.4 * mhdTurbulenceIntensity;  // Reduced
+
+  // Spiral density waves (minimal influence)
   float spiral = getSpiralDensity(r, phi, t);
-  // Modulate density by 30-50%
-  float spiralMod = 0.7 + 0.6 * spiral * mhdTurbulenceIntensity;
-  
-  // Fine-scale filamentary structure with seamless coordinates
-  float omega = sqrt(0.5 * rs / r) / r;
-  float advPhi = phi - omega * t * diskMaterialSpeed * 0.5;
-  float fcx = cos(advPhi * 3.0);
-  float fcy = sin(advPhi * 3.0);
-  float fineNoise = snoise(vec2(r * 4.0 + fcx * 0.5, fcy * 0.5 + r * 0.2));
-  float fineMod = 1.0 + fineNoise * 0.15 * mhdTurbulenceIntensity;
-  
-  density *= turbMod * spiralMod * fineMod;
-  
-  return clamp(density, 0.3, 2.5);
+  float spiralMod = 0.95 + 0.1 * spiral * mhdTurbulenceIntensity;  // Reduced
+
+  // Fine detail layer for added texture richness
+  float fineDetail = getFineDetail(r, phi, t);
+  float fineMod = 1.0 + fineDetail * 0.3 * mhdTurbulenceIntensity;  // Reduced
+
+  density *= blobMod * turbMod * spiralMod * fineMod;
+
+  // Clamp with configurable minimum density - narrower range
+  return clamp(density, mhdMinDensity, 2.0);
 }
 
 // Combined MHD temperature modulation
@@ -306,10 +379,13 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex) {
   float higherOrderDecay = pow(0.6, float(crossingIndex));
   intensity *= higherOrderDecay;
   
-  // Alpha: sharper ISCO edge (3% vs 8%) for more defined inner boundary
-  float edgeWidth = (diskOuterRadius - diskInnerRadius) * 0.03;
-  float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + edgeWidth, r);
-  float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - edgeWidth * 2.0, r);
+  // Alpha: smooth edge fading
+  // Inner edge: fairly sharp at ISCO
+  float innerEdgeWidth = (diskOuterRadius - diskInnerRadius) * 0.05;
+  float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + innerEdgeWidth, r);
+  // Outer edge: much wider/smoother fade for natural falloff
+  float outerEdgeWidth = (diskOuterRadius - diskInnerRadius) * 0.25;
+  float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - outerEdgeWidth, r);
   
   // Bright rim at ISCO - material piles up at innermost stable orbit
   float innerRim = exp(-pow((r - diskInnerRadius) / (0.5 * rs), 2.0)) * 0.3;
