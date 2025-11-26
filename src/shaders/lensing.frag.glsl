@@ -32,6 +32,9 @@ uniform float diskTextureContrast;       // 0.0 = normal, 2.0 = high contrast su
 uniform float diskMaterialSpeed;         // Multiplier for turbulence/material flow speed
 uniform float diskOpacity;               // Base opacity (0 = transparent, 1 = opaque)
 
+// Supersampling level (1 = off, 2 = 2x2, 4 = 4x4)
+uniform int supersampleLevel;
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
@@ -302,41 +305,35 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r) {
   return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
 }
 
-void main() {
+// Trace a single ray and return the color
+vec3 traceRay(vec2 uv) {
   // Ray from camera through pixel
-  vec2 ndc = vUv * 2.0 - 1.0;
+  vec2 ndc = uv * 2.0 - 1.0;
   vec4 clip = vec4(ndc, -1.0, 1.0);
   vec4 viewPos = inverseProjection * clip;
   viewPos = vec4(viewPos.xy, -1.0, 0.0);
   vec3 rayDir = normalize((inverseView * viewPos).xyz);
   vec3 rayPos = cameraPos;
   
-  // Store initial ray direction for background (before any bending)
-  vec3 initialDir = rayDir;
   float camDist = length(cameraPos);
   
-  vec3 color = vec3(0.0);  // Start black
-  vec4 diskAccum = vec4(0.0);  // Accumulated disk color (front-to-back compositing)
+  vec3 color = vec3(0.0);
+  vec4 diskAccum = vec4(0.0);
   bool hitHorizon = false;
   bool escaped = false;
   
-  // Step size - smaller = more accurate but slower
   float h = 0.2;
   
-  // Trace the ray with gravitational deflection
   for (int i = 0; i < 300; i++) {
     if (i >= maxSteps) break;
     
     float r = length(rayPos);
     
-    // Inside event horizon
     if (r < rs) {
       hitHorizon = true;
       break;
     }
     
-    // Escaped: ray is moving away from black hole and far enough out
-    // The ray has escaped if it's far from BH AND moving outward
     float radialVel = dot(rayDir, rayPos / r);
     if (r > max(camDist * 2.0, 100.0) && radialVel > 0.0) {
       color = sampleStarfield(rayDir);
@@ -344,34 +341,21 @@ void main() {
       break;
     }
     
-    // === Gravitational deflection ===
-    // This is the key formula: acceleration perpendicular to velocity
-    // a = -1.5 * rs * (v_perp)^2 / r^2 toward center
-    // For light, |v| = 1, so v_perp^2 = 1 - (v·r_hat)^2
-    
     vec3 rHat = rayPos / r;
     float vDotR = dot(rayDir, rHat);
     float vPerpSq = 1.0 - vDotR * vDotR;
-    
-    // Schwarzschild geodesic: light bending acceleration
     float accel = -1.5 * rs * vPerpSq / (r * r);
     
-    // Update velocity (direction)
     vec3 dv = accel * rHat * h;
     rayDir = normalize(rayDir + dv);
     
-    // Check disk crossing before moving
     float prevY = rayPos.y;
-    
-    // Adaptive step: smaller near black hole
     float step = h * max(1.0, (r - rs) / rs);
     step = min(step, 0.5);
     
-    // Move ray
     vec3 newPos = rayPos + rayDir * step;
     float currY = newPos.y;
     
-    // Disk intersection (y=0 plane crossing) - handle MULTIPLE crossings
     if (prevY * currY < 0.0) {
       float t = abs(prevY) / (abs(prevY) + abs(currY));
       vec3 hitPos = mix(rayPos, newPos, t);
@@ -379,34 +363,23 @@ void main() {
       
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
         vec4 newDisk = sampleDisk(hitPos, rayDir, hitR);
-        
-        // Front-to-back compositing: accumulate each disk crossing
-        // This handles multiple crossings (front disk, lensed back disk, etc.)
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
         diskAccum.a += newDisk.a * remaining;
-        
-        // Early out if disk is nearly opaque
         if (diskAccum.a > 0.99) break;
       }
     }
     
     rayPos = newPos;
     
-    // Volumetric disk fuzz - sample when within disk thickness
     float absY = abs(rayPos.y);
     if (absY < diskHalfThickness) {
       float hitR = length(rayPos.xz);
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-        // Power law falloff from disk plane
         float normalizedY = absY / diskHalfThickness;
         float verticalDensity = pow(1.0 - normalizedY, 2.0);
-        
-        // Sample disk at projected position (x, 0, z)
         vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
         vec4 volColor = sampleDisk(projectedPos, rayDir, hitR);
-        
-        // Volumetric accumulation (scaled by step size and density)
         float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * step;
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += volColor.rgb * volAlpha * remaining;
@@ -415,25 +388,72 @@ void main() {
     }
   }
   
-  // Determine background color
   vec3 backgroundColor = vec3(0.0);
   if (!hitHorizon) {
-    // Ray escaped or ran out of steps - sample starfield
     if (escaped) {
-      backgroundColor = color; // Already sampled in escape condition
+      backgroundColor = color;
     } else {
       backgroundColor = sampleStarfield(rayDir);
     }
   }
-  // If hit horizon, background stays black
   
-  // Final compositing: disk accumulated color over background
   if (diskAccum.a > 0.0) {
-    // Front-to-back compositing complete - blend accumulated disk over background
     float remaining = 1.0 - diskAccum.a;
     color = diskAccum.rgb + backgroundColor * remaining;
   } else {
     color = backgroundColor;
+  }
+  
+  return color;
+}
+
+// Simple hash function for jitter
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+vec2 hash2(vec2 p) {
+  return vec2(
+    fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453),
+    fract(sin(dot(p, vec2(269.5, 183.3))) * 43758.5453)
+  );
+}
+
+void main() {
+  vec3 color;
+  
+  if (supersampleLevel <= 1) {
+    // No supersampling - single sample
+    color = traceRay(vUv);
+  } else {
+    // Supersampling with NxN jittered grid
+    color = vec3(0.0);
+    vec2 pixelSize = 1.0 / resolution;
+    float n = float(supersampleLevel);
+    float sampleCount = n * n;
+    
+    // Base pixel coordinate for consistent jitter pattern
+    vec2 pixelCoord = vUv * resolution;
+    
+    for (int sy = 0; sy < 4; sy++) {
+      if (sy >= supersampleLevel) break;
+      for (int sx = 0; sx < 4; sx++) {
+        if (sx >= supersampleLevel) break;
+        
+        // Stratified jitter: random offset within each grid cell
+        // This breaks up regular aliasing patterns
+        vec2 cellIndex = vec2(float(sx), float(sy));
+        vec2 jitter = hash2(pixelCoord + cellIndex * 13.37) - 0.5; // -0.5 to 0.5
+        
+        // Sample position: grid cell center + jitter within cell
+        vec2 cellOffset = (cellIndex + 0.5 + jitter * 0.8) / n - 0.5;
+        vec2 sampleUv = vUv + cellOffset * pixelSize;
+        
+        color += traceRay(sampleUv);
+      }
+    }
+    
+    color /= sampleCount;
   }
   
   gl_FragColor = vec4(color, 1.0);
