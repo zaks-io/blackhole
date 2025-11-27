@@ -191,6 +191,7 @@ export default function SimulationWithControls() {
           onPresetSelect={handlePresetSelect}
           onEhtBlurToggle={handleEhtBlurSet}
           onOverlayToggle={handleOverlayToggle}
+          autoConnect
         />
       )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useConversation } from '@elevenlabs/react';
 import { OverlayState } from '@/lib/types';
 
@@ -9,14 +9,16 @@ export interface VoiceAgentPopupProps {
   onPresetSelect: (preset: string) => void;
   onEhtBlurToggle: (enabled: boolean) => void;
   onOverlayToggle: (toggles: Partial<OverlayState>) => void;
+  autoConnect?: boolean;
 }
 
-const VALID_PRESETS = ['orbit', 'flybyClose', 'topDown', 'edgeOn', 'eht', 'photonSphere', 'doppler', 'behindDisk', 'fallingIn'];
+const VALID_PRESETS = ['distant', 'orbit', 'flybyClose', 'topDown', 'edgeOn', 'eht', 'photonSphere', 'doppler', 'fallingIn'];
 const VALID_OVERLAY_KEYS: (keyof OverlayState)[] = ['isco', 'photonSphere', 'eventHorizon', 'shadowEdge', 'doppler', 'scale'];
 
-export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOverlayToggle }: VoiceAgentPopupProps) {
+export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOverlayToggle, autoConnect = false }: VoiceAgentPopupProps) {
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const hasAutoConnected = useRef(false);
 
   const conversation = useConversation({
     clientTools: {
@@ -95,6 +97,13 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
       }
     }
   }, [conversation, isConnected]);
+
+  useEffect(() => {
+    if (autoConnect && !hasAutoConnected.current) {
+      hasAutoConnected.current = true;
+      handleToggle();
+    }
+  }, [autoConnect, handleToggle]);
 
   const getStatusText = () => {
     if (isConnecting) return 'Connecting...';
