@@ -9,13 +9,14 @@ export interface VoiceAgentPopupProps {
   onPresetSelect: (preset: string) => void;
   onEhtBlurToggle: (enabled: boolean) => void;
   onOverlayToggle: (toggles: Partial<OverlayState>) => void;
+  onContextualUpdateReady?: (sendUpdate: (text: string) => void) => void;
   autoConnect?: boolean;
 }
 
 const VALID_PRESETS = ['distant', 'orbit', 'flybyClose', 'topDown', 'edgeOn', 'eht', 'photonSphere', 'doppler', 'fallingIn'];
 const VALID_OVERLAY_KEYS: (keyof OverlayState)[] = ['isco', 'photonSphere', 'eventHorizon', 'shadowEdge', 'doppler', 'scale'];
 
-export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOverlayToggle, autoConnect = false }: VoiceAgentPopupProps) {
+export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOverlayToggle, onContextualUpdateReady, autoConnect = false }: VoiceAgentPopupProps) {
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const hasAutoConnected = useRef(false);
@@ -64,7 +65,7 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
       },
     },
     onError: (err) => {
-      setError(err.message || 'Connection error');
+      setError(typeof err === 'string' ? err : 'Connection error');
       setIsConnecting(false);
     },
     onDisconnect: () => {
@@ -72,8 +73,14 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
     },
   });
 
-  const { status, isSpeaking } = conversation;
+  const { status, isSpeaking, sendContextualUpdate } = conversation;
   const isConnected = status === 'connected';
+
+  useEffect(() => {
+    if (onContextualUpdateReady) {
+      onContextualUpdateReady(sendContextualUpdate);
+    }
+  }, [onContextualUpdateReady, sendContextualUpdate]);
 
   const handleToggle = useCallback(async () => {
     if (isConnected) {
