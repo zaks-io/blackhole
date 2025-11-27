@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import { track } from '@vercel/analytics';
 import BlackHoleSimulation, { CAMERA_PRESETS, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
 import { OverlayControlBar } from './OverlayControlBar';
@@ -136,6 +137,7 @@ export default function SimulationWithControls() {
   }, [ehtBlurController, cameraController]);
 
   const handleVoiceConnect = useCallback(() => {
+    track('begin_voice_tour_click');
     setVoiceConnecting(true);
     setIntroState('connecting');
     setIntroError(null);
@@ -153,6 +155,7 @@ export default function SimulationWithControls() {
   }, []);
 
   const handleSkip = useCallback(() => {
+    track('skip_voice_tour_click');
     handleReveal(false);
   }, [handleReveal]);
 

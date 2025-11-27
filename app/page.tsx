@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { track } from '@vercel/analytics';
 
 export default function Home() {
   return (
@@ -23,6 +24,7 @@ export default function Home() {
 
         <Link
           href="/simulation"
+          onClick={() => track('get_started_click')}
           className="group inline-flex items-center gap-4 py-5 px-12 bg-transparent border border-[rgba(255,140,66,0.4)] text-[#ff8c42] text-base font-normal tracking-[0.2em] uppercase no-underline cursor-pointer transition-all duration-300 hover:bg-[rgba(255,140,66,0.1)] hover:border-[#ff8c42] hover:shadow-[0_0_30px_rgba(255,140,66,0.2)]"
         >
           <span>Get Started</span>
