@@ -206,7 +206,7 @@ Move the camera to a specific viewing angle. Each preset has a built-in transiti
 
 | Preset | Duration | Description |
 |--------|----------|-------------|
-| `distant` | 1s | Far away view showing the black hole in context with the star field |
+| `distant` | 3s | Far away view showing the black hole in context with the star field |
 | `orbit` | 2s | Orbiting view at medium distance, excellent for watching background stars distort and warp as they pass behind the black hole |
 | `flybyClose` | 3s | Close-up of the accretion disk and gravitational lensing, with the disk filling the lower half and black hole in the upper corner |
 | `topDown` | 3s | Bird's eye view looking down at the accretion disk (brightness evens out) |
@@ -235,7 +235,7 @@ Available overlays:
 | `shadowEdge` | Purple/Magenta | 2.6 Rs (disk plane) | The apparent shadow boundary as seen from a distance. Light rays with this impact parameter graze the photon sphere. |
 | `photonSphere` | Gold/Yellow | 1.5 Rs (disk plane) | The photon sphere—where light can orbit the black hole (unstably). Creates the bright ring in images. |
 | `eventHorizon` | Red | ~1.1 Rs (disk plane) | Near the event horizon—the point of no return. Rendered slightly outside rs to remain visible. |
-| `doppler` | Blue/Red tint | On disk surface | Tints the disk blue where material approaches (blueshift) and red where it recedes (redshift). |
+| `doppler` | Cyan-blue / Orange-red | On disk surface | Dramatically colors the disk to show the Doppler effect: cyan-blue where material approaches the viewer (blueshift) and orange-red where it recedes (redshift). The color intensity increases with velocity, making the relativistic motion unmistakably visible. |
 | `scale` | Gray/White | 5, 10, 15 Rs (elevated) | Distance reference rings rendered twice—once above and once below the orbital plane—for size context |
 
 **Ring order from center outward**: Event Horizon (red) → Photon Sphere (gold) → Shadow Edge (purple) → ISCO (cyan)

@@ -109,6 +109,23 @@ float fbm(vec2 p, int octaves) {
   return value / maxValue;
 }
 
+// RGB to HSV conversion
+vec3 rgb2hsv(vec3 c) {
+  vec4 K = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  float e = 1.0e-10;
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+// HSV to RGB conversion
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
 // Stable disk texture using uniform rotation + minimal warping
 float advectedFBM(float r, float phi, float t, int octaves) {
   // Uniform rotation - entire pattern rotates together (prevents winding)
@@ -418,24 +435,41 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex) {
   
   vec3 color = sampleBlackbody(temp);
 
-  // Doppler indicator overlay: tint blue for approaching, red for receding
+  // Doppler indicator overlay: use direct color replacement for clarity
   if (overlayDoppler > 0.0) {
-    vec3 dopplerTint;
+    float brightness = dot(color, vec3(0.299, 0.587, 0.114));
+
     if (doppler > 1.0) {
-      // Approaching (blueshift)
-      float shift = clamp((doppler - 1.0) * 2.0, 0.0, 1.0);
-      dopplerTint = mix(vec3(1.0), vec3(0.3, 0.5, 1.0), shift);
+      // Approaching (blueshift) - replace with cyan-blue
+      float shift = clamp((doppler - 1.0) * 3.0, 0.0, 1.0);
+      float blendStrength = shift * overlayDoppler;
+
+      // Saturated blue color, scaled by original brightness
+      vec3 blueColor = vec3(0.3, 0.6, 1.0) * brightness * 1.5;
+      color = mix(color, blueColor, blendStrength * 0.8);
+
     } else {
-      // Receding (redshift)
-      float shift = clamp((1.0 - doppler) * 2.0, 0.0, 1.0);
-      dopplerTint = mix(vec3(1.0), vec3(1.0, 0.3, 0.3), shift);
+      // Receding (redshift) - replace with orange-red
+      float shift = clamp((1.0 - doppler) * 3.0, 0.0, 1.0);
+      float blendStrength = shift * overlayDoppler;
+
+      // Saturated orange-red color, scaled by original brightness
+      vec3 redColor = vec3(1.0, 0.4, 0.2) * brightness * 1.2;
+      color = mix(color, redColor, blendStrength * 0.7);
     }
-    color = mix(color, color * dopplerTint, overlayDoppler * 0.4);
   }
 
   // Intensity: Include gravitational redshift (photon energy loss)
   // Disk stays bright right to the edge
-  float baseIntensity = pow(doppler, 3.0) * gravRedshift / (1.0 + frac * 2.0);
+  float dopplerBoost = pow(doppler, 3.0);
+
+  // Reduce intensity boost when Doppler overlay is active to preserve colors
+  if (overlayDoppler > 0.0) {
+    // Mix from cubic to linear Doppler for clearer color visualization
+    dopplerBoost = mix(dopplerBoost, doppler, overlayDoppler * 0.7);
+  }
+
+  float baseIntensity = dopplerBoost * gravRedshift / (1.0 + frac * 2.0);
   
   // Apply Reinhard tonemapping to compress dynamic range while preserving local contrast
   // This prevents the bright Doppler-boosted side from washing out texture detail
