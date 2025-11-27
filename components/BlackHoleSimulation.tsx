@@ -41,7 +41,7 @@ export interface BlackHoleSimulationProps {
   showDevControls?: boolean;
   /** Show FPS stats counter (default: false) */
   showStats?: boolean;
-  /** Initial camera preset key (default: 'distant') */
+  /** Initial camera preset key (default: 'far') */
   initialCameraPreset?: keyof typeof CAMERA_PRESETS;
   /** Initial EHT blur enabled state (default: CONFIG.ehtBlur.enabled) */
   initialEhtBlurEnabled?: boolean;
@@ -58,20 +58,20 @@ export interface BlackHoleSimulationProps {
 // ============================================================================
 
 export const CAMERA_PRESETS: Record<string, CameraPreset> = {
-  distant: {
-    name: 'Distant',
+  far: {
+    name: 'Far',
     position: { x: -25, y: 5, z: 45 },
     lookAt: { x: 0, y: 0, z: 0 },
     duration: 3,
   },
-  orbit: {
-    name: 'Orbit',
+  default: {
+    name: 'Default',
     position: { x: 0, y: 1, z: 20 },
     lookAt: { x: 0, y: 0, z: 0 },
     duration: 2,
   },
-  flybyClose: {
-    name: 'Close Flyby',
+  accretionDisk: {
+    name: 'Accretion Disk',
     position: { x: 8, y: 2, z: 8 },
     lookAt: { x: -3, y: -2, z: 0 },
     duration: 3,
@@ -117,7 +117,7 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
 export default function BlackHoleSimulation({
   showDevControls = false,
   showStats = false,
-  initialCameraPreset = 'distant',
+  initialCameraPreset = 'far',
   initialEhtBlurEnabled = CONFIG.ehtBlur.enabled,
   overlayState,
   onCameraReady,
@@ -611,10 +611,10 @@ export default function BlackHoleSimulation({
         // Preset camera movements
         const presetFolder = gui.addFolder('Camera Presets');
         const presets = {
-          flybyClose: () => {
+          accretionDisk: () => {
             cameraController.moveTo(
-              { position: CAMERA_PRESETS.flybyClose.position, lookAt: CAMERA_PRESETS.flybyClose.lookAt },
-              { duration: CAMERA_PRESETS.flybyClose.duration }
+              { position: CAMERA_PRESETS.accretionDisk.position, lookAt: CAMERA_PRESETS.accretionDisk.lookAt },
+              { duration: CAMERA_PRESETS.accretionDisk.duration }
             );
           },
           topDown: () => {
@@ -645,7 +645,7 @@ export default function BlackHoleSimulation({
           },
         };
 
-        presetFolder.add(presets, 'flybyClose').name('🎬 Close Flyby');
+        presetFolder.add(presets, 'accretionDisk').name('🎬 Accretion Disk');
         presetFolder.add(presets, 'topDown').name('🎬 Top Down');
         presetFolder.add(presets, 'edgeOn').name('🎬 Edge On');
         presetFolder.add(presets, 'dramatic').name('🎬 Dramatic');
