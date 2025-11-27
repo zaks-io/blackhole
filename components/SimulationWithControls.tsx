@@ -18,9 +18,12 @@ export default function SimulationWithControls() {
   const [activePreset, setActivePreset] = useState<string>('orbit');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
   const [ehtMode, setEhtMode] = useState(false);
-  const [ehtBlurEnabled, setEhtBlurEnabled] = useState(false);
+  const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
   const [introComplete, setIntroComplete] = useState(false);
+  const [introState, setIntroState] = useState<'idle' | 'connecting' | 'error'>('idle');
+  const [introError, setIntroError] = useState<string | null>(null);
   const [showVoiceAgent, setShowVoiceAgent] = useState(false);
+  const [voiceConnecting, setVoiceConnecting] = useState(false);
   const [overlayState, setOverlayState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
   const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
 
@@ -99,26 +102,59 @@ export default function SimulationWithControls() {
     sendContextualUpdate(`User ${newState ? 'enabled' : 'disabled'} EHT blur effect`);
   }, [ehtBlurController, ehtBlurEnabled, sendContextualUpdate]);
 
-  const handleStart = useCallback(() => {
+  const handleReveal = useCallback((withVoice: boolean) => {
     if (!ehtBlurController || !cameraController) return;
+
+    setIntroComplete(true);
+    setIntroState('idle');
+    setIntroError(null);
+
+    // Unblur
     ehtBlurController.setEnabled(false);
     setEhtMode(false);
     setEhtBlurEnabled(false);
-    setIntroComplete(true);
 
-    // Move camera from far intro position to orbit position
-    const orbitPreset = CAMERA_PRESETS.orbit;
-    cameraController.moveTo(
-      { position: orbitPreset.position, lookAt: orbitPreset.lookAt },
-      { duration: 2.5, ease: 'power2.inOut' }
-    ).then(() => {
-      cameraController.startOrbit({
-        distance: 20 * CONFIG.rs,
-        height: 1 * CONFIG.rs,
-        speed: 1,
+    // Slight delay for choreography, then zoom camera
+    setTimeout(() => {
+      const orbitPreset = CAMERA_PRESETS.orbit;
+      cameraController.moveTo(
+        { position: orbitPreset.position, lookAt: orbitPreset.lookAt },
+        { duration: 2.5, ease: 'power2.inOut' }
+      ).then(() => {
+        cameraController.startOrbit({
+          distance: 20 * CONFIG.rs,
+          height: 1 * CONFIG.rs,
+          speed: 1,
+        });
       });
-    });
+    }, 200);
+
+    // Show voice popup if voice was enabled
+    if (withVoice) {
+      setShowVoiceAgent(true);
+    }
   }, [ehtBlurController, cameraController]);
+
+  const handleVoiceConnect = useCallback(() => {
+    setVoiceConnecting(true);
+    setIntroState('connecting');
+    setIntroError(null);
+  }, []);
+
+  const handleVoiceConnected = useCallback(() => {
+    setVoiceConnecting(false);
+    handleReveal(true);
+  }, [handleReveal]);
+
+  const handleVoiceError = useCallback((error: string) => {
+    setVoiceConnecting(false);
+    setIntroState('error');
+    setIntroError(error);
+  }, []);
+
+  const handleSkip = useCallback(() => {
+    handleReveal(false);
+  }, [handleReveal]);
 
   const handleEhtBlurSet = useCallback((enabled: boolean) => {
     if (!ehtBlurController) return;
@@ -173,7 +209,7 @@ export default function SimulationWithControls() {
       <BlackHoleSimulation
         showDevControls={false}
         showStats={false}
-        initialEhtBlurEnabled={false}
+        initialEhtBlurEnabled={true}
         overlayState={overlayState}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
@@ -181,10 +217,44 @@ export default function SimulationWithControls() {
 
       {/* Intro Overlay */}
       <div className={`intro-overlay ${introComplete ? 'hidden' : ''}`}>
-        <button onClick={handleStart} className="start-btn" disabled={!ehtBlurController}>
-          <span className="start-icon">◉</span>
-          <span className="start-label">START</span>
-        </button>
+        <div className="intro-card">
+          <div className="headphone-icon">🎧</div>
+          <p className="headphone-text">Best experienced with headphones</p>
+
+          {introState === 'error' && introError && (
+            <p className="error-text">{introError}</p>
+          )}
+
+          <button
+            onClick={handleVoiceConnect}
+            className="voice-tour-btn"
+            disabled={!ehtBlurController || voiceConnecting}
+          >
+            {voiceConnecting ? 'Connecting...' : 'Begin Voice Tour'}
+          </button>
+
+          <button onClick={handleSkip} className="skip-btn" disabled={!ehtBlurController}>
+            Skip and explore manually
+          </button>
+        </div>
+
+        {/* Hidden VoiceAgentPopup for connection during intro */}
+        {voiceConnecting && (
+          <div className="voice-popup-hidden">
+            <VoiceAgentPopup
+              onClose={() => {
+                setVoiceConnecting(false);
+                setIntroState('idle');
+              }}
+              onPresetSelect={handlePresetSelect}
+              onEhtBlurToggle={handleEhtBlurSet}
+              onOverlayToggle={handleOverlayToggle}
+              onContextualUpdateReady={handleContextualUpdateReady}
+              onConnected={handleVoiceConnected}
+              autoConnect
+            />
+          </div>
+        )}
       </div>
 
       {cameraController && (
@@ -235,17 +305,11 @@ export default function SimulationWithControls() {
           height: 100%;
           z-index: 200;
           display: flex;
-          align-items: flex-end;
+          align-items: center;
           justify-content: center;
-          padding-bottom: 15vh;
-          background-image: radial-gradient(
-            ellipse at center,
-            rgba(255, 74, 30, 0.18) 0%,
-            rgba(0, 0, 0, 0.3) 50%
-          );
-          background-blend-mode: overlay;
+          background: rgba(0, 0, 0, 0.5);
           opacity: 1;
-          transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .intro-overlay.hidden {
@@ -253,67 +317,103 @@ export default function SimulationWithControls() {
           pointer-events: none;
         }
 
-        .start-btn {
+        .intro-card {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 12px;
-          padding: 24px 48px;
-          background: rgba(10, 10, 10, 0.7);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 165, 0, 0.3);
-          border-radius: 16px;
+          gap: 20px;
+          padding: 40px 48px;
+          background: rgba(10, 10, 10, 0.85);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border: 1px solid rgba(255, 140, 66, 0.2);
+          border-radius: 20px;
+          max-width: 400px;
+          width: 90%;
+          box-shadow:
+            0 4px 60px rgba(0, 0, 0, 0.6),
+            0 0 80px rgba(255, 140, 66, 0.08),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .headphone-icon {
+          font-size: 48px;
+          line-height: 1;
+        }
+
+        .headphone-text {
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: 14px;
+          color: rgba(255, 255, 255, 0.7);
+          text-align: center;
+          margin: 0;
+        }
+
+        .error-text {
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: 12px;
+          color: #ef4444;
+          text-align: center;
+          margin: 0;
+        }
+
+        .voice-tour-btn {
+          padding: 16px 48px;
+          background: rgba(255, 140, 66, 0.15);
+          border: 1px solid rgba(255, 140, 66, 0.4);
+          border-radius: 12px;
+          color: #ff8c42;
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: 13px;
+          font-weight: 500;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
           cursor: pointer;
           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow:
-            0 4px 30px rgba(0, 0, 0, 0.5),
-            0 0 60px rgba(255, 165, 0, 0.1),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+          min-width: 220px;
         }
 
-        .start-btn:hover:not(:disabled) {
-          background: rgba(255, 165, 0, 0.15);
-          border-color: rgba(255, 165, 0, 0.5);
-          box-shadow:
-            0 4px 30px rgba(0, 0, 0, 0.5),
-            0 0 80px rgba(255, 165, 0, 0.2),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        .voice-tour-btn:hover:not(:disabled) {
+          background: rgba(255, 140, 66, 0.25);
+          border-color: rgba(255, 140, 66, 0.6);
+          box-shadow: 0 0 30px rgba(255, 140, 66, 0.2);
         }
 
-        .start-btn:active:not(:disabled) {
+        .voice-tour-btn:active:not(:disabled) {
           transform: scale(0.98);
         }
 
-        .start-btn:disabled {
+        .voice-tour-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        .skip-btn {
+          background: none;
+          border: none;
+          color: rgba(255, 255, 255, 0.4);
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: 12px;
+          cursor: pointer;
+          padding: 8px 16px;
+          transition: color 0.2s ease;
+        }
+
+        .skip-btn:hover:not(:disabled) {
+          color: rgba(255, 255, 255, 0.7);
+        }
+
+        .skip-btn:disabled {
           opacity: 0.5;
           cursor: default;
         }
 
-        .start-icon {
-          font-size: 48px;
-          color: #ffa500;
-          line-height: 1;
-          transition: transform 0.2s ease;
-          text-shadow: 0 0 20px rgba(255, 165, 0, 0.5);
-        }
-
-        .start-btn:hover:not(:disabled) .start-icon {
-          transform: scale(1.1);
-        }
-
-        .start-label {
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-          font-size: 12px;
-          font-weight: 500;
-          letter-spacing: 0.2em;
-          text-transform: uppercase;
-          color: rgba(255, 255, 255, 0.7);
-          transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .start-btn:hover:not(:disabled) .start-label {
-          color: rgba(255, 255, 255, 0.9);
+        .voice-popup-hidden {
+          position: fixed;
+          top: -9999px;
+          left: -9999px;
+          opacity: 0;
+          pointer-events: none;
         }
 
         .voice-toggle {
@@ -356,6 +456,20 @@ export default function SimulationWithControls() {
         }
 
         @media (max-width: 600px) {
+          .intro-card {
+            padding: 32px 24px;
+          }
+
+          .headphone-icon {
+            font-size: 40px;
+          }
+
+          .voice-tour-btn {
+            width: 100%;
+            min-width: auto;
+            padding: 14px 24px;
+          }
+
           .voice-toggle {
             right: 16px;
             bottom: 24px;
