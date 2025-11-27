@@ -19,13 +19,13 @@ A real-time gravitational lensing simulation of a Schwarzschild (non-rotating) b
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Start development server
-npm run dev
+bun dev
 
 # Build for production
-npm run build
+bun build
 ```
 
 Open `http://localhost:3001` in your browser.
