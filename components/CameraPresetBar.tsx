@@ -14,31 +14,31 @@ interface CameraPresetBarProps {
 }
 
 const PRESET_ICONS: Record<string, string> = {
+  distant: '⊕',
   orbit: '⟳',
   flybyClose: '◎',
   topDown: '⬡',
   edgeOn: '━',
   photonSphere: '◐',
   doppler: '↔',
-  behindDisk: '◠',
   fallingIn: '↓',
 };
 
 const PRESET_LABELS: Record<string, string> = {
+  distant: 'Far',
   orbit: 'Orbit',
   flybyClose: 'Close',
   topDown: 'Above',
   edgeOn: 'Edge',
   photonSphere: 'Ring',
   doppler: 'Doppler',
-  behindDisk: 'Behind',
   fallingIn: 'Fall',
 };
 
 export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlurEnabled, onEhtToggle, onEhtBlurToggle, show = true }: CameraPresetBarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'intro' && key !== 'eht');
+  const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'eht');
 
   return (
     <div className={`preset-bar-container ${show ? '' : 'hidden'}`}>

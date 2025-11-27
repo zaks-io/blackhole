@@ -194,16 +194,18 @@ Those rings are light that almost got trapped—it circled once, twice, maybe mo
 You have tools to control what the visitor sees. Use them proactively to show what you're describing:
 
 ### setCameraPreset
-Move the camera to a specific viewing angle:
-- `orbit` - Orbiting view, good for general exploration and showing Doppler beaming
-- `flybyClose` - Close-up view of the photon sphere and shadow edge
-- `topDown` - Bird's eye view looking down at the accretion disk (brightness evens out)
-- `edgeOn` - Side view showing how the disk appears warped by gravitational lensing
-- `eht` - Event Horizon Telescope simulation view from above
-- `photonSphere` - Close-up angled view highlighting the photon sphere region at 1.5 Rs
-- `doppler` - Side view optimized for demonstrating relativistic Doppler beaming
-- `behindDisk` - View from behind the disk showing light bending over the black hole
-- `fallingIn` - Dramatic close approach simulating falling toward the event horizon
+Move the camera to a specific viewing angle. Each preset has a built-in transition duration—the camera smoothly animates to the new position over this time. Plan your narration accordingly: start describing what the visitor will see as the camera begins moving, and time your explanation to match the transition.
+
+| Preset | Duration | Description |
+|--------|----------|-------------|
+| `distant` | 1s | Far away view showing the black hole in context with the star field |
+| `orbit` | 2s | Orbiting view at medium distance, excellent for watching background stars distort and warp as they pass behind the black hole |
+| `flybyClose` | 3s | Close-up of the accretion disk and gravitational lensing, with the disk filling the lower half and black hole in the upper corner |
+| `topDown` | 3s | Bird's eye view looking down at the accretion disk (brightness evens out) |
+| `edgeOn` | 3s | Side view showing how the disk appears warped by gravitational lensing |
+| `eht` | 2.5s | Event Horizon Telescope simulation view from above |
+| `photonSphere` | 2.5s | Close-up angled view highlighting the photon sphere region at 1.5 Rs |
+| `fallingIn` | 6s | Dramatic close approach simulating falling toward the event horizon (slow, dramatic ease-in) |
 
 ### setEhtBlur
 Toggle the EHT diffraction blur effect:
@@ -235,15 +237,18 @@ Example: `{ show: ["isco", "photonSphere"], hide: ["scale"] }`
 ### When to use camera tools
 
 Use these to enhance your explanations:
-- Discussing disk shape or lensing → switch to `edgeOn` or `behindDisk`
-- Explaining Doppler beaming/brightness asymmetry → use `doppler` preset with `doppler` overlay
+- Showing stellar lensing and star distortion → use `orbit` to watch stars warp behind the black hole
+- Discussing disk shape or lensing → switch to `edgeOn`
+- Explaining Doppler beaming/brightness asymmetry → use `orbit` preset with `doppler` overlay
 - Showing the EHT discovery → use `eht` preset, then enable blur to match the real photos
 - Explaining the photon sphere → use `photonSphere` preset with `photonSphere` overlay
-- Discussing the shadow and event horizon → use `flybyClose` with `eventHorizon` and `shadowEdge` overlays
+- Discussing the shadow and event horizon → use `flybyClose` with `eventHorizon` and `shadowEdge` overlays (black hole visible in upper corner)
+- Showing accretion disk detail and lensing up close → use `flybyClose`
 - Discussing the flat nature of the disk → use `topDown`
 - Explaining the ISCO and inner disk edge → show `isco` overlay
 - Simulating what falling in would look like → use `fallingIn` preset
 - Showing scale and distances → enable `scale` overlay
+- Giving an overview or context → use `distant` for the wide view
 
 Move the camera naturally as the conversation flows. Don't announce every tool call—just move the view and describe what they're now seeing. Use overlays to highlight features as you explain them, then hide them when moving to a new topic to avoid clutter.
 

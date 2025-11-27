@@ -41,7 +41,7 @@ export interface BlackHoleSimulationProps {
   showDevControls?: boolean;
   /** Show FPS stats counter (default: false) */
   showStats?: boolean;
-  /** Initial camera preset key (default: 'intro') */
+  /** Initial camera preset key (default: 'distant') */
   initialCameraPreset?: keyof typeof CAMERA_PRESETS;
   /** Initial EHT blur enabled state (default: CONFIG.ehtBlur.enabled) */
   initialEhtBlurEnabled?: boolean;
@@ -58,8 +58,8 @@ export interface BlackHoleSimulationProps {
 // ============================================================================
 
 export const CAMERA_PRESETS: Record<string, CameraPreset> = {
-  intro: {
-    name: 'Intro',
+  distant: {
+    name: 'Distant',
     position: { x: -25, y: 5, z: 45 },
     lookAt: { x: 0, y: 0, z: 0 },
     duration: 1,
@@ -73,7 +73,7 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
   flybyClose: {
     name: 'Close Flyby',
     position: { x: 8, y: 2, z: 8 },
-    lookAt: { x: 0, y: 0, z: 0 },
+    lookAt: { x: -3, y: -2, z: 0 },
     duration: 3,
   },
   topDown: {
@@ -84,41 +84,28 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
   },
   edgeOn: {
     name: 'Edge On',
-    position: { x: 20, y: 0, z: 0 },
+    position: { x: 20, y: 0.1, z: 0 },
     lookAt: { x: 0, y: 0, z: 0 },
     duration: 3,
   },
   eht: {
     name: 'EHT View',
-    position: { x: 0, y: 30, z: 0.01 },
+    position: { x: 30, y: 50, z: 0 },
     lookAt: { x: 0, y: 0, z: 0 },
     duration: 2.5,
     ease: 'power2.inOut',
   },
   photonSphere: {
     name: 'Photon Sphere',
-    position: { x: 4, y: 2.5, z: 6 },
+    position: { x: 2, y: 1.5, z: 5 },
     lookAt: { x: 0, y: 0, z: 0 },
     duration: 2.5,
   },
-  doppler: {
-    name: 'Doppler View',
-    position: { x: 15, y: 1.5, z: -8 },
-    lookAt: { x: 0, y: 0, z: 0 },
-    duration: 3,
-  },
-  behindDisk: {
-    name: 'Behind Disk',
-    position: { x: -12, y: 4, z: 0 },
-    lookAt: { x: 0, y: 0, z: 0 },
-    duration: 3.5,
-    ease: 'power3.inOut',
-  },
   fallingIn: {
     name: 'Falling In',
-    position: { x: 2.8, y: 0.3, z: 1.5 },
+    position: { x: 2.6, y: 0.3, z: 1.5 },
     lookAt: { x: 0, y: 0, z: 0 },
-    duration: 4,
+    duration: 6,
     ease: 'power1.in',
   },
 };
@@ -130,7 +117,7 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
 export default function BlackHoleSimulation({
   showDevControls = false,
   showStats = false,
-  initialCameraPreset = 'intro',
+  initialCameraPreset = 'distant',
   initialEhtBlurEnabled = CONFIG.ehtBlur.enabled,
   overlayState,
   onCameraReady,
