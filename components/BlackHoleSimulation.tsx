@@ -62,7 +62,7 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
     name: 'Distant',
     position: { x: -25, y: 5, z: 45 },
     lookAt: { x: 0, y: 0, z: 0 },
-    duration: 1,
+    duration: 3,
   },
   orbit: {
     name: 'Orbit',
