@@ -36,17 +36,13 @@ const PRESET_LABELS: Record<string, string> = {
 };
 
 export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlurEnabled, onEhtToggle, onEhtBlurToggle, show = true }: CameraPresetBarProps) {
-  const [isHovered, setIsHovered] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'intro' && key !== 'eht');
 
   return (
-    <div
-      className={`preset-bar-container ${show ? '' : 'hidden'}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className={`preset-bar ${isHovered ? 'expanded' : ''}`}>
+    <div className={`preset-bar-container ${show ? '' : 'hidden'}`}>
+      <div className={`preset-bar ${isOpen ? 'expanded' : ''}`}>
         {presetKeys.map((key) => (
           <button
             key={key}
@@ -82,6 +78,13 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
           </>
         )}
       </div>
+      <button
+        className={`collapse-header ${isOpen ? 'open' : ''}`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="chevron">▲</span>
+        <span className="header-label">Camera</span>
+      </button>
 
       <style jsx>{`
         .preset-bar-container {
@@ -91,6 +94,9 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
           transform: translateX(-50%) translateY(0);
           z-index: 100;
           opacity: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
           transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -100,28 +106,82 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
           pointer-events: none;
         }
 
-        .preset-bar {
+        .collapse-header {
           display: flex;
           align-items: center;
-          gap: 4px;
-          padding: 8px 12px;
+          gap: 6px;
+          padding: 6px 14px;
           background: rgba(10, 10, 10, 0.7);
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
           border: 1px solid rgba(255, 140, 66, 0.15);
-          border-radius: 16px;
-          box-shadow: 
+          border-radius: 12px;
+          color: rgba(255, 255, 255, 0.5);
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow:
             0 4px 30px rgba(0, 0, 0, 0.5),
             0 0 40px rgba(255, 140, 66, 0.05),
             inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .collapse-header:hover {
+          color: rgba(255, 255, 255, 0.8);
+          background: rgba(10, 10, 10, 0.85);
+          border-color: rgba(255, 140, 66, 0.25);
+        }
+
+        .collapse-header.open {
+          border-top-left-radius: 0;
+          border-top-right-radius: 0;
+          border-top-color: transparent;
+        }
+
+        .header-label {
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: 9px;
+          font-weight: 500;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .chevron {
+          font-size: 8px;
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .collapse-header.open .chevron {
+          transform: rotate(180deg);
+        }
+
+        .preset-bar {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 0 12px;
+          max-height: 0;
+          overflow: hidden;
+          background: rgba(10, 10, 10, 0.7);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 140, 66, 0.15);
+          border-bottom: none;
+          border-radius: 16px 16px 0 0;
+          box-shadow:
+            0 -4px 30px rgba(0, 0, 0, 0.5),
+            0 0 40px rgba(255, 140, 66, 0.05),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          opacity: 0;
         }
 
         .preset-bar.expanded {
           padding: 10px 16px;
+          max-height: 200px;
           gap: 6px;
           background: rgba(10, 10, 10, 0.85);
           border-color: rgba(255, 140, 66, 0.25);
+          opacity: 1;
         }
 
         .preset-btn {
@@ -228,7 +288,7 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
 
         /* Responsive adjustments */
         @media (max-width: 600px) {
-          .preset-bar {
+          .preset-bar.expanded {
             gap: 2px;
             padding: 6px 8px;
           }

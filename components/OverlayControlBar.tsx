@@ -19,17 +19,18 @@ const OVERLAY_CONFIG: { key: keyof OverlayState; icon: string; label: string; co
 ];
 
 export function OverlayControlBar({ overlayState, onToggle, show = true }: OverlayControlBarProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div
-      className={`overlay-bar-container ${show ? '' : 'hidden'}`}
-      onMouseEnter={() => setIsExpanded(true)}
-      onMouseLeave={() => setIsExpanded(false)}
-    >
-      <div className={`overlay-bar ${isExpanded ? 'expanded' : ''}`}>
-        <span className="bar-label">Overlays</span>
-        <div className="separator" />
+    <div className={`overlay-bar-container ${show ? '' : 'hidden'}`}>
+      <button
+        className={`collapse-header ${isOpen ? 'open' : ''}`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="header-label">Overlays</span>
+        <span className="chevron">▼</span>
+      </button>
+      <div className={`overlay-bar ${isOpen ? 'expanded' : ''}`}>
         {OVERLAY_CONFIG.map(({ key, icon, label, color }) => {
           const isActive = overlayState[key];
           return (
@@ -55,6 +56,9 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
           transform: translateX(-50%) translateY(0);
           z-index: 100;
           opacity: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
           transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -64,44 +68,80 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
           pointer-events: none;
         }
 
-        .overlay-bar {
+        .collapse-header {
           display: flex;
           align-items: center;
-          gap: 4px;
-          padding: 6px 10px;
+          gap: 6px;
+          padding: 6px 14px;
           background: rgba(10, 10, 10, 0.7);
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 12px;
+          color: rgba(255, 255, 255, 0.5);
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           box-shadow:
             0 4px 30px rgba(0, 0, 0, 0.5),
             inset 0 1px 0 rgba(255, 255, 255, 0.05);
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .overlay-bar.expanded {
-          padding: 8px 14px;
-          gap: 6px;
+        .collapse-header:hover {
+          color: rgba(255, 255, 255, 0.8);
           background: rgba(10, 10, 10, 0.85);
           border-color: rgba(255, 255, 255, 0.15);
         }
 
-        .bar-label {
+        .collapse-header.open {
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
+          border-bottom-color: transparent;
+        }
+
+        .header-label {
           font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
           font-size: 9px;
           font-weight: 500;
           letter-spacing: 0.1em;
           text-transform: uppercase;
-          color: rgba(255, 255, 255, 0.4);
-          padding: 0 6px;
         }
 
-        .separator {
-          width: 1px;
-          height: 20px;
-          background: rgba(255, 255, 255, 0.1);
-          margin: 0 2px;
+        .chevron {
+          font-size: 8px;
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .collapse-header.open .chevron {
+          transform: rotate(180deg);
+        }
+
+        .overlay-bar {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 0 10px;
+          max-height: 0;
+          overflow: hidden;
+          background: rgba(10, 10, 10, 0.7);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: none;
+          border-radius: 0 0 12px 12px;
+          box-shadow:
+            0 4px 30px rgba(0, 0, 0, 0.5),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          opacity: 0;
+        }
+
+        .overlay-bar.expanded {
+          padding: 8px 14px;
+          max-height: 200px;
+          gap: 6px;
+          background: rgba(10, 10, 10, 0.85);
+          border-color: rgba(255, 255, 255, 0.15);
+          opacity: 1;
         }
 
         .overlay-btn {
@@ -165,9 +205,9 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
         }
 
         @media (max-width: 600px) {
-          .overlay-bar {
+          .overlay-bar.expanded {
             gap: 2px;
-            padding: 4px 6px;
+            padding: 6px 8px;
           }
 
           .overlay-btn {
@@ -177,14 +217,6 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
 
           .overlay-icon {
             font-size: 14px;
-          }
-
-          .bar-label {
-            display: none;
-          }
-
-          .separator {
-            display: none;
           }
         }
       `}</style>
