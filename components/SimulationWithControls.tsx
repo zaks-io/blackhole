@@ -185,23 +185,21 @@ export default function SimulationWithControls() {
     setActivePreset(presetName);
     sendContextualUpdate(`User changed camera to ${presetName} view`);
 
-    if (presetName === 'orbit') {
-      cameraController.moveTo(
-        { position: preset.position, lookAt: preset.lookAt },
-        { duration: preset.duration, ease: preset.ease }
-      ).then(() => {
-        cameraController.startOrbit({
-          distance: 20 * CONFIG.rs,
-          height: 1 * CONFIG.rs,
-          speed: 1,
-        });
-      });
-    } else {
-      cameraController.moveTo(
-        { position: preset.position, lookAt: preset.lookAt },
-        { duration: preset.duration, ease: preset.ease }
-      );
-    }
+    // Calculate orbit parameters from preset position
+    const pos = preset.position;
+    const distance = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
+    const height = pos.y;
+
+    // Use transitionOrbit to smoothly change distance/height while preserving orbit angle
+    cameraController.transitionOrbit(
+      {
+        distance,
+        height,
+        speed: 1,
+        lookAt: preset.lookAt,
+      },
+      { duration: preset.duration, ease: preset.ease }
+    );
   }, [cameraController, ehtMode, ehtBlurController, sendContextualUpdate]);
 
   return (

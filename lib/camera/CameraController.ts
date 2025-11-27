@@ -29,6 +29,8 @@ export interface OrbitConfig {
   speed: number;
   /** Point to look at (default: origin) */
   lookAt?: { x: number; y: number; z: number };
+  /** Preserve current orbit angle instead of calculating from position */
+  preserveAngle?: boolean;
 }
 
 type ControlMode = 'manual' | 'cinematic' | 'orbit';
@@ -120,13 +122,15 @@ export class CameraController {
   startOrbit(config: OrbitConfig): void {
     // Kill any active tweens
     this.killActiveTweens();
-    
+
     this.orbitConfig = config;
     this.setMode('orbit');
-    
-    // Calculate starting angle from current position
-    this.orbitAngle = Math.atan2(this.camera.position.x, this.camera.position.z);
-    
+
+    // Only calculate starting angle if not preserving (first start)
+    if (!config.preserveAngle) {
+      this.orbitAngle = Math.atan2(this.camera.position.x, this.camera.position.z);
+    }
+
     // Set lookAt target
     if (config.lookAt) {
       this.targetLookAt.set(config.lookAt.x, config.lookAt.y, config.lookAt.z);
@@ -134,6 +138,58 @@ export class CameraController {
       this.targetLookAt.set(0, 0, 0);
     }
     this.currentLookAt.copy(this.targetLookAt);
+  }
+
+  /**
+   * Smoothly transition orbit parameters while maintaining continuous rotation
+   */
+  transitionOrbit(config: OrbitConfig, options: TweenOptions = {}): Promise<void> {
+    const { duration = 2, ease = 'power2.inOut', onComplete } = options;
+
+    // Kill any active tweens
+    this.killActiveTweens();
+
+    // If not already orbiting, start orbit first
+    if (this.mode !== 'orbit' || !this.orbitConfig) {
+      this.orbitAngle = Math.atan2(this.camera.position.x, this.camera.position.z);
+      this.orbitConfig = { ...config };
+      this.setMode('orbit');
+    }
+
+    // Set lookAt target
+    if (config.lookAt) {
+      this.targetLookAt.set(config.lookAt.x, config.lookAt.y, config.lookAt.z);
+    } else {
+      this.targetLookAt.set(0, 0, 0);
+    }
+
+    return new Promise((resolve) => {
+      // Tween orbit config parameters
+      const configTween = gsap.to(this.orbitConfig!, {
+        distance: config.distance,
+        height: config.height,
+        speed: config.speed,
+        duration,
+        ease,
+      });
+
+      // Tween lookAt
+      const lookAtTween = gsap.to(this.currentLookAt, {
+        x: this.targetLookAt.x,
+        y: this.targetLookAt.y,
+        z: this.targetLookAt.z,
+        duration,
+        ease,
+        onComplete: () => {
+          this.cleanupTween(configTween);
+          this.cleanupTween(lookAtTween);
+          onComplete?.();
+          resolve();
+        },
+      });
+
+      this.activeTweens.push(configTween, lookAtTween);
+    });
   }
 
   /**
