@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import BlackHoleSimulation, { CAMERA_PRESETS, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
 import { OverlayControlBar } from './OverlayControlBar';
@@ -22,6 +22,27 @@ export default function SimulationWithControls() {
   const [introComplete, setIntroComplete] = useState(false);
   const [showVoiceAgent, setShowVoiceAgent] = useState(false);
   const [overlayState, setOverlayState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
+  const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
+
+  const handleContextualUpdateReady = useCallback((sendUpdate: (text: string) => void) => {
+    sendContextualUpdateRef.current = sendUpdate;
+
+    const activeOverlays = Object.entries(overlayState)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    const overlayInfo = activeOverlays.length > 0
+      ? `Active overlays: ${activeOverlays.join(', ')}.`
+      : 'No overlays active.';
+    const ehtInfo = ehtMode
+      ? `EHT mode is on${ehtBlurEnabled ? ' with blur enabled' : ''}.`
+      : '';
+
+    sendUpdate(`Current view: ${activePreset}. ${overlayInfo} ${ehtInfo}`.trim());
+  }, [activePreset, overlayState, ehtMode, ehtBlurEnabled]);
+
+  const sendContextualUpdate = useCallback((message: string) => {
+    sendContextualUpdateRef.current?.(message);
+  }, []);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
@@ -40,6 +61,7 @@ export default function SimulationWithControls() {
       setEhtBlurEnabled(false);
       ehtBlurController.setEnabled(false);
       setActivePreset('orbit');
+      sendContextualUpdate('User disabled EHT mode, returning to orbit view');
 
       const orbitPreset = CAMERA_PRESETS.orbit;
       cameraController.moveTo(
@@ -56,6 +78,7 @@ export default function SimulationWithControls() {
       // Enter EHT mode - move camera to EHT position then enable blur
       setEhtMode(true);
       setActivePreset('eht');
+      sendContextualUpdate('User enabled EHT mode to view the black hole as seen by the Event Horizon Telescope');
 
       const ehtPreset = CAMERA_PRESETS.eht;
       cameraController.moveTo(
@@ -66,14 +89,15 @@ export default function SimulationWithControls() {
         ehtBlurController.setEnabled(true);
       });
     }
-  }, [cameraController, ehtBlurController, ehtMode]);
+  }, [cameraController, ehtBlurController, ehtMode, sendContextualUpdate]);
 
   const handleEhtBlurToggle = useCallback(() => {
     if (!ehtBlurController) return;
     const newState = !ehtBlurEnabled;
     setEhtBlurEnabled(newState);
     ehtBlurController.setEnabled(newState);
-  }, [ehtBlurController, ehtBlurEnabled]);
+    sendContextualUpdate(`User ${newState ? 'enabled' : 'disabled'} EHT blur effect`);
+  }, [ehtBlurController, ehtBlurEnabled, sendContextualUpdate]);
 
   const handleStart = useCallback(() => {
     if (!ehtBlurController || !cameraController) return;
@@ -100,11 +124,16 @@ export default function SimulationWithControls() {
     if (!ehtBlurController) return;
     setEhtBlurEnabled(enabled);
     ehtBlurController.setEnabled(enabled);
-  }, [ehtBlurController]);
+    sendContextualUpdate(`User ${enabled ? 'enabled' : 'disabled'} EHT blur effect`);
+  }, [ehtBlurController, sendContextualUpdate]);
 
   const handleOverlayToggle = useCallback((toggles: Partial<OverlayState>) => {
     setOverlayState(prev => ({ ...prev, ...toggles }));
-  }, []);
+    const changes = Object.entries(toggles)
+      .map(([key, val]) => `${key}: ${val ? 'on' : 'off'}`)
+      .join(', ');
+    sendContextualUpdate(`User toggled overlays: ${changes}`);
+  }, [sendContextualUpdate]);
 
   const handlePresetSelect = useCallback((presetName: string) => {
     const preset = CAMERA_PRESETS[presetName];
@@ -118,6 +147,7 @@ export default function SimulationWithControls() {
     }
 
     setActivePreset(presetName);
+    sendContextualUpdate(`User changed camera to ${presetName} view`);
 
     if (presetName === 'orbit') {
       cameraController.moveTo(
@@ -136,7 +166,7 @@ export default function SimulationWithControls() {
         { duration: preset.duration, ease: preset.ease }
       );
     }
-  }, [cameraController, ehtMode, ehtBlurController]);
+  }, [cameraController, ehtMode, ehtBlurController, sendContextualUpdate]);
 
   return (
     <>
@@ -191,6 +221,7 @@ export default function SimulationWithControls() {
           onPresetSelect={handlePresetSelect}
           onEhtBlurToggle={handleEhtBlurSet}
           onOverlayToggle={handleOverlayToggle}
+          onContextualUpdateReady={handleContextualUpdateReady}
           autoConnect
         />
       )}
