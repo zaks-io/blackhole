@@ -16,7 +16,7 @@ import { OverlayState, DEFAULT_OVERLAY_STATE } from '@/lib/types';
  */
 export default function SimulationWithControls() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
-  const [activePreset, setActivePreset] = useState<string>('orbit');
+  const [activePreset, setActivePreset] = useState<string>('default');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
   const [ehtMode, setEhtMode] = useState(false);
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
@@ -60,16 +60,16 @@ export default function SimulationWithControls() {
     if (!cameraController || !ehtBlurController) return;
 
     if (ehtMode) {
-      // Exit EHT mode - go back to orbit
+      // Exit EHT mode - go back to default
       setEhtMode(false);
       setEhtBlurEnabled(false);
       ehtBlurController.setEnabled(false);
-      setActivePreset('orbit');
-      sendContextualUpdate('User disabled EHT mode, returning to orbit view');
+      setActivePreset('default');
+      sendContextualUpdate('User disabled EHT mode, returning to default view');
 
-      const orbitPreset = CAMERA_PRESETS.orbit;
+      const defaultPreset = CAMERA_PRESETS.default;
       cameraController.moveTo(
-        { position: orbitPreset.position, lookAt: orbitPreset.lookAt },
+        { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
         { duration: 2, ease: 'power2.inOut' }
       ).then(() => {
         cameraController.startOrbit({
@@ -117,9 +117,9 @@ export default function SimulationWithControls() {
 
     // Slight delay for choreography, then zoom camera
     setTimeout(() => {
-      const orbitPreset = CAMERA_PRESETS.orbit;
+      const defaultPreset = CAMERA_PRESETS.default;
       cameraController.moveTo(
-        { position: orbitPreset.position, lookAt: orbitPreset.lookAt },
+        { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
         { duration: 2.5, ease: 'power2.inOut' }
       ).then(() => {
         cameraController.startOrbit({

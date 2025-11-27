@@ -14,9 +14,9 @@ interface CameraPresetBarProps {
 }
 
 const PRESET_ICONS: Record<string, string> = {
-  distant: '⊕',
-  orbit: '⟳',
-  flybyClose: '◎',
+  far: '⊕',
+  default: '⟳',
+  accretionDisk: '◎',
   topDown: '⬡',
   edgeOn: '━',
   photonSphere: '◐',
@@ -25,9 +25,9 @@ const PRESET_ICONS: Record<string, string> = {
 };
 
 const PRESET_LABELS: Record<string, string> = {
-  distant: 'Far',
-  orbit: 'Orbit',
-  flybyClose: 'Close',
+  far: 'Far',
+  default: 'Default',
+  accretionDisk: 'Disk',
   topDown: 'Above',
   edgeOn: 'Edge',
   photonSphere: 'Ring',
@@ -46,7 +46,7 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
         {presetKeys.map((key) => (
           <button
             key={key}
-            className={`preset-btn ${key === 'orbit' ? 'orbit-btn' : ''} ${activePreset === key ? 'active' : ''}`}
+            className={`preset-btn ${key === 'default' ? 'default-btn' : ''} ${activePreset === key ? 'active' : ''}`}
             onClick={() => onPresetSelect(key)}
             title={CAMERA_PRESETS[key].name}
           >
@@ -214,11 +214,11 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
             inset 0 0 10px rgba(255, 140, 66, 0.1);
         }
 
-        .preset-btn.orbit-btn.active {
+        .preset-btn.default-btn.active {
           color: #ff5e00;
         }
 
-        .preset-btn.orbit-btn.active .preset-icon {
+        .preset-btn.default-btn.active .preset-icon {
           animation: rotate 4s linear infinite;
         }
 
