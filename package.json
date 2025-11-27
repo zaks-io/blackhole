@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@elevenlabs/react": "^0.11.3",
     "@tailwindcss/postcss": "^4.1.17",
     "gsap": "^3.13.0",
     "lil-gui": "^0.20.0",

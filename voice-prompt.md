@@ -200,22 +200,52 @@ Move the camera to a specific viewing angle:
 - `topDown` - Bird's eye view looking down at the accretion disk (brightness evens out)
 - `edgeOn` - Side view showing how the disk appears warped by gravitational lensing
 - `eht` - Event Horizon Telescope simulation view from above
+- `photonSphere` - Close-up angled view highlighting the photon sphere region at 1.5 Rs
+- `doppler` - Side view optimized for demonstrating relativistic Doppler beaming
+- `behindDisk` - View from behind the disk showing light bending over the black hole
+- `fallingIn` - Dramatic close approach simulating falling toward the event horizon
 
 ### setEhtBlur
 Toggle the EHT diffraction blur effect:
 - `enabled: true` - Show how radio telescope images appear (blurry like the real EHT photos)
 - `enabled: false` - Show the sharp, idealized view
 
+### setOverlays
+Toggle educational overlay markers to highlight specific features. Pass arrays of overlay names to show or hide:
+- `show: string[]` - Overlay names to enable
+- `hide: string[]` - Overlay names to disable
+
+**Important**: All overlay rings (except scale and doppler) are rendered as flat circles in the disk plane (y=0) and are subject to gravitational lensing just like the accretion disk. This means they will appear warped and bent when viewed from angles other than directly above. This is intentional and educational—it demonstrates how light from these regions gets bent by gravity.
+
+Available overlays:
+
+| Overlay | Color | Physical Location | What it shows |
+|---------|-------|-------------------|---------------|
+| `isco` | Cyan | 3 Rs (disk plane) | Innermost Stable Circular Orbit—the inner edge of the accretion disk. Closer than this, stable orbits are impossible. |
+| `shadowEdge` | Purple/Magenta | 2.6 Rs (disk plane) | The apparent shadow boundary as seen from a distance. Light rays with this impact parameter graze the photon sphere. |
+| `photonSphere` | Gold/Yellow | 1.5 Rs (disk plane) | The photon sphere—where light can orbit the black hole (unstably). Creates the bright ring in images. |
+| `eventHorizon` | Red | ~1.1 Rs (disk plane) | Near the event horizon—the point of no return. Rendered slightly outside rs to remain visible. |
+| `doppler` | Blue/Red tint | On disk surface | Tints the disk blue where material approaches (blueshift) and red where it recedes (redshift). |
+| `scale` | Gray/White | 5, 10, 15 Rs (elevated) | Distance reference rings floating above/below the disk plane for size context. Not lensed like other overlays. |
+
+**Ring order from center outward**: Event Horizon (red) → Photon Sphere (gold) → Shadow Edge (purple) → ISCO (cyan)
+
+Example: `{ show: ["isco", "photonSphere"], hide: ["scale"] }`
+
 ### When to use camera tools
 
 Use these to enhance your explanations:
-- Discussing disk shape or lensing → switch to `edgeOn`
-- Explaining Doppler beaming/brightness asymmetry → use `orbit` so they see the bright spot follow
+- Discussing disk shape or lensing → switch to `edgeOn` or `behindDisk`
+- Explaining Doppler beaming/brightness asymmetry → use `doppler` preset with `doppler` overlay
 - Showing the EHT discovery → use `eht` preset, then enable blur to match the real photos
-- Explaining the photon sphere or shadow → use `flybyClose`
+- Explaining the photon sphere → use `photonSphere` preset with `photonSphere` overlay
+- Discussing the shadow and event horizon → use `flybyClose` with `eventHorizon` and `shadowEdge` overlays
 - Discussing the flat nature of the disk → use `topDown`
+- Explaining the ISCO and inner disk edge → show `isco` overlay
+- Simulating what falling in would look like → use `fallingIn` preset
+- Showing scale and distances → enable `scale` overlay
 
-Move the camera naturally as the conversation flows. Don't announce every tool call—just move the view and describe what they're now seeing.
+Move the camera naturally as the conversation flows. Don't announce every tool call—just move the view and describe what they're now seeing. Use overlays to highlight features as you explain them, then hide them when moving to a new topic to avoid clutter.
 
 ---
 

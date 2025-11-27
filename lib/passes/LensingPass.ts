@@ -37,6 +37,13 @@ export interface LensingParams {
   bhEdgeSoftness: number;
   // Photon sphere glow intensity (0 = off, 1 = full)
   photonSphereIntensity: number;
+  // Overlay visibility (0 = off, 1 = on)
+  overlayIsco: number;
+  overlayPhotonSphere: number;
+  overlayEventHorizon: number;
+  overlayShadowEdge: number;
+  overlayDoppler: number;
+  overlayScale: number;
 }
 
 // Default params built from centralized config
@@ -83,7 +90,14 @@ const LensingShader = {
     // Black hole edge softness uniform
     bhEdgeSoftness: { value: 0.5 },
     // Photon sphere glow intensity uniform
-    photonSphereIntensity: { value: 0.5 }
+    photonSphereIntensity: { value: 0.5 },
+    // Overlay uniforms
+    overlayIsco: { value: 0.0 },
+    overlayPhotonSphere: { value: 0.0 },
+    overlayEventHorizon: { value: 0.0 },
+    overlayShadowEdge: { value: 0.0 },
+    overlayDoppler: { value: 0.0 },
+    overlayScale: { value: 0.0 }
   },
   vertexShader,
   fragmentShader
@@ -186,6 +200,25 @@ export class LensingPass extends ShaderPass {
     }
     if (params.photonSphereIntensity !== undefined) {
       this.uniforms['photonSphereIntensity'].value = params.photonSphereIntensity;
+    }
+    // Overlay parameters
+    if (params.overlayIsco !== undefined) {
+      this.uniforms['overlayIsco'].value = params.overlayIsco;
+    }
+    if (params.overlayPhotonSphere !== undefined) {
+      this.uniforms['overlayPhotonSphere'].value = params.overlayPhotonSphere;
+    }
+    if (params.overlayEventHorizon !== undefined) {
+      this.uniforms['overlayEventHorizon'].value = params.overlayEventHorizon;
+    }
+    if (params.overlayShadowEdge !== undefined) {
+      this.uniforms['overlayShadowEdge'].value = params.overlayShadowEdge;
+    }
+    if (params.overlayDoppler !== undefined) {
+      this.uniforms['overlayDoppler'].value = params.overlayDoppler;
+    }
+    if (params.overlayScale !== undefined) {
+      this.uniforms['overlayScale'].value = params.overlayScale;
     }
   }
   

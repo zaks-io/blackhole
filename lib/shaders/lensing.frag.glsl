@@ -42,6 +42,14 @@ uniform float bhEdgeSoftness;
 // Photon sphere glow intensity (0 = off, 1 = full)
 uniform float photonSphereIntensity;
 
+// Overlay visibility uniforms (0 = off, 1 = on)
+uniform float overlayIsco;
+uniform float overlayPhotonSphere;
+uniform float overlayEventHorizon;
+uniform float overlayShadowEdge;
+uniform float overlayDoppler;
+uniform float overlayScale;
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
@@ -314,6 +322,58 @@ float getMHDTemperature(float r, float phi, float t) {
   return clamp(tempMod, 0.7, 1.6);
 }
 
+// ============================================================================
+// Overlay Rendering
+// ============================================================================
+
+// Render a ring in a horizontal plane at given height and radius
+// Returns color contribution if ray passes near the ring
+vec4 renderHorizontalRing(vec3 rayPos, vec3 prevPos, float targetRadius, float targetY, float thickness, vec3 ringColor, float intensity) {
+  // Check if ray crossed the target y plane
+  if ((prevPos.y - targetY) * (rayPos.y - targetY) > 0.0) {
+    return vec4(0.0);
+  }
+
+  // Find intersection point with y=targetY plane
+  float t = abs(prevPos.y - targetY) / (abs(prevPos.y - targetY) + abs(rayPos.y - targetY));
+  vec3 hitPos = mix(prevPos, rayPos, t);
+  float hitR = length(hitPos.xz);
+
+  // Distance from ring
+  float dist = abs(hitR - targetRadius);
+  float fade = 1.0 - smoothstep(0.0, thickness, dist);
+
+  if (fade > 0.0) {
+    return vec4(ringColor * fade * intensity, fade * intensity * 0.8);
+  }
+  return vec4(0.0);
+}
+
+// Render a ring in the disk plane (y=0) at given radius
+vec4 renderDiskPlaneRing(vec3 rayPos, vec3 prevPos, float targetRadius, float thickness, vec3 ringColor, float intensity) {
+  return renderHorizontalRing(rayPos, prevPos, targetRadius, 0.0, thickness, ringColor, intensity);
+}
+
+// Render a spherical shell overlay at given radius
+vec4 renderSphereRing(float currentR, float prevR, float targetRadius, float thickness, vec3 ringColor, float intensity) {
+  // Check if we crossed the target radius
+  float minR = min(currentR, prevR);
+  float maxR = max(currentR, prevR);
+
+  if (targetRadius < minR || targetRadius > maxR) {
+    return vec4(0.0);
+  }
+
+  // We crossed the shell - calculate fade based on how close we are
+  float dist = min(abs(currentR - targetRadius), abs(prevR - targetRadius));
+  float fade = 1.0 - smoothstep(0.0, thickness, dist);
+
+  if (fade > 0.0) {
+    return vec4(ringColor * fade * intensity, fade * intensity * 0.8);
+  }
+  return vec4(0.0);
+}
+
 // Equirectangular UV from direction
 vec2 dirToUV(vec3 dir) {
   float phi = atan(dir.z, dir.x);
@@ -357,7 +417,22 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex) {
   float temp = baseTemp * doppler * gravRedshift * mhdTemp;
   
   vec3 color = sampleBlackbody(temp);
-  
+
+  // Doppler indicator overlay: tint blue for approaching, red for receding
+  if (overlayDoppler > 0.0) {
+    vec3 dopplerTint;
+    if (doppler > 1.0) {
+      // Approaching (blueshift)
+      float shift = clamp((doppler - 1.0) * 2.0, 0.0, 1.0);
+      dopplerTint = mix(vec3(1.0), vec3(0.3, 0.5, 1.0), shift);
+    } else {
+      // Receding (redshift)
+      float shift = clamp((1.0 - doppler) * 2.0, 0.0, 1.0);
+      dopplerTint = mix(vec3(1.0), vec3(1.0, 0.3, 0.3), shift);
+    }
+    color = mix(color, color * dopplerTint, overlayDoppler * 0.4);
+  }
+
   // Intensity: Include gravitational redshift (photon energy loss)
   // Disk stays bright right to the edge
   float baseIntensity = pow(doppler, 3.0) * gravRedshift / (1.0 + frac * 2.0);
@@ -409,14 +484,15 @@ vec4 traceRay(vec2 uv) {
   viewPos = vec4(viewPos.xy, -1.0, 0.0);
   vec3 rayDir = normalize((inverseView * viewPos).xyz);
   vec3 rayPos = cameraPos;
-  
+
   float camDist = length(cameraPos);
-  
+
   vec3 color = vec3(0.0);
   vec4 diskAccum = vec4(0.0);
+  vec4 overlayAccum = vec4(0.0); // Accumulated overlay contributions
   bool hitHorizon = false;
   bool escaped = false;
-  
+
   // Track minimum radius for black hole edge mask and photon sphere glow
   float minRadius = 1000.0;
   
@@ -465,22 +541,70 @@ vec4 traceRay(vec2 uv) {
       float t = abs(prevY) / (abs(prevY) + abs(currY));
       vec3 hitPos = mix(rayPos, newPos, t);
       float hitR = length(hitPos.xz);
-      
+
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
         // Pass crossing index for higher-order image brightness decay
         vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings);
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
         diskAccum.a += newDisk.a * remaining;
-        
+
         // Allow multiple crossings (up to 4) for higher-order photon rings
         // Only break early if we've accumulated enough opacity
         if (diskAccum.a > 0.99 && diskCrossings >= 2) break;
       }
-      
+
+      // Check disk-plane overlay rings at this crossing
+      float ringThickness = 0.15 * rs;
+
+      // ISCO ring (3rs) - Cyan
+      if (overlayIsco > 0.0) {
+        vec4 ring = renderDiskPlaneRing(newPos, rayPos, 3.0 * rs, ringThickness, vec3(0.0, 0.85, 0.85), overlayIsco);
+        overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
+        overlayAccum.a = max(overlayAccum.a, ring.a);
+      }
+
+      // Shadow edge ring (~2.6rs) - Purple/Magenta
+      if (overlayShadowEdge > 0.0) {
+        vec4 ring = renderDiskPlaneRing(newPos, rayPos, 2.598 * rs, ringThickness, vec3(0.8, 0.3, 0.9), overlayShadowEdge);
+        overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
+        overlayAccum.a = max(overlayAccum.a, ring.a);
+      }
+
+      // Photon sphere ring (1.5rs) - Gold
+      if (overlayPhotonSphere > 0.0) {
+        vec4 ring = renderDiskPlaneRing(newPos, rayPos, 1.5 * rs, ringThickness * 0.8, vec3(1.0, 0.85, 0.0), overlayPhotonSphere);
+        overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
+        overlayAccum.a = max(overlayAccum.a, ring.a);
+      }
+
+      // Event horizon ring - Red - placed at 1.1rs to ensure rays detect it before terminating at horizon
+      if (overlayEventHorizon > 0.0) {
+        vec4 ring = renderDiskPlaneRing(newPos, rayPos, rs * 1.1, ringThickness, vec3(1.0, 0.15, 0.15), overlayEventHorizon);
+        overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
+        overlayAccum.a = max(overlayAccum.a, ring.a);
+      }
+
       // Increment crossing counter regardless of whether we hit the disk
       // This tracks ray orbits around the black hole
       diskCrossings++;
+    }
+
+    // Scale rings at 5rs intervals - elevated above disk plane for visibility
+    // Check every step, not just disk plane crossings
+    if (overlayScale > 0.0) {
+      float scaleHeight = 1.5 * rs;  // Height above disk plane
+      float scaleThickness = 0.2 * rs;
+      for (float scaleR = 5.0; scaleR <= 15.0; scaleR += 5.0) {
+        // Render ring above the disk
+        vec4 ringAbove = renderHorizontalRing(newPos, rayPos, scaleR * rs, scaleHeight, scaleThickness, vec3(0.7, 0.7, 0.75), overlayScale);
+        overlayAccum.rgb += ringAbove.rgb * (1.0 - overlayAccum.a);
+        overlayAccum.a = max(overlayAccum.a, ringAbove.a);
+        // Render ring below the disk (mirror)
+        vec4 ringBelow = renderHorizontalRing(newPos, rayPos, scaleR * rs, -scaleHeight, scaleThickness, vec3(0.7, 0.7, 0.75), overlayScale);
+        overlayAccum.rgb += ringBelow.rgb * (1.0 - overlayAccum.a);
+        overlayAccum.a = max(overlayAccum.a, ringBelow.a);
+      }
     }
     
     rayPos = newPos;
@@ -536,7 +660,13 @@ vec4 traceRay(vec2 uv) {
     // Additive blend - photon sphere is bright!
     color += glowColor;
   }
-  
+
+  // Add accumulated overlay contributions (already computed during ray march)
+  if (overlayAccum.a > 0.0) {
+    // Additive blend for glowing overlays
+    color += overlayAccum.rgb * overlayAccum.a;
+  }
+
   return vec4(color, 1.0);
 }
 
