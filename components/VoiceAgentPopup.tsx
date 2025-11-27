@@ -4,9 +4,10 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { track } from '@vercel/analytics';
 import { useConversation } from '@elevenlabs/react';
 import { OverlayState } from '@/lib/types';
+import { AudioVisualizer } from './AudioVisualizer';
 
 export interface VoiceAgentPopupProps {
-  onClose: () => void;
+  onClose?: () => void;
   onPresetSelect: (preset: string) => void;
   onEhtBlurToggle: (enabled: boolean) => void;
   onOverlayToggle: (toggles: Partial<OverlayState>) => void;
@@ -75,7 +76,7 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
     },
   });
 
-  const { status, isSpeaking, sendContextualUpdate } = conversation;
+  const { status, isSpeaking, sendContextualUpdate, getInputByteFrequencyData, getOutputByteFrequencyData } = conversation;
   const isConnected = status === 'connected';
 
   useEffect(() => {
@@ -123,26 +124,31 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
 
   const getStatusText = () => {
     if (isConnecting) return 'Connecting...';
+    if (!isConnected) return 'Disconnected';
     if (isSpeaking) return 'Speaking...';
-    if (isConnected) return 'Listening...';
-    return 'Disconnected';
+    return 'Listening...';
   };
 
   return (
     <div className="voice-popup">
       <div className="voice-header">
         <span className="voice-title">Voice Agent</span>
-        <button className="close-btn" onClick={onClose} aria-label="Close">
-          ×
-        </button>
+        {onClose && (
+          <button className="close-btn" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        )}
       </div>
 
       <div className="voice-content">
-        <div
-          className={`status-indicator ${isConnected ? 'connected' : ''} ${isSpeaking ? 'speaking' : ''} ${isConnecting ? 'connecting' : ''}`}
-        >
-          <span className="status-dot" />
-          <span className="status-text">{getStatusText()}</span>
+        <div className="visualizer-container">
+          <AudioVisualizer
+            getInputFrequencyData={getInputByteFrequencyData}
+            getOutputFrequencyData={getOutputByteFrequencyData}
+            isConnected={isConnected}
+            isSpeaking={isSpeaking}
+          />
+          <span className={`status-text ${isConnecting ? 'connecting' : ''}`}>{getStatusText()}</span>
         </div>
 
         {error && <div className="error-text">{error}</div>}
@@ -159,7 +165,7 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
       <style jsx>{`
         .voice-popup {
           position: fixed;
-          bottom: 100px;
+          bottom: 32px;
           right: 32px;
           width: 220px;
           background: rgba(10, 10, 10, 0.9);
@@ -215,34 +221,11 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
           gap: 16px;
         }
 
-        .status-indicator {
+        .visualizer-container {
           display: flex;
+          flex-direction: column;
           align-items: center;
-          gap: 10px;
-        }
-
-        .status-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.3);
-          transition: all 0.3s ease;
-        }
-
-        .status-indicator.connecting .status-dot {
-          background: #ffa500;
-          animation: pulse 1s ease-in-out infinite;
-        }
-
-        .status-indicator.connected .status-dot {
-          background: #4ade80;
-          box-shadow: 0 0 12px rgba(74, 222, 128, 0.5);
-        }
-
-        .status-indicator.speaking .status-dot {
-          background: #ff8c42;
-          box-shadow: 0 0 12px rgba(255, 140, 66, 0.5);
-          animation: pulse 0.8s ease-in-out infinite;
+          gap: 8px;
         }
 
         .status-text {
@@ -250,6 +233,10 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
           font-size: 11px;
           color: rgba(255, 255, 255, 0.6);
           letter-spacing: 0.05em;
+        }
+
+        .status-text.connecting {
+          animation: pulse 1s ease-in-out infinite;
         }
 
         .error-text {
@@ -317,7 +304,7 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
         @media (max-width: 600px) {
           .voice-popup {
             right: 16px;
-            bottom: 90px;
+            bottom: 24px;
             width: 200px;
           }
         }

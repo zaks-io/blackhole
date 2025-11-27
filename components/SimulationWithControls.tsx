@@ -23,8 +23,8 @@ export default function SimulationWithControls() {
   const [introComplete, setIntroComplete] = useState(false);
   const [introState, setIntroState] = useState<'idle' | 'connecting' | 'error'>('idle');
   const [introError, setIntroError] = useState<string | null>(null);
-  const [showVoiceAgent, setShowVoiceAgent] = useState(false);
   const [voiceConnecting, setVoiceConnecting] = useState(false);
+  const [startedWithVoice, setStartedWithVoice] = useState(false);
   const [overlayState, setOverlayState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
   const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
 
@@ -130,10 +130,8 @@ export default function SimulationWithControls() {
       });
     }, 200);
 
-    // Show voice popup if voice was enabled
-    if (withVoice) {
-      setShowVoiceAgent(true);
-    }
+    // Track if user started with voice tour
+    setStartedWithVoice(withVoice);
   }, [ehtBlurController, cameraController]);
 
   const handleVoiceConnect = useCallback(() => {
@@ -277,23 +275,12 @@ export default function SimulationWithControls() {
       />
 
       {introComplete && (
-        <button
-          className="voice-toggle"
-          onClick={() => setShowVoiceAgent(!showVoiceAgent)}
-          title="Voice Agent"
-        >
-          <span className="voice-icon">{showVoiceAgent ? '×' : '🎙'}</span>
-        </button>
-      )}
-
-      {showVoiceAgent && (
         <VoiceAgentPopup
-          onClose={() => setShowVoiceAgent(false)}
           onPresetSelect={handlePresetSelect}
           onEhtBlurToggle={handleEhtBlurSet}
           onOverlayToggle={handleOverlayToggle}
           onContextualUpdateReady={handleContextualUpdateReady}
-          autoConnect
+          autoConnect={startedWithVoice}
         />
       )}
 
