@@ -3,9 +3,11 @@
 import { useState, useCallback } from 'react';
 import BlackHoleSimulation, { CAMERA_PRESETS, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
+import { OverlayControlBar } from './OverlayControlBar';
 import { VoiceAgentPopup } from './VoiceAgentPopup';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
+import { OverlayState, DEFAULT_OVERLAY_STATE } from '@/lib/types';
 
 /**
  * Wrapper component that contains both the simulation and camera controls.
@@ -19,6 +21,7 @@ export default function SimulationWithControls() {
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
   const [showVoiceAgent, setShowVoiceAgent] = useState(false);
+  const [overlayState, setOverlayState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
@@ -99,6 +102,10 @@ export default function SimulationWithControls() {
     ehtBlurController.setEnabled(enabled);
   }, [ehtBlurController]);
 
+  const handleOverlayToggle = useCallback((toggles: Partial<OverlayState>) => {
+    setOverlayState(prev => ({ ...prev, ...toggles }));
+  }, []);
+
   const handlePresetSelect = useCallback((presetName: string) => {
     const preset = CAMERA_PRESETS[presetName];
     if (!preset || !cameraController) return;
@@ -137,6 +144,7 @@ export default function SimulationWithControls() {
         showDevControls={false}
         showStats={false}
         initialEhtBlurEnabled={false}
+        overlayState={overlayState}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
       />
@@ -161,6 +169,12 @@ export default function SimulationWithControls() {
         />
       )}
 
+      <OverlayControlBar
+        overlayState={overlayState}
+        onToggle={handleOverlayToggle}
+        show={introComplete}
+      />
+
       {introComplete && (
         <button
           className="voice-toggle"
@@ -176,6 +190,7 @@ export default function SimulationWithControls() {
           onClose={() => setShowVoiceAgent(false)}
           onPresetSelect={handlePresetSelect}
           onEhtBlurToggle={handleEhtBlurSet}
+          onOverlayToggle={handleOverlayToggle}
         />
       )}
 

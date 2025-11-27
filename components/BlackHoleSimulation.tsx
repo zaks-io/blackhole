@@ -17,6 +17,7 @@ import Stats from 'stats.js';
 import { LensingPass, defaultLensingParams, LensingParams } from '@/lib/passes/LensingPass';
 import { CONFIG } from '@/lib/config';
 import { CameraController } from '@/lib/camera';
+import { OverlayState } from '@/lib/types';
 
 // ============================================================================
 // Types
@@ -44,6 +45,8 @@ export interface BlackHoleSimulationProps {
   initialCameraPreset?: keyof typeof CAMERA_PRESETS;
   /** Initial EHT blur enabled state (default: CONFIG.ehtBlur.enabled) */
   initialEhtBlurEnabled?: boolean;
+  /** Overlay visibility state */
+  overlayState?: OverlayState;
   /** Callback with camera controller when ready */
   onCameraReady?: (controller: CameraController) => void;
   /** Callback with EHT blur controller when ready */
@@ -92,6 +95,32 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
     duration: 2.5,
     ease: 'power2.inOut',
   },
+  photonSphere: {
+    name: 'Photon Sphere',
+    position: { x: 4, y: 2.5, z: 6 },
+    lookAt: { x: 0, y: 0, z: 0 },
+    duration: 2.5,
+  },
+  doppler: {
+    name: 'Doppler View',
+    position: { x: 15, y: 1.5, z: -8 },
+    lookAt: { x: 0, y: 0, z: 0 },
+    duration: 3,
+  },
+  behindDisk: {
+    name: 'Behind Disk',
+    position: { x: -12, y: 4, z: 0 },
+    lookAt: { x: 0, y: 0, z: 0 },
+    duration: 3.5,
+    ease: 'power3.inOut',
+  },
+  fallingIn: {
+    name: 'Falling In',
+    position: { x: 2.8, y: 0.3, z: 1.5 },
+    lookAt: { x: 0, y: 0, z: 0 },
+    duration: 4,
+    ease: 'power1.in',
+  },
 };
 
 // ============================================================================
@@ -103,6 +132,7 @@ export default function BlackHoleSimulation({
   showStats = false,
   initialCameraPreset = 'intro',
   initialEhtBlurEnabled = CONFIG.ehtBlur.enabled,
+  overlayState,
   onCameraReady,
   onEhtBlurReady,
 }: BlackHoleSimulationProps) {
@@ -802,6 +832,20 @@ export default function BlackHoleSimulation({
         cleanupRef.current = {};
       };
     }, [init]);
+
+    // Sync overlay state to shader
+    useEffect(() => {
+      if (cleanupRef.current.lensingPass && overlayState) {
+        cleanupRef.current.lensingPass.updateParams({
+          overlayIsco: overlayState.isco ? 1.0 : 0.0,
+          overlayPhotonSphere: overlayState.photonSphere ? 1.0 : 0.0,
+          overlayEventHorizon: overlayState.eventHorizon ? 1.0 : 0.0,
+          overlayShadowEdge: overlayState.shadowEdge ? 1.0 : 0.0,
+          overlayDoppler: overlayState.doppler ? 1.0 : 0.0,
+          overlayScale: overlayState.scale ? 1.0 : 0.0,
+        });
+      }
+    }, [overlayState]);
 
     return (
       <>

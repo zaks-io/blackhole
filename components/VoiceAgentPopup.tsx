@@ -2,16 +2,19 @@
 
 import { useState, useCallback } from 'react';
 import { useConversation } from '@elevenlabs/react';
+import { OverlayState } from '@/lib/types';
 
-interface VoiceAgentPopupProps {
+export interface VoiceAgentPopupProps {
   onClose: () => void;
   onPresetSelect: (preset: string) => void;
   onEhtBlurToggle: (enabled: boolean) => void;
+  onOverlayToggle: (toggles: Partial<OverlayState>) => void;
 }
 
-const VALID_PRESETS = ['orbit', 'flybyClose', 'topDown', 'edgeOn', 'eht'];
+const VALID_PRESETS = ['orbit', 'flybyClose', 'topDown', 'edgeOn', 'eht', 'photonSphere', 'doppler', 'behindDisk', 'fallingIn'];
+const VALID_OVERLAY_KEYS: (keyof OverlayState)[] = ['isco', 'photonSphere', 'eventHorizon', 'shadowEdge', 'doppler', 'scale'];
 
-export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle }: VoiceAgentPopupProps) {
+export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOverlayToggle }: VoiceAgentPopupProps) {
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
@@ -27,6 +30,35 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle }: Vo
       setEhtBlur: ({ enabled }: { enabled: boolean }) => {
         onEhtBlurToggle(enabled);
         return enabled ? 'EHT blur enabled' : 'EHT blur disabled';
+      },
+      setOverlays: ({ show, hide }: { show?: string[]; hide?: string[] }) => {
+        const updates: Partial<OverlayState> = {};
+
+        if (show) {
+          for (const key of show) {
+            if (VALID_OVERLAY_KEYS.includes(key as keyof OverlayState)) {
+              updates[key as keyof OverlayState] = true;
+            }
+          }
+        }
+        if (hide) {
+          for (const key of hide) {
+            if (VALID_OVERLAY_KEYS.includes(key as keyof OverlayState)) {
+              updates[key as keyof OverlayState] = false;
+            }
+          }
+        }
+
+        if (Object.keys(updates).length > 0) {
+          onOverlayToggle(updates);
+          const enabled = show?.filter(k => VALID_OVERLAY_KEYS.includes(k as keyof OverlayState)) || [];
+          const disabled = hide?.filter(k => VALID_OVERLAY_KEYS.includes(k as keyof OverlayState)) || [];
+          let msg = '';
+          if (enabled.length) msg += `Enabled: ${enabled.join(', ')}. `;
+          if (disabled.length) msg += `Disabled: ${disabled.join(', ')}.`;
+          return msg || 'No changes made.';
+        }
+        return `Invalid overlay keys. Valid: ${VALID_OVERLAY_KEYS.join(', ')}`;
       },
     },
     onError: (err) => {

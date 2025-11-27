@@ -10,7 +10,7 @@ export const CONFIG = {
   // Camera settings
   camera: {
     fov: 60,
-    minDistance: 5,
+    minDistance: 2.6,
     maxDistance: 50,
     initialDistance: 10,  // Start farther for intro
     near: 0.1,
@@ -137,6 +137,13 @@ export function buildLensingParams(): LensingParams {
     supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
     bhEdgeSoftness: CONFIG.antiAliasing.bhEdgeSoftness,
     photonSphereIntensity: CONFIG.photonSphere.intensity,
+    // Overlays default to off
+    overlayIsco: 0,
+    overlayPhotonSphere: 0,
+    overlayEventHorizon: 0,
+    overlayShadowEdge: 0,
+    overlayDoppler: 0,
+    overlayScale: 0,
   };
 }
 

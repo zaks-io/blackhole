@@ -18,6 +18,10 @@ const PRESET_ICONS: Record<string, string> = {
   flybyClose: '◎',
   topDown: '⬡',
   edgeOn: '━',
+  photonSphere: '◐',
+  doppler: '↔',
+  behindDisk: '◠',
+  fallingIn: '↓',
 };
 
 const PRESET_LABELS: Record<string, string> = {
@@ -25,6 +29,10 @@ const PRESET_LABELS: Record<string, string> = {
   flybyClose: 'Close',
   topDown: 'Above',
   edgeOn: 'Edge',
+  photonSphere: 'Ring',
+  doppler: 'Doppler',
+  behindDisk: 'Behind',
+  fallingIn: 'Fall',
 };
 
 export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlurEnabled, onEhtToggle, onEhtBlurToggle, show = true }: CameraPresetBarProps) {
