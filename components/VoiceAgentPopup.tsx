@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { track } from '@vercel/analytics';
 import { useConversation } from '@elevenlabs/react';
 import { OverlayState } from '@/lib/types';
 
@@ -104,6 +105,7 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
           conversationToken: token,
           connectionType: 'webrtc',
         });
+        track('voice_agent_activated');
         setIsConnecting(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Connection failed');
