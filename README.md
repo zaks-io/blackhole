@@ -119,11 +119,7 @@ src/
 
 ## Starfield Asset
 
-The simulation uses `starmap_2020_4k.exr`, a 4K HDR equirectangular star map. Place this file in `/public/textures/`.
-
-Recommended sources:
-- [NASA Deep Star Maps](https://svs.gsfc.nasa.gov/4851)
-- [Poly Haven](https://polyhaven.com/hdris/skies)
+The simulation uses `starmap_2020_4k.exr`, a 4K HDR equirectangular star map from [NASA's Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851/). Place this file in `/public/textures/`.
 
 ## Browser Support
 
