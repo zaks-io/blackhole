@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import BlackHoleSimulation, { CAMERA_PRESETS, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
+import { VoiceAgentPopup } from './VoiceAgentPopup';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
 
@@ -17,6 +18,7 @@ export default function SimulationWithControls() {
   const [ehtMode, setEhtMode] = useState(false);
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(false);
   const [introComplete, setIntroComplete] = useState(false);
+  const [showVoiceAgent, setShowVoiceAgent] = useState(false);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
@@ -91,6 +93,12 @@ export default function SimulationWithControls() {
     });
   }, [ehtBlurController, cameraController]);
 
+  const handleEhtBlurSet = useCallback((enabled: boolean) => {
+    if (!ehtBlurController) return;
+    setEhtBlurEnabled(enabled);
+    ehtBlurController.setEnabled(enabled);
+  }, [ehtBlurController]);
+
   const handlePresetSelect = useCallback((presetName: string) => {
     const preset = CAMERA_PRESETS[presetName];
     if (!preset || !cameraController) return;
@@ -150,6 +158,24 @@ export default function SimulationWithControls() {
           onEhtToggle={handleEhtToggle}
           onEhtBlurToggle={handleEhtBlurToggle}
           show={introComplete}
+        />
+      )}
+
+      {introComplete && (
+        <button
+          className="voice-toggle"
+          onClick={() => setShowVoiceAgent(!showVoiceAgent)}
+          title="Voice Agent"
+        >
+          <span className="voice-icon">{showVoiceAgent ? '×' : '🎙'}</span>
+        </button>
+      )}
+
+      {showVoiceAgent && (
+        <VoiceAgentPopup
+          onClose={() => setShowVoiceAgent(false)}
+          onPresetSelect={handlePresetSelect}
+          onEhtBlurToggle={handleEhtBlurSet}
         />
       )}
 
@@ -241,6 +267,55 @@ export default function SimulationWithControls() {
 
         .start-btn:hover:not(:disabled) .start-label {
           color: rgba(255, 255, 255, 0.9);
+        }
+
+        .voice-toggle {
+          position: fixed;
+          bottom: 32px;
+          right: 32px;
+          width: 48px;
+          height: 48px;
+          background: rgba(10, 10, 10, 0.7);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 140, 66, 0.15);
+          border-radius: 50%;
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 20px;
+          cursor: pointer;
+          z-index: 100;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow:
+            0 4px 30px rgba(0, 0, 0, 0.5),
+            0 0 40px rgba(255, 140, 66, 0.05),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .voice-toggle:hover {
+          background: rgba(255, 140, 66, 0.15);
+          border-color: rgba(255, 140, 66, 0.3);
+          color: #ff8c42;
+        }
+
+        .voice-toggle:active {
+          transform: scale(0.95);
+        }
+
+        .voice-icon {
+          line-height: 1;
+        }
+
+        @media (max-width: 600px) {
+          .voice-toggle {
+            right: 16px;
+            bottom: 24px;
+            width: 44px;
+            height: 44px;
+            font-size: 18px;
+          }
         }
       `}</style>
     </>
