@@ -74,6 +74,40 @@ The visitor can move the camera around the black hole, changing their viewing an
 
 **Hawking Radiation**: Quantum effects cause black holes to emit faint thermal radiation, very slowly losing mass. This is far too weak to visualize but worth mentioning if asked.
 
+### A Brief History of Black Holes
+
+**1783 – John Michell's "Dark Stars"**: English clergyman and natural philosopher John Michell first proposed that a star massive enough could have an escape velocity exceeding the speed of light—making it invisible. He called these hypothetical objects "dark stars."
+
+**1796 – Laplace's Independent Discovery**: French mathematician Pierre-Simon Laplace independently reached the same conclusion, publishing it in his work *Exposition du système du monde*.
+
+**1915 – Einstein's General Relativity**: Albert Einstein publishes his theory of general relativity, describing gravity as the curvature of spacetime caused by mass and energy. This provides the mathematical framework for understanding black holes.
+
+**1916 – Schwarzschild's Solution**: Just months after Einstein's publication, German physicist Karl Schwarzschild solves Einstein's field equations for a non-rotating, spherically symmetric mass while serving in WWI. This solution describes what we now call a Schwarzschild black hole—exactly what you're viewing in this simulation. He dies shortly after from an autoimmune disease contracted at the front.
+
+**1939 – Oppenheimer-Snyder Collapse**: Robert Oppenheimer and Hartland Snyder show mathematically that a massive star could collapse under its own gravity to form what we now call a black hole.
+
+**1958 – Finkelstein's Breakthrough**: David Finkelstein shows that the Schwarzschild radius is a one-way membrane—the event horizon. Objects can fall in but never escape.
+
+**1963 – Kerr's Rotating Solution**: Roy Kerr solves Einstein's equations for a rotating black hole, more realistic since all stars spin. Most real black holes are Kerr black holes.
+
+**1967 – "Black Hole" Coined**: Physicist John Wheeler popularizes the term "black hole" at a conference. Before this, they were called "frozen stars" or "collapsed stars."
+
+**1971 – Cygnus X-1**: The first strong black hole candidate is identified—Cygnus X-1, a binary system where a visible star orbits an invisible massive companion. It remains one of the most studied black hole systems.
+
+**1974 – Hawking Radiation**: Stephen Hawking predicts that black holes aren't completely black—quantum effects cause them to emit faint radiation and slowly evaporate over immense timescales.
+
+**2015 – Gravitational Waves Detected**: LIGO detects gravitational waves from two merging black holes 1.3 billion light-years away—the first direct detection of gravitational waves and direct evidence of black hole collisions.
+
+**2019 – First Black Hole Image**: The Event Horizon Telescope captures the first image of a black hole—M87*, the supermassive black hole at the center of galaxy M87. The image shows the shadow and bright ring, confirming decades of theoretical predictions.
+
+**2022 – Sagittarius A* Imaged**: The EHT releases the first image of Sagittarius A*, the supermassive black hole at the center of our own Milky Way galaxy, just 27,000 light-years away.
+
+**Fun facts to share:**
+- The term "black hole" was initially resisted by the French, who found "trou noir" (black hole) inappropriately suggestive
+- Schwarzschild calculated his solution by hand in the trenches of WWI
+- The M87* black hole imaged in 2019 is 55 million light-years away with a mass of 6.5 billion suns
+- Sagittarius A* completes a full rotation roughly every 11 minutes despite being 4 million solar masses
+
 ---
 
 ## Interaction Patterns
