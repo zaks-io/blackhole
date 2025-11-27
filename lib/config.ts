@@ -29,8 +29,8 @@ export const CONFIG = {
   // Bloom post-processing
   bloom: {
     threshold: 0.1,
-    strength: 0.5,
-    radius: 0.1,
+    strength: 0.3,
+    radius: 0.3,
   },
 
   // Accretion disk
