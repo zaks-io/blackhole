@@ -568,6 +568,81 @@ export default function BlackHoleSimulation({
             updateBlurStrength(ehtBlurState.intensity);
           });
 
+        // Layers folder (corona, jets, thick disk)
+        const layersFolder = gui.addFolder('Layers');
+
+        // Corona subfolder
+        const coronaFolder = layersFolder.addFolder('Corona');
+        coronaFolder.add(params, 'coronaEnabled', { Off: 0, On: 1 })
+          .name('Enable')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ coronaEnabled: value });
+          });
+        coronaFolder.add(params, 'coronaRadius', 3, 15, 0.5)
+          .name('Radius (rs)')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ coronaRadius: value });
+          });
+        coronaFolder.add(params, 'coronaDensity', 0.1, 1.0, 0.05)
+          .name('Density')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ coronaDensity: value });
+          });
+
+        // Jets subfolder
+        const jetsFolder = layersFolder.addFolder('Jets');
+        jetsFolder.add(params, 'jetsEnabled', { Off: 0, On: 1 })
+          .name('Enable')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ jetsEnabled: value });
+          });
+        jetsFolder.add(params, 'jetsHalfOpeningAngle', 5, 30, 1)
+          .name('Opening Angle (°)')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ jetsHalfOpeningAngle: value });
+          });
+        jetsFolder.add(params, 'jetsVelocity', 0.5, 0.99, 0.01)
+          .name('Velocity (c)')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ jetsVelocity: value });
+          });
+        jetsFolder.add(params, 'jetsLength', 10, 80, 5)
+          .name('Length (rs)')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ jetsLength: value });
+          });
+        jetsFolder.add(params, 'jetsDensity', 0.1, 1.0, 0.05)
+          .name('Density')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ jetsDensity: value });
+          });
+
+        // Thick Disk subfolder
+        const thickDiskFolder = layersFolder.addFolder('Thick Disk');
+        thickDiskFolder.add(params, 'thickDiskEnabled', { Off: 0, On: 1 })
+          .name('Enable')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ thickDiskEnabled: value });
+          });
+        thickDiskFolder.add(params, 'thickDiskHalfThickness', 0.1, 1.0, 0.05)
+          .name('Thickness (rs)')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ thickDiskHalfThickness: value });
+          });
+        thickDiskFolder.add(params, 'thickDiskPuffiness', 0.1, 0.8, 0.05)
+          .name('Puffiness')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ thickDiskPuffiness: value });
+          });
+
+        // LOD subfolder
+        const lodFolder = layersFolder.addFolder('LOD');
+        lodFolder.add(params, 'lodEnabled', { Off: 0, On: 1 })
+          .name('Enable')
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ lodEnabled: value });
+          });
+
         // Camera Controls folder
         const cameraFolder = gui.addFolder('Camera');
 

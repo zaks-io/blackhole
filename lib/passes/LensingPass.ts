@@ -44,6 +44,25 @@ export interface LensingParams {
   overlayShadowEdge: number;
   overlayDoppler: number;
   overlayScale: number;
+  // Corona layer
+  coronaEnabled: number;
+  coronaRadius: number;
+  coronaDensity: number;
+  coronaTemperature: number;
+  // Jets layer
+  jetsEnabled: number;
+  jetsHalfOpeningAngle: number;
+  jetsLength: number;
+  jetsVelocity: number;
+  jetsDensity: number;
+  // Thick disk layer
+  thickDiskEnabled: number;
+  thickDiskHalfThickness: number;
+  thickDiskPuffiness: number;
+  // LOD system
+  lodEnabled: number;
+  lodNearDistance: number;
+  lodFarDistance: number;
 }
 
 // Default params built from centralized config
@@ -97,7 +116,26 @@ const LensingShader = {
     overlayEventHorizon: { value: 0.0 },
     overlayShadowEdge: { value: 0.0 },
     overlayDoppler: { value: 0.0 },
-    overlayScale: { value: 0.0 }
+    overlayScale: { value: 0.0 },
+    // Corona layer uniforms
+    coronaEnabled: { value: 0.0 },
+    coronaRadius: { value: 6.0 },
+    coronaDensity: { value: 0.05 },
+    coronaTemperature: { value: 100000.0 },
+    // Jets layer uniforms
+    jetsEnabled: { value: 0.0 },
+    jetsHalfOpeningAngle: { value: 10.0 },
+    jetsLength: { value: 30.0 },
+    jetsVelocity: { value: 0.8 },
+    jetsDensity: { value: 0.1 },
+    // Thick disk layer uniforms
+    thickDiskEnabled: { value: 0.0 },
+    thickDiskHalfThickness: { value: 0.5 },
+    thickDiskPuffiness: { value: 0.3 },
+    // LOD uniforms
+    lodEnabled: { value: 1.0 },
+    lodNearDistance: { value: 10.0 },
+    lodFarDistance: { value: 50.0 }
   },
   vertexShader,
   fragmentShader
@@ -219,6 +257,55 @@ export class LensingPass extends ShaderPass {
     }
     if (params.overlayScale !== undefined) {
       this.uniforms['overlayScale'].value = params.overlayScale;
+    }
+    // Corona layer parameters
+    if (params.coronaEnabled !== undefined) {
+      this.uniforms['coronaEnabled'].value = params.coronaEnabled;
+    }
+    if (params.coronaRadius !== undefined) {
+      this.uniforms['coronaRadius'].value = params.coronaRadius;
+    }
+    if (params.coronaDensity !== undefined) {
+      this.uniforms['coronaDensity'].value = params.coronaDensity;
+    }
+    if (params.coronaTemperature !== undefined) {
+      this.uniforms['coronaTemperature'].value = params.coronaTemperature;
+    }
+    // Jets layer parameters
+    if (params.jetsEnabled !== undefined) {
+      this.uniforms['jetsEnabled'].value = params.jetsEnabled;
+    }
+    if (params.jetsHalfOpeningAngle !== undefined) {
+      this.uniforms['jetsHalfOpeningAngle'].value = params.jetsHalfOpeningAngle;
+    }
+    if (params.jetsLength !== undefined) {
+      this.uniforms['jetsLength'].value = params.jetsLength;
+    }
+    if (params.jetsVelocity !== undefined) {
+      this.uniforms['jetsVelocity'].value = params.jetsVelocity;
+    }
+    if (params.jetsDensity !== undefined) {
+      this.uniforms['jetsDensity'].value = params.jetsDensity;
+    }
+    // Thick disk layer parameters
+    if (params.thickDiskEnabled !== undefined) {
+      this.uniforms['thickDiskEnabled'].value = params.thickDiskEnabled;
+    }
+    if (params.thickDiskHalfThickness !== undefined) {
+      this.uniforms['thickDiskHalfThickness'].value = params.thickDiskHalfThickness;
+    }
+    if (params.thickDiskPuffiness !== undefined) {
+      this.uniforms['thickDiskPuffiness'].value = params.thickDiskPuffiness;
+    }
+    // LOD parameters
+    if (params.lodEnabled !== undefined) {
+      this.uniforms['lodEnabled'].value = params.lodEnabled;
+    }
+    if (params.lodNearDistance !== undefined) {
+      this.uniforms['lodNearDistance'].value = params.lodNearDistance;
+    }
+    if (params.lodFarDistance !== undefined) {
+      this.uniforms['lodFarDistance'].value = params.lodFarDistance;
     }
   }
   
