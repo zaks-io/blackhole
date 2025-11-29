@@ -248,6 +248,13 @@ export class CameraController {
   }
 
   /**
+   * Get distance from camera to origin (in world units)
+   */
+  getDistance(): number {
+    return this.camera.position.length();
+  }
+
+  /**
    * Update loop - call this every frame
    */
   update(deltaTime: number): void {
