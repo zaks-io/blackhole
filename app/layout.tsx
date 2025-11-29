@@ -4,6 +4,7 @@ import { Auth0ProviderWrapper } from '@/components/Auth0ProviderWrapper';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://blackhole.zaks.io'),
   title: 'Schwarzschild Black Hole Lensing',
   description:
     'Interactive visualization of gravitational lensing around a Schwarzschild black hole with accretion disk',
@@ -11,20 +12,24 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
+  icons: {
+    icon: '/blackhole-icon.webp',
+    apple: '/blackhole-icon.webp',
+  },
   openGraph: {
     title: 'Schwarzschild Black Hole Lensing',
     description:
       'Interactive visualization of gravitational lensing around a Schwarzschild black hole with accretion disk',
     type: 'website',
     siteName: 'Black Hole Simulation',
-    images: ['/blackhole-side-view.webp'],
+    images: ['/blackhole-warp.webp'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Schwarzschild Black Hole Lensing',
     description:
       'Interactive visualization of gravitational lensing around a Schwarzschild black hole with accretion disk',
-    images: ['/blackhole-side-view.webp'],
+    images: ['/blackhole-warp.webp'],
   },
 };
 
