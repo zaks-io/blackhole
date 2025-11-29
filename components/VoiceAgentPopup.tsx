@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { track } from '@vercel/analytics';
 import { useConversation } from '@elevenlabs/react';
+import { useAuth0 } from '@auth0/auth0-react';
 import { OverlayState } from '@/lib/types';
 import { AudioVisualizer } from './AudioVisualizer';
 
@@ -23,6 +24,7 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const hasAutoConnected = useRef(false);
+  const { getIdTokenClaims } = useAuth0();
 
   const conversation = useConversation({
     clientTools: {
@@ -99,7 +101,10 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
       setIsConnecting(true);
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
-        const res = await fetch('/api/voice-token');
+        const claims = await getIdTokenClaims();
+        const res = await fetch('/api/voice-token', {
+          headers: { Authorization: `Bearer ${claims?.__raw}` },
+        });
         if (!res.ok) throw new Error('Failed to get token');
         const { token } = await res.json();
         await conversation.startSession({

@@ -14,7 +14,7 @@ import { OverlayState, DEFAULT_OVERLAY_STATE } from '@/lib/types';
  * Wrapper component that contains both the simulation and camera controls.
  * This is dynamically imported so everything is in the same module scope.
  */
-export default function SimulationWithControls() {
+export default function AppView() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
   const [activePreset, setActivePreset] = useState<string>('default');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);

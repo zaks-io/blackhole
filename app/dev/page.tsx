@@ -1,12 +1,11 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-// Dynamically import the simulation component with SSR disabled
-// Three.js requires browser APIs (window, document, WebGL)
 const BlackHoleSimulation = dynamic(
   () => import('@/components/BlackHoleSimulation'),
-  { 
+  {
     ssr: false,
     loading: () => (
       <div className="loading-placeholder">
@@ -33,7 +32,10 @@ const BlackHoleSimulation = dynamic(
   }
 );
 
-export default function DevPage() {
+function DevContent() {
   return <BlackHoleSimulation showDevControls={true} showStats={true} initialCameraPreset="default" initialEhtBlurEnabled={false} />;
 }
 
+export default function DevPage() {
+  return <ProtectedRoute component={DevContent} />;
+}

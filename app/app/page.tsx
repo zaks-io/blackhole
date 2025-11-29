@@ -1,16 +1,15 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-// Dynamically import the entire simulation with controls
-// Everything is in the same module scope - no cross-module issues
-const SimulationWithControls = dynamic(
-  () => import('@/components/SimulationWithControls'),
-  { 
+const AppView = dynamic(
+  () => import('@/components/AppView'),
+  {
     ssr: false,
     loading: () => (
       <div className="loading-placeholder">
-        <span>Loading simulation...</span>
+        <span>Loading...</span>
         <style jsx>{`
           .loading-placeholder {
             position: fixed;
@@ -33,6 +32,10 @@ const SimulationWithControls = dynamic(
   }
 );
 
-export default function SimulationPage() {
-  return <SimulationWithControls />;
+function AppContent() {
+  return <AppView />;
+}
+
+export default function AppPage() {
+  return <ProtectedRoute component={AppContent} />;
 }
