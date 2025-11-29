@@ -9,10 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@auth0/auth0-react": "^2.9.0",
     "@elevenlabs/react": "^0.11.3",
     "@tailwindcss/postcss": "^4.1.17",
     "@vercel/analytics": "^1.5.0",
     "gsap": "^3.13.0",
+    "jose": "^6.1.2",
     "lil-gui": "^0.20.0",
     "next": "^16.0.0",
     "react": "^19.0.0",

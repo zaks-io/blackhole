@@ -152,7 +152,7 @@ export default function Home() {
             </p>
             <Link
               ref={ctaRef}
-              href="/simulation"
+              href="/app"
               onClick={() => track('get_started_click')}
               className="group inline-flex items-center gap-5 py-5 px-12 bg-transparent border border-[rgba(255,140,66,0.4)] text-[#ff8c42] text-sm font-normal tracking-[0.2em] uppercase no-underline cursor-pointer transition-all duration-300 hover:bg-[rgba(255,140,66,0.1)] hover:border-[#ff8c42] hover:shadow-[0_0_30px_rgba(255,140,66,0.2)]"
             >
@@ -250,7 +250,7 @@ export default function Home() {
             Step into the simulation and let your AI guide show you around
           </p>
           <Link
-            href="/simulation"
+            href="/app"
             onClick={() => track('final_cta_click')}
             className="group inline-flex items-center gap-4 py-5 px-12 bg-[rgba(255,140,66,0.1)] border border-[#ff8c42] text-[#ff8c42] text-base font-normal tracking-[0.2em] uppercase no-underline cursor-pointer transition-all duration-300 hover:bg-[rgba(255,140,66,0.2)] hover:shadow-[0_0_40px_rgba(255,140,66,0.25)]"
           >

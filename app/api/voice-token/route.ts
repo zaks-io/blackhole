@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const user = await verifyAuth(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const agentId = process.env.ELEVENLABS_AGENT_ID;
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
