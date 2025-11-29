@@ -37,5 +37,5 @@ function DevContent() {
 }
 
 export default function DevPage() {
-  return <ProtectedRoute component={DevContent} />;
+  return <ProtectedRoute component={DevContent} requiredRole="admin" />;
 }
