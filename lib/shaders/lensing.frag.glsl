@@ -50,6 +50,29 @@ uniform float overlayShadowEdge;
 uniform float overlayDoppler;
 uniform float overlayScale;
 
+// Corona layer uniforms
+uniform float coronaEnabled;
+uniform float coronaRadius;
+uniform float coronaDensity;
+uniform float coronaTemperature;
+
+// Jets layer uniforms
+uniform float jetsEnabled;
+uniform float jetsHalfOpeningAngle;
+uniform float jetsLength;
+uniform float jetsVelocity;
+uniform float jetsDensity;
+
+// Thick disk layer uniforms
+uniform float thickDiskEnabled;
+uniform float thickDiskHalfThickness;
+uniform float thickDiskPuffiness;
+
+// LOD uniforms
+uniform float lodEnabled;
+uniform float lodNearDistance;
+uniform float lodFarDistance;
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
@@ -340,6 +363,166 @@ float getMHDTemperature(float r, float phi, float t) {
 }
 
 // ============================================================================
+// LOD System
+// ============================================================================
+
+float calculateLOD(float camDist) {
+  if (lodEnabled < 0.5) return 1.0;
+  return 1.0 - smoothstep(lodNearDistance * rs, lodFarDistance * rs, camDist);
+}
+
+// ============================================================================
+// Corona Layer
+// ============================================================================
+
+vec4 sampleCorona(vec3 rayPos, vec3 rayDir, float r, float lod) {
+  if (coronaEnabled < 0.5) return vec4(0.0);
+  if (r > coronaRadius || r < rs * 1.5) return vec4(0.0);
+
+  // Suppress corona for rays likely to be captured (heading inward near photon sphere)
+  vec3 radialDir = normalize(rayPos);
+  float radialVel = dot(rayDir, radialDir);
+  if (r < rs * 2.0 && radialVel < 0.0) return vec4(0.0);
+
+  // Spheroidal geometry - flatten in Y for sandwich corona
+  float cylR = length(rayPos.xz);
+  float scaleHeight = coronaRadius * 0.5;
+  float scaledY = rayPos.y / scaleHeight;
+  float spheroidR = sqrt(cylR * cylR + scaledY * scaledY);
+
+  // Density falloff - peaks at inner edge, falls off outward
+  float normalizedR = (spheroidR - rs) / (coronaRadius - rs);
+  float density = coronaDensity * exp(-normalizedR * normalizedR * 2.0);
+
+  // Turbulent structure at high LOD
+  if (lod > 0.5) {
+    float phi = atan(rayPos.z, rayPos.x);
+    float turb = snoise(vec2(r * 2.0 + time * 0.1, phi * 3.0));
+    density *= 1.0 + turb * 0.4 * lod;
+  }
+
+  // Blue-white corona color
+  vec3 color = vec3(0.7, 0.85, 1.0);
+
+  // Emission scales with density - reduced for subtle glow
+  float emission = density * 1.5;
+  float alpha = density * 0.15;
+
+  return vec4(color * emission, alpha);
+}
+
+// ============================================================================
+// Jets Layer
+// ============================================================================
+
+vec4 sampleJet(vec3 rayPos, vec3 rayDir, float r, float lod) {
+  if (jetsEnabled < 0.5) return vec4(0.0);
+
+  float absY = abs(rayPos.y);
+  if (absY > jetsLength) return vec4(0.0);
+
+  // Jets emerge from a funnel above the ISCO region
+  // The jet base is at the ISCO radius (3rs), not at the origin
+  // This creates a hollow cone that starts wide and collimates
+  float cylR = length(rayPos.xz);
+  float halfAngleRad = radians(jetsHalfOpeningAngle);
+
+  // Jet inner edge: material launches from ~ISCO radius at disk level
+  // and collimates toward the axis with height
+  float launchRadius = diskInnerRadius * rs;  // ISCO = 3rs
+  float collimationHeight = 10.0 * rs;  // Height over which jet collimates
+  float collimationFactor = clamp(absY / collimationHeight, 0.0, 1.0);
+
+  // Inner boundary shrinks from launchRadius to near-zero as height increases
+  float innerR = launchRadius * (1.0 - collimationFactor * 0.9);
+  // Outer boundary is the cone
+  float outerR = launchRadius + absY * tan(halfAngleRad);
+
+  // Must be within the hollow cone
+  if (cylR > outerR || cylR < innerR * 0.3) return vec4(0.0);
+
+  // Suppress jet emission for rays that would show the shadow
+  // The shadow appears where rays have impact parameter < critical value (~2.6rs)
+  // For rays near the axis looking at the black hole, don't render jet over shadow
+  vec3 radialDir = normalize(rayPos);
+  float radialVel = dot(rayDir, radialDir);
+
+  // Calculate impact parameter: perpendicular distance from ray to origin
+  vec3 toOrigin = -rayPos;
+  vec3 perpendicular = toOrigin - dot(toOrigin, rayDir) * rayDir;
+  float impactParam = length(perpendicular);
+
+  // Smoothly fade jet near shadow region instead of hard cutoff
+  // Critical impact parameter for capture is ~2.6rs (photon sphere crossing)
+  float criticalImpact = 2.6 * rs;
+  float shadowFade = 1.0;
+  if (radialVel < 0.0) {
+    // Smooth fade from criticalImpact to criticalImpact + 1rs
+    shadowFade = smoothstep(criticalImpact, criticalImpact + 1.0 * rs, impactParam);
+  }
+
+  // Also fade near the hole
+  float holeFade = smoothstep(rs * 1.2, rs * 2.0, r);
+
+  // Density profile - concentrated toward center of hollow cone
+  float coneCenter = (innerR + outerR) * 0.5;
+  float coneWidth = outerR - innerR;
+  float distFromCenter = abs(cylR - coneCenter) / max(coneWidth * 0.5, 0.01);
+  float radialFalloff = exp(-distFromCenter * distFromCenter * 2.0);
+
+  // Smooth fade-in from the disk plane - no hard cutoff
+  // Jet gradually emerges from the disk over ~2rs height
+  float baseFadeIn = smoothstep(0.0, 2.0 * rs, absY);
+
+  // Height falloff - jets stay bright longer at distance
+  float heightFalloff = 1.0 / (1.0 + absY / (30.0 * rs));
+  // Brighter base region near the disk (but after fade-in)
+  float baseBrightening = 1.0 + 1.5 * exp(-absY / (5.0 * rs));
+  float density = jetsDensity * radialFalloff * heightFalloff * baseBrightening * baseFadeIn * shadowFade * holeFade;
+
+  // Relativistic beaming
+  float jetVelY = sign(rayPos.y) * jetsVelocity;
+  vec3 jetVel = vec3(0.0, jetVelY, 0.0);
+  float vDotRay = dot(jetVel, -rayDir);
+  float gamma = 1.0 / sqrt(max(0.01, 1.0 - jetsVelocity * jetsVelocity));
+  float doppler = 1.0 / (gamma * (1.0 - vDotRay));
+  doppler = clamp(doppler, 0.1, 10.0);
+
+  // Relativistic beaming - use full cubic power for physical accuracy
+  // Approaching jet can be extremely bright (doppler > 1)
+  // Receding jet is very dim but not invisible (doppler < 1)
+  float beaming = pow(doppler, 3.0);
+  beaming = max(beaming, 0.05);  // Minimum 5% visibility for receding jet
+
+  // Helical structure at high LOD
+  if (lod > 0.3) {
+    float phi = atan(rayPos.z, rayPos.x);
+    float helix = 0.5 + 0.5 * sin(phi * 4.0 + absY * 0.5 - time * 2.0);
+    density *= 0.7 + 0.3 * helix;
+  }
+
+  // Synchrotron color - blue/cyan base, shifts based on Doppler
+  // Approaching (doppler > 1): blueshift toward white/blue
+  // Receding (doppler < 1): redshift toward red/orange
+  vec3 baseColor = vec3(0.3, 0.6, 1.0);  // Blue synchrotron base (less red)
+  vec3 blueShifted = vec3(0.7, 0.85, 1.0);  // Bright white-blue
+  vec3 redShifted = vec3(1.0, 0.3, 0.1);  // Dim red-orange for receding
+
+  vec3 color;
+  if (doppler > 1.0) {
+    color = mix(baseColor, blueShifted, clamp(doppler - 1.0, 0.0, 1.0));
+  } else {
+    color = mix(baseColor, redShifted, clamp(1.0 - doppler, 0.0, 0.8));
+  }
+
+  // Increased emission for visibility
+  float emission = density * beaming * 3.0;
+  float alpha = density * 0.4;
+
+  return vec4(color * emission, alpha);
+}
+
+// ============================================================================
 // Overlay Rendering
 // ============================================================================
 
@@ -520,6 +703,7 @@ vec4 traceRay(vec2 uv) {
   vec3 rayPos = cameraPos;
 
   float camDist = length(cameraPos);
+  float lod = calculateLOD(camDist);
 
   vec3 color = vec3(0.0);
   vec4 diskAccum = vec4(0.0);
@@ -642,20 +826,69 @@ vec4 traceRay(vec2 uv) {
     }
     
     rayPos = newPos;
-    
-    // Volumetric disk sampling
+
+    // Volumetric disk sampling with configurable thickness
+    float effectiveThickness = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
     float absY = abs(rayPos.y);
-    if (absY < diskHalfThickness) {
+    if (absY < effectiveThickness) {
       float hitR = length(rayPos.xz);
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-        float normalizedY = absY / diskHalfThickness;
-        float verticalDensity = pow(1.0 - normalizedY, 2.0);
-        vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
-        vec4 volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings);
-        float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * step;
+        float normalizedY = absY / effectiveThickness;
+
+        // Vertical density profile
+        float verticalDensity;
+        if (thickDiskEnabled > 0.5) {
+          // Gaussian profile for thick disk (more realistic puffy appearance)
+          float sigma = thickDiskPuffiness;
+          verticalDensity = exp(-normalizedY * normalizedY / (2.0 * sigma * sigma));
+        } else {
+          // Original quadratic falloff for thin disk
+          verticalDensity = pow(1.0 - normalizedY, 2.0);
+        }
+
+        // LOD-based sample skipping for thick disk
+        bool shouldSample = true;
+        if (thickDiskEnabled > 0.5 && lod < 0.7) {
+          int skipRate = lod < 0.3 ? 3 : 2;
+          shouldSample = (i % skipRate == 0);
+        }
+
+        if (shouldSample) {
+          vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
+          vec4 volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings);
+
+          // Adjust alpha for sample skipping
+          float skipMultiplier = 1.0;
+          if (thickDiskEnabled > 0.5 && lod < 0.7) {
+            skipMultiplier = lod < 0.3 ? 3.0 : 2.0;
+          }
+
+          float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * step * skipMultiplier;
+          float remaining = 1.0 - diskAccum.a;
+          diskAccum.rgb += volColor.rgb * volAlpha * remaining;
+          diskAccum.a += volAlpha * remaining;
+        }
+      }
+    }
+
+    // Corona sampling
+    if (coronaEnabled > 0.5 && r < coronaRadius * 2.0) {
+      vec4 coronaSample = sampleCorona(rayPos, rayDir, r, lod);
+      if (coronaSample.a > 0.001) {
         float remaining = 1.0 - diskAccum.a;
-        diskAccum.rgb += volColor.rgb * volAlpha * remaining;
-        diskAccum.a += volAlpha * remaining;
+        diskAccum.rgb += coronaSample.rgb * coronaSample.a * remaining;
+        diskAccum.a += coronaSample.a * remaining;
+      }
+    }
+
+    // Jets sampling - additive emission (jets emit light, don't occlude)
+    if (jetsEnabled > 0.5 && abs(rayPos.y) > rs * 0.3) {
+      vec4 jetSample = sampleJet(rayPos, rayDir, r, lod);
+      if (jetSample.a > 0.001) {
+        // Pure additive blending - jet light adds to whatever is there
+        diskAccum.rgb += jetSample.rgb;
+        // Small alpha contribution so jets don't disappear entirely
+        diskAccum.a = max(diskAccum.a, jetSample.a * 0.3);
       }
     }
   }

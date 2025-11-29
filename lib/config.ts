@@ -101,6 +101,33 @@ export const CONFIG = {
     strength: 1.2,
     iterations: 6,
   },
+
+  // Multi-layer disk system
+  layers: {
+    corona: {
+      enabled: true,
+      radius: 3.0, // Outer boundary (rs) - concentrated near ISCO
+      density: 0.2, // Subtle glow
+      temperature: 100000, // Hot blue-white
+    },
+    jets: {
+      enabled: false,
+      halfOpeningAngle: 12.0, // Degrees
+      length: 40.0, // rs units
+      velocity: 0.85, // Fraction of c (affects beaming)
+      density: 0.1,
+    },
+    thickDisk: {
+      enabled: true,
+      halfThickness: 0.4, // Enhanced thickness
+      puffiness: 0.4, // Gaussian falloff
+    },
+    lod: {
+      enabled: true,
+      nearDistance: 10, // Full detail (rs)
+      farDistance: 50, // Minimum detail (rs)
+    },
+  },
 };
 
 // ============================================================================
@@ -144,6 +171,22 @@ export function buildLensingParams(): LensingParams {
     overlayShadowEdge: 0,
     overlayDoppler: 0,
     overlayScale: 0,
+    // Layer system
+    coronaEnabled: CONFIG.layers.corona.enabled ? 1 : 0,
+    coronaRadius: CONFIG.layers.corona.radius,
+    coronaDensity: CONFIG.layers.corona.density,
+    coronaTemperature: CONFIG.layers.corona.temperature,
+    jetsEnabled: CONFIG.layers.jets.enabled ? 1 : 0,
+    jetsHalfOpeningAngle: CONFIG.layers.jets.halfOpeningAngle,
+    jetsLength: CONFIG.layers.jets.length,
+    jetsVelocity: CONFIG.layers.jets.velocity,
+    jetsDensity: CONFIG.layers.jets.density,
+    thickDiskEnabled: CONFIG.layers.thickDisk.enabled ? 1 : 0,
+    thickDiskHalfThickness: CONFIG.layers.thickDisk.halfThickness,
+    thickDiskPuffiness: CONFIG.layers.thickDisk.puffiness,
+    lodEnabled: CONFIG.layers.lod.enabled ? 1 : 0,
+    lodNearDistance: CONFIG.layers.lod.nearDistance,
+    lodFarDistance: CONFIG.layers.lod.farDistance,
   };
 }
 
