@@ -2,6 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
+import Link from 'next/link';
+
+const ROLES_CLAIM = 'neuron/roles';
 
 interface UserMenuProps {
   show?: boolean;
@@ -42,6 +45,9 @@ export function UserMenu({ show = true }: UserMenuProps) {
     logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
+  const roles = (user?.[ROLES_CLAIM] as string[] | undefined) ?? [];
+  const isAdmin = roles.includes('admin');
+
   return (
     <div ref={menuRef} className={`user-menu ${show ? '' : 'hidden'}`}>
       {!isAuthenticated ? (
@@ -70,6 +76,17 @@ export function UserMenu({ show = true }: UserMenuProps) {
               <div className="dropdown-header">
                 <span className="user-name">{user?.name || user?.email}</span>
               </div>
+              {isAdmin && (
+                <>
+                  <Link href="/render" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                    Render
+                  </Link>
+                  <Link href="/dev" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                    Dev Controls
+                  </Link>
+                  <div className="dropdown-divider" />
+                </>
+              )}
               <button className="dropdown-item" onClick={handleSignOut}>
                 Sign Out
               </button>
@@ -225,6 +242,32 @@ export function UserMenu({ show = true }: UserMenuProps) {
         }
 
         .dropdown-item:hover {
+          background: rgba(255, 140, 66, 0.1);
+          color: #ff8c42;
+        }
+
+        .dropdown-divider {
+          height: 1px;
+          background: rgba(255, 255, 255, 0.1);
+          margin: 4px 0;
+        }
+
+        :global(.dropdown-item) {
+          display: block;
+          width: 100%;
+          padding: 12px 14px;
+          background: none;
+          border: none;
+          text-align: left;
+          color: rgba(255, 255, 255, 0.7);
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-decoration: none;
+        }
+
+        :global(.dropdown-item:hover) {
           background: rgba(255, 140, 66, 0.1);
           color: #ff8c42;
         }
