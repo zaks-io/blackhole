@@ -141,7 +141,12 @@ const LensingShader = {
     stepJitter: { value: 0.0 },
     curvatureAdaptation: { value: 1.0 },
     coronaStepRefinement: { value: 1.0 },
-    baseStepSize: { value: 0.2 }
+    baseStepSize: { value: 0.2 },
+    // Precomputed values (CPU-side optimization)
+    photonRingLogInner: { value: 0.0 },
+    photonRingLogOuter: { value: 0.0 },
+    diskRadiusRange: { value: 9.0 },
+    anyOverlayEnabled: { value: 0.0 }
   },
   vertexShader,
   fragmentShader
@@ -192,15 +197,19 @@ export class LensingPass extends ShaderPass {
       // Update disk radii relative to rs
       this.uniforms['diskInnerRadius'].value = params.diskInnerRadius ?? 3.0 * params.rs;
       this.uniforms['diskOuterRadius'].value = params.diskOuterRadius ?? 12.0 * params.rs;
+      // Update precomputed values
+      this.updatePrecomputedUniforms();
     }
     if (params.maxSteps !== undefined) {
       this.uniforms['maxSteps'].value = params.maxSteps;
     }
     if (params.diskInnerRadius !== undefined) {
       this.uniforms['diskInnerRadius'].value = params.diskInnerRadius;
+      this.updatePrecomputedUniforms();
     }
     if (params.diskOuterRadius !== undefined) {
       this.uniforms['diskOuterRadius'].value = params.diskOuterRadius;
+      this.updatePrecomputedUniforms();
     }
     if (params.diskTemperatureInner !== undefined) {
       this.uniforms['diskTemperatureInner'].value = params.diskTemperatureInner;
@@ -265,15 +274,19 @@ export class LensingPass extends ShaderPass {
     // Overlay parameters
     if (params.overlayIsco !== undefined) {
       this.uniforms['overlayIsco'].value = params.overlayIsco;
+      this.updateAnyOverlayEnabled();
     }
     if (params.overlayEventHorizon !== undefined) {
       this.uniforms['overlayEventHorizon'].value = params.overlayEventHorizon;
+      this.updateAnyOverlayEnabled();
     }
     if (params.overlayDoppler !== undefined) {
       this.uniforms['overlayDoppler'].value = params.overlayDoppler;
+      this.updateAnyOverlayEnabled();
     }
     if (params.overlayScale !== undefined) {
       this.uniforms['overlayScale'].value = params.overlayScale;
+      this.updateAnyOverlayEnabled();
     }
     // Corona layer parameters
     if (params.coronaEnabled !== undefined) {
@@ -346,7 +359,31 @@ export class LensingPass extends ShaderPass {
   setStarfield(texture: THREE.Texture): void {
     this.uniforms['starfield'].value = texture;
   }
-  
+
+  private updatePrecomputedUniforms(): void {
+    const rs = this.uniforms['rs'].value as number;
+    const diskInnerRadius = this.uniforms['diskInnerRadius'].value as number;
+    const diskOuterRadius = this.uniforms['diskOuterRadius'].value as number;
+
+    // Photon ring log bounds (used for logarithmic photon ring mapping)
+    this.uniforms['photonRingLogInner'].value = Math.log(rs * 1.5);
+    this.uniforms['photonRingLogOuter'].value = Math.log(diskInnerRadius);
+
+    // Disk radius range (used multiple times in sampleDisk)
+    this.uniforms['diskRadiusRange'].value = diskOuterRadius - diskInnerRadius;
+  }
+
+  private updateAnyOverlayEnabled(): void {
+    const overlayIsco = this.uniforms['overlayIsco'].value as number;
+    const overlayEventHorizon = this.uniforms['overlayEventHorizon'].value as number;
+    const overlayDoppler = this.uniforms['overlayDoppler'].value as number;
+    const overlayScale = this.uniforms['overlayScale'].value as number;
+
+    // Set to 1.0 if any overlay is enabled, 0.0 otherwise
+    this.uniforms['anyOverlayEnabled'].value =
+      (overlayIsco + overlayEventHorizon + overlayDoppler + overlayScale) > 0 ? 1.0 : 0.0;
+  }
+
   dispose(): void {
     this.blackbodyLUT.dispose();
   }
