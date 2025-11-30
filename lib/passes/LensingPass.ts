@@ -3,8 +3,12 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { createBlackbodyLUT } from '../utils/blackbodyLUT';
 import { createNoiseLUT3D } from '../utils/noiseLUT';
 import { buildLensingParams } from '../config';
+import { registerLensingChunks } from '../shaders/registerChunks';
 import vertexShader from '../shaders/lensing.vert.glsl';
 import fragmentShader from '../shaders/lensing.frag.glsl';
+
+// Register shader chunks before they are needed
+registerLensingChunks();
 
 export interface LensingParams {
   rs: number;
