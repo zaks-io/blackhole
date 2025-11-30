@@ -414,7 +414,7 @@ export default function BlackHoleSimulation({
         composer = new EffectComposer(renderer, renderTarget);
         cleanupRef.current.composer = composer;
 
-        lensingPass = new LensingPass(starfieldTexture);
+        lensingPass = new LensingPass(starfieldTexture, CONFIG.noise.textureSize);
         lensingPass.updateResolution(window.innerWidth, window.innerHeight);
         lensingPass.updateParams(params);
         composer.addPass(lensingPass);

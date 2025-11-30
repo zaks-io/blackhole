@@ -101,7 +101,7 @@ export function RenderView() {
       composerRef.current = composer;
 
       // Lensing pass
-      const lensingPass = new LensingPass(starfieldTexture);
+      const lensingPass = new LensingPass(starfieldTexture, CONFIG.noise.textureSize);
       lensingPass.updateResolution(container.clientWidth, container.clientHeight);
       lensingPass.updateParams(defaultLensingParams);
       composer.addPass(lensingPass);
