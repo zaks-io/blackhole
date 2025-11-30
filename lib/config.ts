@@ -64,7 +64,7 @@ export const CONFIG = {
     maxSteps: 100,
     autoSteps: true,
     autoStepsMin: 64,
-    autoStepsMax: 128,
+    autoStepsMax: 160,
     // Anti-banding step refinement
     stepJitter: false,
     curvatureAdaptation: 1.0,
