@@ -638,12 +638,21 @@ export default function BlackHoleSimulation({
             lensingPass?.updateParams({ diskMaterialSpeed: value });
           });
 
-        diskFolder
+        const diskOpacityControl = diskFolder
           .add(params, "diskOpacity", 0.0, 1.0, 0.05)
           .name("Opacity")
           .onChange((value: number) => {
             lensingPass?.updateParams({ diskOpacity: value });
           });
+
+        const diskActions = {
+          hideDisk: () => {
+            params.diskOpacity = 0;
+            lensingPass?.updateParams({ diskOpacity: 0 });
+            diskOpacityControl.updateDisplay();
+          },
+        };
+        diskFolder.add(diskActions, "hideDisk").name("Hide Disk");
 
         // MHD Effects folder
         const mhdFolder = gui.addFolder("MHD Turbulence");
