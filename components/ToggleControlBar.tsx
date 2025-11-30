@@ -1,53 +1,55 @@
 'use client';
 
 import { useState } from 'react';
-import { OverlayState } from '@/lib/types';
+import { ToggleState } from '@/lib/types';
 
-interface OverlayControlBarProps {
-  overlayState: OverlayState;
-  onToggle: (toggles: Partial<OverlayState>) => void;
+interface ToggleControlBarProps {
+  toggleState: ToggleState;
+  onToggle: (toggles: Partial<ToggleState>) => void;
   show?: boolean;
 }
 
-const OVERLAY_CONFIG: { key: keyof OverlayState; icon: string; label: string; description: string; color: string }[] = [
+const TOGGLE_CONFIG: { key: keyof ToggleState; icon: string; label: string; description: string; color: string }[] = [
+  { key: 'disk', icon: '◉', label: 'Disk', description: 'Accretion Disk - hot matter orbiting the black hole', color: '#ff8c00' },
+  { key: 'jets', icon: '↕', label: 'Jets', description: 'Relativistic Jets - plasma ejected at near light speed', color: '#00ccff' },
   { key: 'isco', icon: '◎', label: 'ISCO', description: 'Innermost Stable Circular Orbit (3 rs) - closest stable orbit for matter', color: '#00d9d9' },
   { key: 'eventHorizon', icon: '●', label: 'Horizon', description: 'Event Horizon (1 rs) - point of no return', color: '#ff2626' },
   { key: 'doppler', icon: '↔', label: 'Doppler', description: 'Doppler Shift - blue=approaching, red=receding', color: '#6699ff' },
   { key: 'scale', icon: '⊕', label: 'Scale', description: 'Scale Rings - reference circles at 5, 10, 15 rs', color: '#b3b3bf' },
 ];
 
-export function OverlayControlBar({ overlayState, onToggle, show = true }: OverlayControlBarProps) {
+export function ToggleControlBar({ toggleState, onToggle, show = true }: ToggleControlBarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className={`overlay-bar-container ${show ? '' : 'hidden'}`}>
+    <div className={`toggle-bar-container ${show ? '' : 'hidden'}`}>
       <button
         className={`collapse-header ${isOpen ? 'open' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className="header-label">Overlays</span>
+        <span className="header-label">Toggles</span>
         <span className="chevron">▼</span>
       </button>
-      <div className={`overlay-bar ${isOpen ? 'expanded' : ''}`}>
-        {OVERLAY_CONFIG.map(({ key, icon, label, description, color }) => {
-          const isActive = overlayState[key];
+      <div className={`toggle-bar ${isOpen ? 'expanded' : ''}`}>
+        {TOGGLE_CONFIG.map(({ key, icon, label, description, color }) => {
+          const isActive = toggleState[key];
           return (
             <button
               key={key}
-              className={`overlay-btn ${isActive ? 'active' : ''}`}
+              className={`toggle-btn ${isActive ? 'active' : ''}`}
               onClick={() => onToggle({ [key]: !isActive })}
               title={description}
               style={{ '--accent-color': color } as React.CSSProperties}
             >
-              <span className="overlay-icon">{icon}</span>
-              <span className="overlay-label">{label}</span>
+              <span className="toggle-icon">{icon}</span>
+              <span className="toggle-label">{label}</span>
             </button>
           );
         })}
       </div>
 
       <style jsx>{`
-        .overlay-bar-container {
+        .toggle-bar-container {
           position: fixed;
           top: 32px;
           left: 50%;
@@ -60,7 +62,7 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
           transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .overlay-bar-container.hidden {
+        .toggle-bar-container.hidden {
           transform: translateX(-50%) translateY(-100px);
           opacity: 0;
           pointer-events: none;
@@ -113,7 +115,7 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
           transform: rotate(180deg);
         }
 
-        .overlay-bar {
+        .toggle-bar {
           display: flex;
           align-items: center;
           gap: 4px;
@@ -133,7 +135,7 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
           opacity: 0;
         }
 
-        .overlay-bar.expanded {
+        .toggle-bar.expanded {
           padding: 8px 14px;
           max-height: 200px;
           gap: 6px;
@@ -142,7 +144,7 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
           opacity: 1;
         }
 
-        .overlay-btn {
+        .toggle-btn {
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -157,13 +159,13 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
           min-width: 48px;
         }
 
-        .overlay-btn:hover {
+        .toggle-btn:hover {
           color: rgba(255, 255, 255, 0.8);
           background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.1);
         }
 
-        .overlay-btn.active {
+        .toggle-btn.active {
           color: var(--accent-color);
           background: color-mix(in srgb, var(--accent-color) 15%, transparent);
           border-color: color-mix(in srgb, var(--accent-color) 40%, transparent);
@@ -172,21 +174,21 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
             inset 0 0 8px color-mix(in srgb, var(--accent-color) 10%, transparent);
         }
 
-        .overlay-icon {
+        .toggle-icon {
           font-size: 16px;
           line-height: 1;
           transition: transform 0.2s ease;
         }
 
-        .overlay-btn:hover .overlay-icon {
+        .toggle-btn:hover .toggle-icon {
           transform: scale(1.1);
         }
 
-        .overlay-btn:active .overlay-icon {
+        .toggle-btn:active .toggle-icon {
           transform: scale(0.95);
         }
 
-        .overlay-label {
+        .toggle-label {
           font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
           font-size: 8px;
           font-weight: 500;
@@ -197,23 +199,23 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .overlay-bar.expanded .overlay-label {
+        .toggle-bar.expanded .toggle-label {
           opacity: 1;
           transform: translateY(0);
         }
 
         @media (max-width: 600px) {
-          .overlay-bar.expanded {
+          .toggle-bar.expanded {
             gap: 2px;
             padding: 6px 8px;
           }
 
-          .overlay-btn {
+          .toggle-btn {
             padding: 4px 6px;
             min-width: 36px;
           }
 
-          .overlay-icon {
+          .toggle-icon {
             font-size: 14px;
           }
         }

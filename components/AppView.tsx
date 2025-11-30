@@ -5,14 +5,14 @@ import { track } from '@vercel/analytics';
 import { useAuth0 } from '@auth0/auth0-react';
 import BlackHoleSimulation, { CAMERA_PRESETS, CAMERA_SEQUENCES, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
-import { OverlayControlBar } from './OverlayControlBar';
+import { ToggleControlBar } from './ToggleControlBar';
 import { InfoPanel } from './InfoPanel';
 import { VoiceAgentPopup } from './VoiceAgentPopup';
 import { VoiceLoginPrompt } from './VoiceLoginPrompt';
 import { UserMenu } from './UserMenu';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
-import { OverlayState, DEFAULT_OVERLAY_STATE } from '@/lib/types';
+import { ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
 
 /**
  * Wrapper component that contains both the simulation and camera controls.
@@ -26,7 +26,7 @@ export default function AppView() {
   const [ehtMode, setEhtMode] = useState(false);
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
   const [introComplete, setIntroComplete] = useState(false);
-  const [overlayState, setOverlayState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
+  const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
   const [cameraDistance, setCameraDistance] = useState(20);
   const [isManualMode, setIsManualMode] = useState(false);
   const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
@@ -35,18 +35,18 @@ export default function AppView() {
   const handleContextualUpdateReady = useCallback((sendUpdate: (text: string) => void) => {
     sendContextualUpdateRef.current = sendUpdate;
 
-    const activeOverlays = Object.entries(overlayState)
+    const activeToggles = Object.entries(toggleState)
       .filter(([, v]) => v)
       .map(([k]) => k);
-    const overlayInfo = activeOverlays.length > 0
-      ? `Active overlays: ${activeOverlays.join(', ')}.`
-      : 'No overlays active.';
+    const toggleInfo = activeToggles.length > 0
+      ? `Active toggles: ${activeToggles.join(', ')}.`
+      : 'No toggles active.';
     const ehtInfo = ehtMode
       ? `EHT mode is on${ehtBlurEnabled ? ' with blur enabled' : ''}.`
       : '';
 
-    sendUpdate(`Current view: ${activePreset}. ${overlayInfo} ${ehtInfo}`.trim());
-  }, [activePreset, overlayState, ehtMode, ehtBlurEnabled]);
+    sendUpdate(`Current view: ${activePreset}. ${toggleInfo} ${ehtInfo}`.trim());
+  }, [activePreset, toggleState, ehtMode, ehtBlurEnabled]);
 
   const sendContextualUpdate = useCallback((message: string) => {
     sendContextualUpdateRef.current?.(message);
@@ -200,12 +200,12 @@ export default function AppView() {
     sendContextualUpdate(`User ${enabled ? 'enabled' : 'disabled'} EHT blur effect`);
   }, [ehtBlurController, sendContextualUpdate]);
 
-  const handleOverlayToggle = useCallback((toggles: Partial<OverlayState>) => {
-    setOverlayState(prev => ({ ...prev, ...toggles }));
+  const handleToggleChange = useCallback((toggles: Partial<ToggleState>) => {
+    setToggleState(prev => ({ ...prev, ...toggles }));
     const changes = Object.entries(toggles)
       .map(([key, val]) => `${key}: ${val ? 'on' : 'off'}`)
       .join(', ');
-    sendContextualUpdate(`User toggled overlays: ${changes}`);
+    sendContextualUpdate(`User toggled: ${changes}`);
   }, [sendContextualUpdate]);
 
   const handlePresetSelect = useCallback((presetName: string) => {
@@ -260,7 +260,7 @@ export default function AppView() {
         showDevControls={false}
         showStats={false}
         initialEhtBlurEnabled={false}
-        overlayState={overlayState}
+        toggleState={toggleState}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
       />
@@ -292,9 +292,9 @@ export default function AppView() {
         />
       )}
 
-      <OverlayControlBar
-        overlayState={overlayState}
-        onToggle={handleOverlayToggle}
+      <ToggleControlBar
+        toggleState={toggleState}
+        onToggle={handleToggleChange}
         show={introComplete}
       />
 
@@ -309,7 +309,7 @@ export default function AppView() {
         <VoiceAgentPopup
           onPresetSelect={handlePresetSelect}
           onEhtBlurToggle={handleEhtBlurSet}
-          onOverlayToggle={handleOverlayToggle}
+          onOverlayToggle={handleToggleChange}
           onContextualUpdateReady={handleContextualUpdateReady}
         />
       )}
