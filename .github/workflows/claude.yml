@@ -1,0 +1,262 @@
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.comment.body, '/review')
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          track_progress: true
+          claude_args: "--allowedTools 'Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(npx:*),Bash(gh:*)'"
+
+  code-review:
+    name: Code Review
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/review')
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+      id-token: write
+      actions: read
+    steps:
+      - name: React to comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes'
+            });
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Gather PR context and create check run
+        id: context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+
+            // Get PR details
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+
+            // Get workflow runs for this PR
+            const workflowRuns = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: pr.data.head.ref,
+              per_page: 10
+            });
+
+            // Get check runs for the head commit
+            const checkRuns = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pr.data.head.sha,
+              per_page: 100
+            });
+
+            // Create the review check run
+            const reviewCheck = await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Code Review',
+              head_sha: pr.data.head.sha,
+              status: 'in_progress',
+              started_at: new Date().toISOString()
+            });
+
+            // Format workflow runs for easy reference
+            const formattedWorkflows = workflowRuns.data.workflow_runs
+              .filter(run => run.event === 'pull_request' || run.event === 'push')
+              .map(run => ({
+                id: run.id,
+                name: run.name,
+                status: run.status,
+                conclusion: run.conclusion,
+                html_url: run.html_url,
+                created_at: run.created_at
+              }));
+
+            // Format check runs for easy reference
+            const formattedChecks = checkRuns.data.check_runs.map(check => ({
+              id: check.id,
+              name: check.name,
+              status: check.status,
+              conclusion: check.conclusion,
+              html_url: check.html_url,
+              started_at: check.started_at
+            }));
+
+            // Output everything
+            core.setOutput('check_run_id', reviewCheck.data.id);
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('pr_title', pr.data.title);
+            core.setOutput('pr_author', pr.data.user.login);
+            core.setOutput('pr_branch', pr.data.head.ref);
+            core.setOutput('pr_base_branch', pr.data.base.ref);
+            core.setOutput('pr_head_sha', pr.data.head.sha);
+            core.setOutput('workflow_runs', JSON.stringify(formattedWorkflows, null, 2));
+            core.setOutput('check_runs', JSON.stringify(formattedChecks, null, 2));
+
+            return reviewCheck.data.id;
+
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          track_progress: true
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,LS,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh run view:*)"
+          prompt: |
+            **PR Context:**
+            - Repo: ${{ github.repository }}
+            - PR: #${{ steps.context.outputs.pr_number }} - "${{ steps.context.outputs.pr_title }}"
+            - Author: ${{ steps.context.outputs.pr_author }}
+            - Branch: ${{ steps.context.outputs.pr_branch }} → ${{ steps.context.outputs.pr_base_branch }}
+            - Head SHA: ${{ steps.context.outputs.pr_head_sha }}
+            - Check Run ID: ${{ steps.context.outputs.check_run_id }}
+            - Triggered by: Manual `/review` comment
+
+            **Workflow Runs:**
+            ```json
+            ${{ steps.context.outputs.workflow_runs }}
+            ```
+
+            **Check Runs:**
+            ```json
+            ${{ steps.context.outputs.check_runs }}
+            ```
+
+            **Instructions:**
+            Use the workflow run IDs above with `gh run view <run-id> --log` to analyze test results.
+            Use `gh pr diff ${{ steps.context.outputs.pr_number }}` or `gh pr view ${{ steps.context.outputs.pr_number }} --json files` to see changed files.
+
+            A PR review has been triggered. Review the current state of the PR
+            to determine if a review has already occured. If it has, review the
+            feedback and any changes made since then to see if they address the
+            feedback of the original review. Your purpose is to continue the
+            review and not start over. If no review has occured, perform a
+            comprehensive code review based on the following focus areas:
+
+            1. **Code Quality**
+               - Clean code principles and best practices
+               - Proper error handling and edge cases
+               - Code readability and maintainability
+               - Code follows KISS and DRY principles
+               - Consistenty with the project style and conventions
+
+            2. **Security**
+               - Check for potential security vulnerabilities
+               - Validate input sanitization
+               - Review authentication/authorization logic
+               - Verify no secrets are commited to the repository
+
+            3. **Performance**
+               - Identify potential performance bottlenecks
+               - Review database queries for efficiency
+               - Check for memory leaks or resource issues
+               - Follows serverless best practices
+
+            4. **Testing & Coverage**
+               - Verify adequate test coverage
+               - Review test quality and edge cases
+               - Check for missing test scenarios
+               - Analyze workflow run logs using the IDs provided above
+               - Look for critical coverage regressions or gaps
+
+            5. **Documentation**
+               - Ensure code is properly documented
+               - Verify README updates for new features
+               - Check API documentation accuracy
+
+            Provide feedback using inline comments for specific issues.
+            Use top-level comments for general observations.
+
+            Be concise and to the point.
+            Do not repeat previous comments.
+            Focus on the issues and not what was done right.
+            Include a tldr at the top
+            Be witty and engaging.
+
+      - name: Complete check run
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const checkId = ${{ steps.context.outputs.check_run_id }};
+
+            const conclusion = '${{ job.status }}' === 'success' ? 'success' : 'failure';
+
+            await github.rest.checks.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              check_run_id: checkId,
+              status: 'completed',
+              conclusion: conclusion,
+              completed_at: new Date().toISOString()
+            });
+
+      - name: React on success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            });
+
+      - name: React on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'confused'
+            });
