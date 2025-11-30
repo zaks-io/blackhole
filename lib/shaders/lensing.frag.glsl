@@ -581,29 +581,6 @@ vec4 sampleJet(vec3 rayPos, vec3 rayDir, float r, float lod) {
   // Must be within the hollow cone
   if (cylR > outerR || cylR < innerR * 0.3) return vec4(0.0);
 
-  // Suppress jet emission for rays that would show the shadow
-  // The shadow appears where rays have impact parameter < critical value (~2.6rs)
-  // For rays near the axis looking at the black hole, don't render jet over shadow
-  vec3 radialDir = normalize(rayPos);
-  float radialVel = dot(rayDir, radialDir);
-
-  // Calculate impact parameter: perpendicular distance from ray to origin
-  vec3 toOrigin = -rayPos;
-  vec3 perpendicular = toOrigin - dot(toOrigin, rayDir) * rayDir;
-  float impactParam = length(perpendicular);
-
-  // Smoothly fade jet near shadow region instead of hard cutoff
-  // Critical impact parameter for capture is ~2.6rs (photon sphere crossing)
-  float criticalImpact = 2.6 * rs;
-  float shadowFade = 1.0;
-  if (radialVel < 0.0) {
-    // Smooth fade from criticalImpact to criticalImpact + 1rs
-    shadowFade = smoothstep(criticalImpact, criticalImpact + 1.0 * rs, impactParam);
-  }
-
-  // Also fade near the hole
-  float holeFade = smoothstep(rs * 1.2, rs * 2.0, r);
-
   // Density profile - concentrated toward center of hollow cone
   float coneCenter = (innerR + outerR) * 0.5;
   float coneWidth = outerR - innerR;
@@ -618,7 +595,7 @@ vec4 sampleJet(vec3 rayPos, vec3 rayDir, float r, float lod) {
   float heightFalloff = 1.0 / (1.0 + absY / (30.0 * rs));
   // Brighter base region near the disk (but after fade-in)
   float baseBrightening = 1.0 + 1.5 * exp(-absY / (5.0 * rs));
-  float density = jetsDensity * radialFalloff * heightFalloff * baseBrightening * baseFadeIn * shadowFade * holeFade;
+  float density = jetsDensity * radialFalloff * heightFalloff * baseBrightening * baseFadeIn;
 
   // Relativistic beaming
   float jetVelY = sign(rayPos.y) * jetsVelocity;
@@ -634,11 +611,21 @@ vec4 sampleJet(vec3 rayPos, vec3 rayDir, float r, float lod) {
   float beaming = pow(doppler, 3.0);
   beaming = max(beaming, 0.05);  // Minimum 5% visibility for receding jet
 
-  // Helical structure at high LOD
+  // Helical structure at high LOD with noise to break up rhythmic pattern
   if (lod > 0.3) {
     float phi = atan(rayPos.z, rayPos.x);
-    float helix = 0.5 + 0.5 * sin(phi * 4.0 + absY * 0.5 - time * 2.0);
-    density *= 0.7 + 0.3 * helix;
+
+    // Add noise to break up rhythmic pattern
+    vec2 noiseCoord = vec2(absY * 0.1, phi * 0.5 + time * 0.3);
+    float turbulence = snoise(noiseCoord) * 0.5;
+
+    // Combine helix with noise for irregular pulsing
+    float helix = 0.5 + 0.5 * sin(phi * 4.0 + absY * 0.5 - time * 2.0 + turbulence * 3.0);
+
+    // Add additional density variation from noise
+    float densityNoise = 0.8 + 0.2 * snoise(noiseCoord * 2.0);
+
+    density *= (0.7 + 0.3 * helix) * densityNoise;
   }
 
   // Synchrotron color - blue/cyan base, shifts based on Doppler

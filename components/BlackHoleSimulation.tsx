@@ -847,7 +847,7 @@ export default function BlackHoleSimulation({
             lensingPass?.updateParams({ jetsLength: value });
           });
         jetsFolder
-          .add(params, "jetsDensity", 0.1, 1.0, 0.05)
+          .add(params, "jetsDensity", 0, 1.0, 0.025)
           .name("Density")
           .onChange((value: number) => {
             lensingPass?.updateParams({ jetsDensity: value });
