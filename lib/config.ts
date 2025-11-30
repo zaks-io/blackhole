@@ -127,9 +127,9 @@ export const CONFIG = {
     jets: {
       enabled: false,
       halfOpeningAngle: 12.0, // Degrees
-      length: 40.0, // rs units
+      length: 50.0, // rs units
       velocity: 0.85, // Fraction of c (affects beaming)
-      density: 0.1,
+      density: 0.025,
     },
     thickDisk: {
       enabled: true,

@@ -133,7 +133,7 @@ const LensingShader = {
     jetsHalfOpeningAngle: { value: 10.0 },
     jetsLength: { value: 30.0 },
     jetsVelocity: { value: 0.8 },
-    jetsDensity: { value: 0.1 },
+    jetsDensity: { value: 0.05 },
     // Thick disk layer uniforms
     thickDiskEnabled: { value: 0.0 },
     thickDiskHalfThickness: { value: 0.5 },
