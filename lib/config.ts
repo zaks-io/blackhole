@@ -31,6 +31,7 @@ export const CONFIG = {
     threshold: 0.1,
     strength: 0.3,
     radius: 0.3,
+    resolutionScale: 0.5, // Render bloom at half resolution for performance
   },
 
   // Accretion disk
@@ -98,8 +99,8 @@ export const CONFIG = {
   // EHT-style blur effect (replicates telescope diffraction)
   ehtBlur: {
     enabled: false,
-    strength: 1.2,
-    iterations: 6,
+    strength: 1.8, // Increased to compensate for fewer iterations
+    iterations: 2, // Reduced from 6 for performance
   },
 
   // Multi-layer disk system

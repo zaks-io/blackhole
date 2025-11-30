@@ -143,17 +143,34 @@ const LensingShader = {
 
 export class LensingPass extends ShaderPass {
   private blackbodyLUT: THREE.DataTexture;
-  
+
+  // Camera caching for uniform update optimization
+  private lastCameraPosition = new THREE.Vector3();
+  private lastCameraMatrixWorld = new THREE.Matrix4();
+
   constructor(starfieldTexture: THREE.Texture) {
     super(LensingShader);
-    
+
     // Create blackbody LUT texture
     this.blackbodyLUT = createBlackbodyLUT();
     this.uniforms['blackbodyLUT'].value = this.blackbodyLUT;
     this.uniforms['starfield'].value = starfieldTexture;
   }
-  
+
   updateCamera(camera: THREE.PerspectiveCamera): void {
+    // Skip update if camera hasn't moved (optimization for static camera)
+    if (
+      this.lastCameraPosition.equals(camera.position) &&
+      this.lastCameraMatrixWorld.equals(camera.matrixWorld)
+    ) {
+      return;
+    }
+
+    // Cache current state
+    this.lastCameraPosition.copy(camera.position);
+    this.lastCameraMatrixWorld.copy(camera.matrixWorld);
+
+    // Update uniforms
     this.uniforms['cameraPos'].value.copy(camera.position);
     this.uniforms['inverseProjection'].value.copy(camera.projectionMatrixInverse);
     this.uniforms['inverseView'].value.copy(camera.matrixWorld);
