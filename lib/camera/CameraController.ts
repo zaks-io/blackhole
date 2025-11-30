@@ -33,6 +33,26 @@ export interface OrbitConfig {
   preserveAngle?: boolean;
 }
 
+// ============================================================================
+// Sequence Types
+// ============================================================================
+
+export type SequenceStepType = 'moveTo' | 'transitionOrbit' | 'startOrbit' | 'stopOrbit' | 'delay';
+
+export interface CameraSequenceStep {
+  type: SequenceStepType;
+  position?: { x: number; y: number; z: number };
+  lookAt?: { x: number; y: number; z: number };
+  orbitConfig?: Partial<OrbitConfig>;
+  duration?: number;
+  ease?: string;
+}
+
+export interface CameraSequence {
+  name: string;
+  steps: CameraSequenceStep[];
+}
+
 type ControlMode = 'manual' | 'cinematic' | 'orbit';
 
 // ============================================================================
@@ -51,9 +71,13 @@ export class CameraController {
   // Orbit state
   private orbitConfig: OrbitConfig | null = null;
   private orbitAngle = 0;
-  
+
   // Active tweens for cleanup
   private activeTweens: gsap.core.Tween[] = [];
+
+  // Sequence state
+  private currentSequenceId = 0;
+  private delayTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(camera: THREE.PerspectiveCamera, orbitControls: OrbitControls) {
     this.camera = camera;
@@ -245,6 +269,88 @@ export class CameraController {
    */
   isActive(): boolean {
     return this.mode !== 'manual';
+  }
+
+  /**
+   * Run a multi-step camera sequence
+   * Each step executes sequentially, with smooth transitions between them
+   */
+  async runSequence(sequence: CameraSequence): Promise<void> {
+    const sequenceId = ++this.currentSequenceId;
+
+    // Clear any pending delay
+    if (this.delayTimeoutId) {
+      clearTimeout(this.delayTimeoutId);
+      this.delayTimeoutId = null;
+    }
+
+    for (const step of sequence.steps) {
+      // Check if sequence was cancelled
+      if (this.currentSequenceId !== sequenceId) return;
+
+      switch (step.type) {
+        case 'moveTo':
+          if (step.position && step.lookAt) {
+            await this.moveTo(
+              { position: step.position, lookAt: step.lookAt },
+              { duration: step.duration, ease: step.ease }
+            );
+          }
+          break;
+
+        case 'transitionOrbit':
+          if (step.orbitConfig) {
+            await this.transitionOrbit(
+              {
+                distance: step.orbitConfig.distance ?? 20,
+                height: step.orbitConfig.height ?? 1,
+                speed: step.orbitConfig.speed ?? 1,
+                lookAt: step.orbitConfig.lookAt,
+                preserveAngle: step.orbitConfig.preserveAngle,
+              },
+              { duration: step.duration, ease: step.ease }
+            );
+          }
+          break;
+
+        case 'startOrbit':
+          if (step.orbitConfig) {
+            this.startOrbit({
+              distance: step.orbitConfig.distance ?? 20,
+              height: step.orbitConfig.height ?? 1,
+              speed: step.orbitConfig.speed ?? 1,
+              lookAt: step.orbitConfig.lookAt,
+              preserveAngle: step.orbitConfig.preserveAngle,
+            });
+          }
+          break;
+
+        case 'stopOrbit':
+          this.stopOrbit();
+          break;
+
+        case 'delay':
+          await new Promise<void>((resolve) => {
+            this.delayTimeoutId = setTimeout(() => {
+              this.delayTimeoutId = null;
+              resolve();
+            }, (step.duration || 1) * 1000);
+          });
+          break;
+      }
+    }
+  }
+
+  /**
+   * Cancel any running sequence
+   */
+  cancelSequence(): void {
+    this.currentSequenceId++;
+    if (this.delayTimeoutId) {
+      clearTimeout(this.delayTimeoutId);
+      this.delayTimeoutId = null;
+    }
+    this.killActiveTweens();
   }
 
   /**
