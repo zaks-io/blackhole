@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { HorizontalBlurShader } from 'three/examples/jsm/shaders/HorizontalBlurShader.js';
@@ -73,8 +72,8 @@ export function RenderView() {
       let starfieldTexture: THREE.Texture;
 
       try {
-        const exrLoader = new EXRLoader();
-        starfieldTexture = await exrLoader.loadAsync('/textures/starmap_2020_4k.exr');
+        const loader = new THREE.TextureLoader();
+        starfieldTexture = await loader.loadAsync('/textures/starmap_4k.webp');
         starfieldTexture.mapping = THREE.EquirectangularReflectionMapping;
         starfieldTexture.minFilter = THREE.LinearFilter;
         starfieldTexture.magFilter = THREE.LinearFilter;
