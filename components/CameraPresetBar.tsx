@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CAMERA_PRESETS } from './BlackHoleSimulation';
+import { CAMERA_PRESETS, CAMERA_SEQUENCES } from './BlackHoleSimulation';
 
 interface CameraPresetBarProps {
   onPresetSelect: (presetName: string) => void;
@@ -20,8 +20,10 @@ const PRESET_ICONS: Record<string, string> = {
   topDown: '⬡',
   edgeOn: '━',
   photonSphere: '◐',
-  doppler: '↔',
-  fallingIn: '↓',
+  // Sequences
+  fallIn: '↓',
+  warpingTour: '◎',
+  shadowExplore: '●',
 };
 
 const PRESET_LABELS: Record<string, string> = {
@@ -31,14 +33,17 @@ const PRESET_LABELS: Record<string, string> = {
   topDown: 'Above',
   edgeOn: 'Edge',
   photonSphere: 'Ring',
-  doppler: 'Doppler',
-  fallingIn: 'Fall',
+  // Sequences
+  fallIn: 'Fall',
+  warpingTour: 'Tour',
+  shadowExplore: 'Shadow',
 };
 
 export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlurEnabled, onEhtToggle, onEhtBlurToggle, show = true }: CameraPresetBarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'eht');
+  const sequenceKeys = Object.keys(CAMERA_SEQUENCES);
 
   return (
     <div className={`preset-bar-container ${show ? '' : 'hidden'}`}>
@@ -49,6 +54,18 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
             className={`preset-btn ${key === 'default' ? 'default-btn' : ''} ${activePreset === key ? 'active' : ''}`}
             onClick={() => onPresetSelect(key)}
             title={CAMERA_PRESETS[key].name}
+          >
+            <span className="preset-icon">{PRESET_ICONS[key]}</span>
+            <span className="preset-label">{PRESET_LABELS[key]}</span>
+          </button>
+        ))}
+        {sequenceKeys.length > 0 && <div className="separator" />}
+        {sequenceKeys.map((key) => (
+          <button
+            key={key}
+            className={`preset-btn sequence-btn ${activePreset === key ? 'active' : ''}`}
+            onClick={() => onPresetSelect(key)}
+            title={CAMERA_SEQUENCES[key].name}
           >
             <span className="preset-icon">{PRESET_ICONS[key]}</span>
             <span className="preset-label">{PRESET_LABELS[key]}</span>
@@ -249,6 +266,15 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
           box-shadow:
             0 0 20px rgba(135, 206, 235, 0.15),
             inset 0 0 10px rgba(135, 206, 235, 0.1);
+        }
+
+        .preset-btn.sequence-btn.active {
+          color: #a78bfa;
+          background: rgba(167, 139, 250, 0.15);
+          border-color: rgba(167, 139, 250, 0.4);
+          box-shadow:
+            0 0 20px rgba(167, 139, 250, 0.15),
+            inset 0 0 10px rgba(167, 139, 250, 0.1);
         }
 
         .preset-icon {
