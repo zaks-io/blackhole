@@ -375,6 +375,49 @@ export class CameraController {
   }
 
   /**
+   * Get the camera position as a plain object
+   */
+  getPosition(): { x: number; y: number; z: number } {
+    return {
+      x: this.camera.position.x,
+      y: this.camera.position.y,
+      z: this.camera.position.z,
+    };
+  }
+
+  /**
+   * Project a 3D world position to normalized device coordinates (-1 to 1)
+   * Returns null if the point is behind the camera
+   */
+  projectToNDC(worldPos: { x: number; y: number; z: number }): { x: number; y: number } | null {
+    const vec = new THREE.Vector3(worldPos.x, worldPos.y, worldPos.z);
+    vec.project(this.camera);
+
+    // Check if behind camera (z > 1 in NDC means behind)
+    if (vec.z > 1) return null;
+
+    return { x: vec.x, y: vec.y };
+  }
+
+  /**
+   * Project a 3D world position to screen coordinates (pixels)
+   * Returns null if the point is behind the camera
+   */
+  projectToScreen(
+    worldPos: { x: number; y: number; z: number },
+    screenWidth: number,
+    screenHeight: number
+  ): { x: number; y: number } | null {
+    const ndc = this.projectToNDC(worldPos);
+    if (!ndc) return null;
+
+    return {
+      x: (ndc.x + 1) * 0.5 * screenWidth,
+      y: (-ndc.y + 1) * 0.5 * screenHeight,
+    };
+  }
+
+  /**
    * Update loop - call this every frame
    */
   update(deltaTime: number): void {

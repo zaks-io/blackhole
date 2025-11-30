@@ -666,12 +666,16 @@ vec4 renderHorizontalRing(vec3 rayPos, vec3 prevPos, float targetRadius, float t
   vec3 hitPos = mix(prevPos, rayPos, t);
   float hitR = length(hitPos.xz);
 
-  // Distance from ring
+  // Distance from ring - use sharp falloff for crisp lines
   float dist = abs(hitR - targetRadius);
-  float fade = 1.0 - smoothstep(0.0, thickness, dist);
+  float sharpThickness = thickness * 0.3; // Much thinner line
+  float fade = 1.0 - smoothstep(0.0, sharpThickness, dist);
+  // Add subtle glow around the sharp line
+  float glow = (1.0 - smoothstep(sharpThickness, thickness, dist)) * 0.3;
+  fade = max(fade, glow);
 
   if (fade > 0.0) {
-    return vec4(ringColor * fade * intensity, fade * intensity * 0.8);
+    return vec4(ringColor * fade * intensity, fade * intensity * 0.9);
   }
   return vec4(0.0);
 }
@@ -691,12 +695,15 @@ vec4 renderSphereRing(float currentR, float prevR, float targetRadius, float thi
     return vec4(0.0);
   }
 
-  // We crossed the shell - calculate fade based on how close we are
+  // We crossed the shell - use sharp falloff for crisp lines
   float dist = min(abs(currentR - targetRadius), abs(prevR - targetRadius));
-  float fade = 1.0 - smoothstep(0.0, thickness, dist);
+  float sharpThickness = thickness * 0.3;
+  float fade = 1.0 - smoothstep(0.0, sharpThickness, dist);
+  float glow = (1.0 - smoothstep(sharpThickness, thickness, dist)) * 0.3;
+  fade = max(fade, glow);
 
   if (fade > 0.0) {
-    return vec4(ringColor * fade * intensity, fade * intensity * 0.8);
+    return vec4(ringColor * fade * intensity, fade * intensity * 0.9);
   }
   return vec4(0.0);
 }
