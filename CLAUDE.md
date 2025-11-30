@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-bun dev          # Start Next.js dev server (port 3000 by default)
+bun dev          # Start Next.js dev server (port 3000)
 bun build        # Production build
 bun start        # Start production server
 bun lint         # Run ESLint
@@ -25,38 +25,49 @@ bun typecheck    # Run TypeScript type checking
 
 ## Architecture
 
-This is a Next.js 16 app with a real-time WebGL2 gravitational lensing simulation of a Schwarzschild black hole.
+This is a Next.js 16 + React 19 app with a real-time WebGL2 gravitational lensing simulation of a Schwarzschild black hole.
 
-### Directory Structure
+### App Routes
 
-- `app/` - Next.js app router pages
-  - `page.tsx` - Landing page
-  - `simulation/page.tsx` - Main simulation (production view)
-  - `dev/page.tsx` - Development view with lil-gui controls and FPS stats
-- `components/` - React components
-  - `BlackHoleSimulation.tsx` - Core Three.js simulation component
-  - `SimulationWithControls.tsx` - Simulation with camera preset bar
-  - `CameraPresetBar.tsx` - UI for camera presets
-- `lib/` - Shared libraries
-  - `config.ts` - Centralized configuration (physics, rendering, disk, MHD effects)
-  - `passes/LensingPass.ts` - Custom Three.js post-processing pass for ray marching
-  - `camera/CameraController.ts` - GSAP-powered camera animation system
-  - `utils/blackbodyLUT.ts` - Blackbody color lookup table generation
-  - `particles/` - Particle system for disk effects
-- `src/shaders/` - GLSL shader files (imported via raw-loader)
+- `/` - Landing page
+- `/app` - Main simulation with toggle controls and info panel
+- `/dev` - Development view with lil-gui controls and FPS stats
+- `/render` - Offline high-quality video frame export (admin protected)
+
+### Key Libraries
+
+- `lib/config.ts` - Centralized configuration (physics, rendering, disk, MHD effects) with helper functions (`buildLensingParams`, `buildParticleParams`)
+- `lib/passes/LensingPass.ts` - Custom Three.js post-processing pass for ray marching
+- `lib/camera/CameraController.ts` - GSAP-powered camera animation with orbit mode, presets, and sequences
+- `lib/render/RenderController.ts` - Offline rendering system for video frame export
+- `lib/shaders/` - GLSL vertex and fragment shaders (imported via raw-loader)
+- `lib/utils/` - Blackbody LUT, noise textures, texture blur utilities
+
+### Component Architecture
+
+- `BlackHoleSimulation.tsx` - Core Three.js simulation, post-processing setup, dev GUI
+- `AppView.tsx` - Main app wrapper with simulation, toggle controls, and info panel
+- `RenderView.tsx` - Offline rendering interface with quality presets and progress tracking
+- `ToggleControlBar.tsx` - UI toggles for overlays (ISCO, event horizon, Doppler, jets)
+- `CameraPresetBar.tsx` - Camera preset buttons and sequence triggers
+- Auth components (`Auth0ProviderWrapper`, `ProtectedRoute`, `UserMenu`) - Role-based access
+- Voice components (`VoiceAgentPopup`, `VoiceLoginPrompt`, `AudioVisualizer`) - ElevenLabs integration
 
 ### Rendering Pipeline
 
-1. **LensingPass** - Fullscreen fragment shader that ray-marches through curved spacetime
+1. **LensingPass** - Fullscreen fragment shader ray-marching through curved spacetime
 2. **FXAA Pass** - Anti-aliasing (optional)
 3. **UnrealBloomPass** - HDR bloom for accretion disk glow
+4. **EHT Blur Passes** - Multiple blur iterations to simulate telescope diffraction (optional)
 
 ### Key Patterns
 
-- All simulation parameters are centralized in `lib/config.ts` with helper functions (`buildLensingParams`, `buildParticleParams`) to create flat param objects
-- Three.js components use dynamic imports with `ssr: false` to avoid server-side rendering issues
-- GLSL shaders are imported as strings via raw-loader configured in `next.config.ts`
-- Camera uses GSAP for smooth cinematic movements with orbit mode and presets
+- All simulation parameters centralized in `lib/config.ts`
+- Three.js components use dynamic imports with `ssr: false` to avoid SSR issues
+- GLSL shaders imported as strings via raw-loader configured in `next.config.ts`
+- Camera sequences defined declaratively (`CAMERA_SEQUENCES` in BlackHoleSimulation)
+- Toggle state synced to shader uniforms via `updateParams()`
+- Starfield backgrounds support crossfade transitions with GSAP animation
 
 ### Physics Model
 
@@ -66,7 +77,9 @@ The simulation uses Schwarzschild geodesic equations for light bending:
 - Event horizon at r < rs renders black
 - Photon sphere at r = 1.5rs creates bright ring
 - Accretion disk with Keplerian rotation, Doppler shift, and relativistic beaming
+- Corona and relativistic jets (configurable)
+- MHD turbulence patterns with spiral arms and hotspots
 
-### Starfield Asset
+### Starfield Assets
 
-Requires `public/textures/starmap_2020_4k.exr` - a 4K HDR equirectangular star map. Falls back to procedurally generated stars if missing.
+Multiple HDR/SDR backgrounds in `public/textures/` (EXR/WebP). Auto-detects HDR display support and adjusts tone mapping. Falls back to procedural starfield if textures missing.
