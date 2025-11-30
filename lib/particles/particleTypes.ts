@@ -7,25 +7,25 @@ import { buildParticleParams } from '../config';
 export interface ParticleParams {
   // Particle count and distribution
   count: number;
-  escapePercentage: number;  // 0-1, fraction on escape trajectories
-  
+  escapePercentage: number; // 0-1, fraction on escape trajectories
+
   // Size and appearance
   sizeMin: number;
   sizeMax: number;
   brightness: number;
-  
+
   // Distribution
-  verticalSpread: number;  // Gaussian sigma for Y offset
-  edgeBias: number;        // 0-1, how much to bias toward outer edge
-  
+  verticalSpread: number; // Gaussian sigma for Y offset
+  edgeBias: number; // 0-1, how much to bias toward outer edge
+
   // Dynamics
   orbitSpeedMultiplier: number;
-  escapeSpeed: number;     // Base escape velocity multiplier
-  
+  escapeSpeed: number; // Base escape velocity multiplier
+
   // Disk reference (to match disk boundaries)
   diskInnerRadius: number;
   diskOuterRadius: number;
-  rs: number;  // Schwarzschild radius
+  rs: number; // Schwarzschild radius
 }
 
 // Default params built from centralized config
@@ -37,17 +37,17 @@ export interface Particle {
   y: number;
   z: number;
   size: number;
-  
+
   // Properties
   brightness: number;
-  temperature: number;  // For color
+  temperature: number; // For color
   isEscaping: boolean;
-  
+
   // Orbital elements (for bound particles)
   orbitalRadius: number;
-  orbitalPhase: number;  // Current angle in orbit
+  orbitalPhase: number; // Current angle in orbit
   verticalOffset: number;
-  
+
   // Escape trajectory (for escaping particles)
   escapeVelocityX: number;
   escapeVelocityY: number;
@@ -59,7 +59,7 @@ export interface Particle {
  * omega = sqrt(GM/r^3) = sqrt(0.5*rs/r) / r for our units
  */
 export function keplerianAngularVelocity(r: number, rs: number): number {
-  return Math.sqrt(0.5 * rs / r) / r;
+  return Math.sqrt((0.5 * rs) / r) / r;
 }
 
 /**
@@ -67,7 +67,7 @@ export function keplerianAngularVelocity(r: number, rs: number): number {
  * v = sqrt(GM/r) = sqrt(0.5*rs/r)
  */
 export function keplerianVelocity(r: number, rs: number): number {
-  return Math.sqrt(0.5 * rs / r);
+  return Math.sqrt((0.5 * rs) / r);
 }
 
 /**
@@ -93,4 +93,3 @@ export function generateBiasedRadius(
   const t = Math.pow(Math.random(), 1.0 - edgeBias * 0.8);
   return innerRadius + t * (outerRadius - innerRadius);
 }
-

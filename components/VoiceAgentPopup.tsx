@@ -17,10 +17,35 @@ export interface VoiceAgentPopupProps {
   autoConnect?: boolean;
 }
 
-const VALID_PRESETS = ['far', 'default', 'accretionDisk', 'topDown', 'edgeOn', 'eht', 'photonSphere', 'doppler', 'fallingIn'];
-const VALID_TOGGLE_KEYS: (keyof ToggleState)[] = ['isco', 'eventHorizon', 'doppler', 'scale', 'disk', 'jets'];
+const VALID_PRESETS = [
+  'far',
+  'default',
+  'accretionDisk',
+  'topDown',
+  'edgeOn',
+  'eht',
+  'photonSphere',
+  'doppler',
+  'fallingIn',
+];
+const VALID_TOGGLE_KEYS: (keyof ToggleState)[] = [
+  'isco',
+  'eventHorizon',
+  'doppler',
+  'scale',
+  'disk',
+  'jets',
+];
 
-export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOverlayToggle, onContextualUpdateReady, onConnected, autoConnect = false }: VoiceAgentPopupProps) {
+export function VoiceAgentPopup({
+  onClose,
+  onPresetSelect,
+  onEhtBlurToggle,
+  onOverlayToggle,
+  onContextualUpdateReady,
+  onConnected,
+  autoConnect = false,
+}: VoiceAgentPopupProps) {
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const hasAutoConnected = useRef(false);
@@ -59,8 +84,10 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
 
         if (Object.keys(updates).length > 0) {
           onOverlayToggle(updates);
-          const enabled = show?.filter(k => VALID_TOGGLE_KEYS.includes(k as keyof ToggleState)) || [];
-          const disabled = hide?.filter(k => VALID_TOGGLE_KEYS.includes(k as keyof ToggleState)) || [];
+          const enabled =
+            show?.filter((k) => VALID_TOGGLE_KEYS.includes(k as keyof ToggleState)) || [];
+          const disabled =
+            hide?.filter((k) => VALID_TOGGLE_KEYS.includes(k as keyof ToggleState)) || [];
           let msg = '';
           if (enabled.length) msg += `Enabled: ${enabled.join(', ')}. `;
           if (disabled.length) msg += `Disabled: ${disabled.join(', ')}.`;
@@ -78,7 +105,13 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
     },
   });
 
-  const { status, isSpeaking, sendContextualUpdate, getInputByteFrequencyData, getOutputByteFrequencyData } = conversation;
+  const {
+    status,
+    isSpeaking,
+    sendContextualUpdate,
+    getInputByteFrequencyData,
+    getOutputByteFrequencyData,
+  } = conversation;
   const isConnected = status === 'connected';
 
   useEffect(() => {
@@ -153,7 +186,9 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
             isConnected={isConnected}
             isSpeaking={isSpeaking}
           />
-          <span className={`status-text ${isConnecting ? 'connecting' : ''}`}>{getStatusText()}</span>
+          <span className={`status-text ${isConnecting ? 'connecting' : ''}`}>
+            {getStatusText()}
+          </span>
         </div>
 
         {error && <div className="error-text">{error}</div>}

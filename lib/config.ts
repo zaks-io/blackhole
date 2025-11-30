@@ -12,7 +12,7 @@ export const CONFIG = {
     fov: 60,
     minDistance: 2.6,
     maxDistance: 50,
-    initialDistance: 10,  // Start farther for intro
+    initialDistance: 10, // Start farther for intro
     near: 0.1,
     far: 1000,
   },
@@ -36,7 +36,7 @@ export const CONFIG = {
 
   // Accretion disk
   disk: {
-    innerRadius: 3.0,  // ISCO
+    innerRadius: 3.0, // ISCO
     outerRadius: 12.0,
     temperatureInner: 10000,
     temperatureOuter: 3000,
@@ -56,7 +56,7 @@ export const CONFIG = {
     hotspotIntensity: 0.7,
     hotspotCount: 3,
     patternSpeed: 3.0,
-    minDensity: 0,  // Minimum density for sparse areas (0-1)
+    minDensity: 0, // Minimum density for sparse areas (0-1)
   },
 
   // Ray marching settings
@@ -69,7 +69,7 @@ export const CONFIG = {
     stepJitter: false,
     curvatureAdaptation: 1.0,
     coronaStepRefinement: 1.0,
-    baseStepSize: 0.2,  // Controls band width - smaller = finer bands = more steps needed
+    baseStepSize: 0.2, // Controls band width - smaller = finer bands = more steps needed
   },
 
   // Anti-aliasing settings
@@ -81,7 +81,7 @@ export const CONFIG = {
 
   // Photon sphere settings
   photonSphere: {
-    intensity: 0.5,  // 0 = off, 1 = full glow
+    intensity: 0.5, // 0 = off, 1 = full glow
   },
 
   // Particle system settings
@@ -112,8 +112,8 @@ export const CONFIG = {
 
   // Noise texture LUT settings
   noise: {
-    textureSize: 64,    // 64-256, controls quality/memory tradeoff
-    timeScale: 0.02,     // Animation speed through Z slices
+    textureSize: 64, // 64-256, controls quality/memory tradeoff
+    timeScale: 0.02, // Animation speed through Z slices
   },
 
   // Multi-layer disk system
@@ -228,4 +228,3 @@ export function buildParticleParams(): ParticleParams {
     rs: CONFIG.rs,
   };
 }
-

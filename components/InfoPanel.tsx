@@ -83,7 +83,9 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
             <span className="value">{formatDistance(distanceInKm)}</span>
           </div>
           <div className="info-row">
-            <span className="label">1 r<sub>s</sub> =</span>
+            <span className="label">
+              1 r<sub>s</sub> =
+            </span>
             <span className="value">{formatDistance(rsInKm)}</span>
           </div>
         </div>
@@ -92,20 +94,36 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
         <div className="info-section">
           <div className="section-title">Key Distances</div>
           <div className="info-row">
-            <span className="label" style={{ color: '#ff2626' }}>Event Horizon</span>
-            <span className="value">1.0 r<sub>s</sub> = {formatDistance(rsInKm)}</span>
+            <span className="label" style={{ color: '#ff2626' }}>
+              Event Horizon
+            </span>
+            <span className="value">
+              1.0 r<sub>s</sub> = {formatDistance(rsInKm)}
+            </span>
           </div>
           <div className="info-row">
-            <span className="label" style={{ color: '#ffd900' }}>Photon Sphere</span>
-            <span className="value">{photonSphereRadius} r<sub>s</sub> = {formatDistance(photonSphereRadius * rsInKm)}</span>
+            <span className="label" style={{ color: '#ffd900' }}>
+              Photon Sphere
+            </span>
+            <span className="value">
+              {photonSphereRadius} r<sub>s</sub> = {formatDistance(photonSphereRadius * rsInKm)}
+            </span>
           </div>
           <div className="info-row">
-            <span className="label" style={{ color: '#cc4de6' }}>Shadow Edge</span>
-            <span className="value">{shadowRadius} r<sub>s</sub> = {formatDistance(shadowRadius * rsInKm)}</span>
+            <span className="label" style={{ color: '#cc4de6' }}>
+              Shadow Edge
+            </span>
+            <span className="value">
+              {shadowRadius} r<sub>s</sub> = {formatDistance(shadowRadius * rsInKm)}
+            </span>
           </div>
           <div className="info-row">
-            <span className="label" style={{ color: '#00d9d9' }}>ISCO</span>
-            <span className="value">{iscoRadius} r<sub>s</sub> = {formatDistance(iscoRadius * rsInKm)}</span>
+            <span className="label" style={{ color: '#00d9d9' }}>
+              ISCO
+            </span>
+            <span className="value">
+              {iscoRadius} r<sub>s</sub> = {formatDistance(iscoRadius * rsInKm)}
+            </span>
           </div>
         </div>
       </div>
@@ -120,7 +138,9 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
           flex-direction: column;
           align-items: flex-start;
           opacity: 1;
-          transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+          transition:
+            transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+            opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .info-panel.hidden {

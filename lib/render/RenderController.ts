@@ -136,7 +136,11 @@ export class RenderController {
 
       // Update camera position from timeline
       const cameraState = this.timeline!.getStateAtTime(frameTime);
-      this.camera.position.set(cameraState.position.x, cameraState.position.y, cameraState.position.z);
+      this.camera.position.set(
+        cameraState.position.x,
+        cameraState.position.y,
+        cameraState.position.z
+      );
       this.camera.lookAt(cameraState.lookAt.x, cameraState.lookAt.y, cameraState.lookAt.z);
       this.camera.updateMatrixWorld();
 
@@ -161,20 +165,17 @@ export class RenderController {
 
   private async downloadFrame(frameIndex: number): Promise<void> {
     return new Promise((resolve) => {
-      this.renderer.domElement.toBlob(
-        (blob) => {
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `frame_${String(frameIndex).padStart(5, '0')}.png`;
-            a.click();
-            URL.revokeObjectURL(url);
-          }
-          resolve();
-        },
-        'image/png'
-      );
+      this.renderer.domElement.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `frame_${String(frameIndex).padStart(5, '0')}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+        resolve();
+      }, 'image/png');
     });
   }
 
@@ -208,12 +209,24 @@ export class RenderController {
     // Restore renderer size and pixel ratio
     if (this.originalRendererSize.width > 0) {
       this.renderer.setPixelRatio(this.originalPixelRatio);
-      this.renderer.setSize(this.originalRendererSize.width / this.originalPixelRatio, this.originalRendererSize.height / this.originalPixelRatio);
-      this.composer.setSize(this.originalRendererSize.width / this.originalPixelRatio, this.originalRendererSize.height / this.originalPixelRatio);
-      this.lensingPass.updateResolution(this.originalRendererSize.width / this.originalPixelRatio, this.originalRendererSize.height / this.originalPixelRatio);
+      this.renderer.setSize(
+        this.originalRendererSize.width / this.originalPixelRatio,
+        this.originalRendererSize.height / this.originalPixelRatio
+      );
+      this.composer.setSize(
+        this.originalRendererSize.width / this.originalPixelRatio,
+        this.originalRendererSize.height / this.originalPixelRatio
+      );
+      this.lensingPass.updateResolution(
+        this.originalRendererSize.width / this.originalPixelRatio,
+        this.originalRendererSize.height / this.originalPixelRatio
+      );
 
       // Restore camera aspect ratio
-      this.camera.aspect = (this.originalRendererSize.width / this.originalPixelRatio) / (this.originalRendererSize.height / this.originalPixelRatio);
+      this.camera.aspect =
+        this.originalRendererSize.width /
+        this.originalPixelRatio /
+        (this.originalRendererSize.height / this.originalPixelRatio);
       this.camera.updateProjectionMatrix();
     }
 

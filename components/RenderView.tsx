@@ -12,11 +12,46 @@ import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShade
 import { LensingPass, defaultLensingParams } from '@/lib/passes/LensingPass';
 import { CONFIG } from '@/lib/config';
 import { RenderController } from '@/lib/render/RenderController';
-import { RENDER_PRESETS, DEFAULT_PRESET, DEFAULT_SIMULATION_SPEED } from '@/lib/render/renderConfig';
+import {
+  RENDER_PRESETS,
+  DEFAULT_PRESET,
+  DEFAULT_SIMULATION_SPEED,
+} from '@/lib/render/renderConfig';
 import { RenderControlPanel } from './RenderControlPanel';
 import { CAMERA_SEQUENCES } from './BlackHoleSimulation';
 import type { RenderProgress, RenderStatus } from '@/lib/render/types';
 import { UserMenu } from './UserMenu';
+
+function createProceduralStarfield(): THREE.Texture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const starCount = 3000;
+  for (let i = 0; i < starCount; i++) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const brightness = 0.3 + Math.random() * 0.7;
+    const starSize = Math.random() < 0.1 ? 1.5 : 1;
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+    ctx.beginPath();
+    ctx.arc(x, y, starSize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  return texture;
+}
 
 export function RenderView() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -219,46 +254,23 @@ export function RenderView() {
     if (!sequence) return;
 
     const firstStep = sequence.steps[0];
-    if ((firstStep?.type === 'snapTo' || firstStep?.type === 'moveTo') && firstStep.position && firstStep.lookAt) {
+    if (
+      (firstStep?.type === 'snapTo' || firstStep?.type === 'moveTo') &&
+      firstStep.position &&
+      firstStep.lookAt
+    ) {
       camera.position.set(firstStep.position.x, firstStep.position.y, firstStep.position.z);
       camera.lookAt(firstStep.lookAt.x, firstStep.lookAt.y, firstStep.lookAt.z);
     }
   }, [selectedSequence]);
 
-  // Create procedural starfield fallback
-  const createProceduralStarfield = useCallback(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 2048;
-    canvas.height = 1024;
-    const ctx = canvas.getContext('2d')!;
-
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const starCount = 3000;
-    for (let i = 0; i < starCount; i++) {
-      const x = Math.random() * canvas.width;
-      const y = Math.random() * canvas.height;
-      const brightness = 0.3 + Math.random() * 0.7;
-      const starSize = Math.random() < 0.1 ? 1.5 : 1;
-
-      ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
-      ctx.beginPath();
-      ctx.arc(x, y, starSize, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-
-    return texture;
-  }, []);
-
   const handleStartRender = useCallback(async () => {
-    if (!rendererRef.current || !cameraRef.current || !composerRef.current || !lensingPassRef.current) {
+    if (
+      !rendererRef.current ||
+      !cameraRef.current ||
+      !composerRef.current ||
+      !lensingPassRef.current
+    ) {
       return;
     }
 
@@ -287,7 +299,9 @@ export function RenderView() {
           // Restart preview animation
           const animate = () => {
             animationIdRef.current = requestAnimationFrame(animate);
-            lensingPassRef.current?.updateTime(clockRef.current.getElapsedTime() * DEFAULT_SIMULATION_SPEED);
+            lensingPassRef.current?.updateTime(
+              clockRef.current.getElapsedTime() * DEFAULT_SIMULATION_SPEED
+            );
             lensingPassRef.current?.updateCamera(cameraRef.current!);
             composerRef.current?.render();
           };
@@ -316,7 +330,9 @@ export function RenderView() {
       // Restart preview animation
       const animate = () => {
         animationIdRef.current = requestAnimationFrame(animate);
-        lensingPassRef.current?.updateTime(clockRef.current.getElapsedTime() * DEFAULT_SIMULATION_SPEED);
+        lensingPassRef.current?.updateTime(
+          clockRef.current.getElapsedTime() * DEFAULT_SIMULATION_SPEED
+        );
         lensingPassRef.current?.updateCamera(cameraRef.current!);
         composerRef.current?.render();
       };

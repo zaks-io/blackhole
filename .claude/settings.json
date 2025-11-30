@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | { read file_path; if echo \"$file_path\" | grep -qE '\\.(ts|tsx|js|jsx|md|json|css|html|yml|yaml)$'; then cd \"$(dirname \"$file_path\")\" && bun prettier --write \"$(basename \"$file_path\")\"; fi; }"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "mcp__playwright__*",
+      "Bash(bun run lint:*)",
+      "Bash(bun run format:*)",
+      "Bash(bun run typecheck:*)",
+      "Bash(bun run build:*)",
+      "Bash(bun run dev:*)",
+      "Bash(bunx eslint:*)",
+      "Bash(bunx prettier:*)",
+      "Bash(bunx lint-staged:*)",
+      "Bash(bunx husky:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

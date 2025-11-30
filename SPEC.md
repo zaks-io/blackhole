@@ -28,6 +28,7 @@ Where `rs = 2GM/c²` is the Schwarzschild radius (event horizon).
 Photon trajectories are computed by integrating the null geodesic equations. For real-time performance, we use an approximate integration:
 
 **Deflection Formula:**
+
 ```glsl
 vec3 rHat = pos / r;
 float vDotR = dot(rayDir, rHat);
@@ -37,6 +38,7 @@ rayDir = normalize(rayDir + accel * rHat * stepSize);
 ```
 
 This approximation captures:
+
 - 1/r² radial dependence
 - Stronger bending for tangential rays (v_perp² term)
 - Correct weak-field limit deflection angle α ≈ 4GM/bc² = 2rs/b
@@ -48,15 +50,18 @@ Rays crossing r < rs are absorbed (render black). The photon sphere at r = 1.5rs
 ### Accretion Disk Model
 
 **Geometry:**
+
 - Infinitely thin disk in the y=0 plane
 - Inner edge: ISCO (Innermost Stable Circular Orbit) = 3rs
 - Outer edge: Configurable, default 12rs
 
 **Kinematics:**
+
 - Keplerian circular orbits: v = √(GM/r) = √(0.5rs/r)
 - Counter-clockwise rotation when viewed from +Y
 
 **Emission:**
+
 - Blackbody spectrum based on temperature
 - Temperature profile: T(r) = T_inner at ISCO, decreasing to T_outer at disk edge
 - Default: 10,000K (inner) to 3,000K (outer)
@@ -64,6 +69,7 @@ Rays crossing r < rs are absorbed (render black). The photon sphere at r = 1.5rs
 **Relativistic Effects:**
 
 1. **Doppler Shift:**
+
    ```glsl
    float vRadial = dot(diskVelocity, -rayDir);
    float doppler = sqrt((1.0 + vRadial) / (1.0 - vRadial));
@@ -71,6 +77,7 @@ Rays crossing r < rs are absorbed (render black). The photon sphere at r = 1.5rs
    ```
 
 2. **Relativistic Beaming:**
+
    ```glsl
    float intensity = pow(doppler, 3.0);
    ```
@@ -84,7 +91,7 @@ Rays crossing r < rs are absorbed (render black). The photon sphere at r = 1.5rs
 
 - Equirectangular HDR texture (4096x2048 recommended)
 - Sampled using final ray direction after gravitational deflection
-- Rays escaping to r > max(100, 2*cameraDist) sample the starfield
+- Rays escaping to r > max(100, 2\*cameraDist) sample the starfield
 
 ## Rendering Architecture
 
@@ -112,53 +119,53 @@ Rays crossing r < rs are absorbed (render black). The photon sphere at r = 1.5rs
 
 ### Shader Uniforms
 
-| Uniform | Type | Description |
-|---------|------|-------------|
-| `starfield` | sampler2D | Equirectangular HDR starfield |
-| `blackbodyLUT` | sampler2D | 1D temperature-to-color lookup |
-| `cameraPos` | vec3 | Camera world position |
-| `inverseProjection` | mat4 | Inverse projection matrix |
-| `inverseView` | mat4 | Camera world matrix |
-| `rs` | float | Schwarzschild radius |
-| `maxSteps` | int | Ray march iteration limit |
-| `resolution` | vec2 | Viewport resolution |
-| `diskInnerRadius` | float | Disk inner edge (ISCO) |
-| `diskOuterRadius` | float | Disk outer edge |
-| `diskTemperatureInner` | float | Temperature at inner edge |
-| `diskTemperatureOuter` | float | Temperature at outer edge |
+| Uniform                | Type      | Description                    |
+| ---------------------- | --------- | ------------------------------ |
+| `starfield`            | sampler2D | Equirectangular HDR starfield  |
+| `blackbodyLUT`         | sampler2D | 1D temperature-to-color lookup |
+| `cameraPos`            | vec3      | Camera world position          |
+| `inverseProjection`    | mat4      | Inverse projection matrix      |
+| `inverseView`          | mat4      | Camera world matrix            |
+| `rs`                   | float     | Schwarzschild radius           |
+| `maxSteps`             | int       | Ray march iteration limit      |
+| `resolution`           | vec2      | Viewport resolution            |
+| `diskInnerRadius`      | float     | Disk inner edge (ISCO)         |
+| `diskOuterRadius`      | float     | Disk outer edge                |
+| `diskTemperatureInner` | float     | Temperature at inner edge      |
+| `diskTemperatureOuter` | float     | Temperature at outer edge      |
 
 ### Ray March Algorithm
 
 ```glsl
 for (int i = 0; i < maxSteps; i++) {
     float r = length(rayPos);
-    
+
     // Event horizon check
     if (r < rs) {
         absorbed = true;
         break;
     }
-    
+
     // Escape check
     if (r > escapeRadius && movingAway) {
         color = sampleStarfield(rayDir);
         break;
     }
-    
+
     // Gravitational deflection
     vec3 rHat = rayPos / r;
     float vPerpSq = 1.0 - dot(rayDir, rHat)²;
     float accel = -1.5 * rs * vPerpSq / (r * r);
     rayDir = normalize(rayDir + accel * rHat * stepSize);
-    
+
     // Disk intersection (y=0 plane crossing)
     if (crossedDiskPlane && withinDiskBounds) {
         color = sampleDiskWithDoppler(hitPos);
     }
-    
+
     // Adaptive step size
     stepSize = baseStep * clamp(r / (3 * rs), 0.15, 2.0);
-    
+
     rayPos += rayDir * stepSize;
 }
 ```
@@ -167,15 +174,16 @@ for (int i = 0; i < maxSteps; i++) {
 
 ### Target Frame Rates
 
-| Resolution | Target FPS | Ray March Steps |
-|------------|------------|-----------------|
-| 4K (3840x2160) | 60 | 64 |
-| 1440p (2560x1440) | 60 | 100 |
-| 1080p (1920x1080) | 60 | 150 |
+| Resolution        | Target FPS | Ray March Steps |
+| ----------------- | ---------- | --------------- |
+| 4K (3840x2160)    | 60         | 64              |
+| 1440p (2560x1440) | 60         | 100             |
+| 1080p (1920x1080) | 60         | 150             |
 
 ### Adaptive Scaling
 
 Step count scales inversely with pixel count:
+
 ```typescript
 const t = (pixels - 2M) / (8.3M - 2M);  // 0 at 1080p, 1 at 4K
 const steps = lerp(150, 64, t);
@@ -213,14 +221,14 @@ const steps = lerp(150, 64, t);
 
 ## Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| three | ^0.164.1 | 3D rendering, WebGL |
-| lil-gui | ^0.19.2 | Parameter GUI |
-| stats.js | ^0.17.0 | FPS counter |
-| vite | ^5.2.0 | Dev server, bundler |
-| typescript | ^5.2.2 | Type safety |
-| vite-plugin-glsl | ^1.3.0 | GLSL imports |
+| Package          | Version  | Purpose             |
+| ---------------- | -------- | ------------------- |
+| three            | ^0.164.1 | 3D rendering, WebGL |
+| lil-gui          | ^0.19.2  | Parameter GUI       |
+| stats.js         | ^0.17.0  | FPS counter         |
+| vite             | ^5.2.0   | Dev server, bundler |
+| typescript       | ^5.2.2   | Type safety         |
+| vite-plugin-glsl | ^1.3.0   | GLSL imports        |
 
 ## Browser Requirements
 
@@ -244,4 +252,3 @@ const steps = lerp(150, 64, t);
 - [ ] Multiple photon ring rendering
 - [ ] VR support
 - [ ] GPU compute shader optimization
-

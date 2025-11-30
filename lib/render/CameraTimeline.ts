@@ -5,16 +5,16 @@ import type { CameraKeyframe } from './types';
  * GSAP-style easing functions
  */
 const easingFunctions: Record<string, (t: number) => number> = {
-  'linear': (t) => t,
+  linear: (t) => t,
   'power1.in': (t) => t,
   'power1.out': (t) => 1 - (1 - t),
-  'power1.inOut': (t) => t < 0.5 ? t : 1 - (1 - t),
+  'power1.inOut': (t) => (t < 0.5 ? t : 1 - (1 - t)),
   'power2.in': (t) => t * t,
   'power2.out': (t) => 1 - (1 - t) * (1 - t),
-  'power2.inOut': (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+  'power2.inOut': (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
   'power3.in': (t) => t * t * t,
   'power3.out': (t) => 1 - Math.pow(1 - t, 3),
-  'power3.inOut': (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  'power3.inOut': (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
 };
 
 function getEasing(ease: string): (t: number) => number {
@@ -101,16 +101,20 @@ export class CameraTimeline {
 
     // Initialize from the first step's position if it's a snapTo or moveTo
     const firstStep = sequence.steps[0];
-    const initFromFirst = (firstStep?.type === 'snapTo' || firstStep?.type === 'moveTo') && firstStep.position;
-    let currentPosition = initFromFirst && firstStep.position
-      ? { ...firstStep.position }
-      : { x: 0, y: 10, z: 40 };
-    let currentLookAt = initFromFirst && firstStep.lookAt
-      ? { ...firstStep.lookAt }
-      : { x: 0, y: 0, z: 0 };
+    const initFromFirst =
+      (firstStep?.type === 'snapTo' || firstStep?.type === 'moveTo') && firstStep.position;
+    let currentPosition =
+      initFromFirst && firstStep.position ? { ...firstStep.position } : { x: 0, y: 10, z: 40 };
+    let currentLookAt =
+      initFromFirst && firstStep.lookAt ? { ...firstStep.lookAt } : { x: 0, y: 0, z: 0 };
 
     // Orbit state
-    let orbitConfig: { distance: number; height: number; speed: number; lookAt: { x: number; y: number; z: number } } | null = null;
+    let orbitConfig: {
+      distance: number;
+      height: number;
+      speed: number;
+      lookAt: { x: number; y: number; z: number };
+    } | null = null;
     let orbitAngle = 0;
 
     for (const step of sequence.steps) {
@@ -191,7 +195,7 @@ export class CameraTimeline {
             const spd = lerp(startSpeed, endSpeed, easedT);
 
             // Continue rotating during transition
-            const angleOffset = (spd * Math.PI / 180) * localTime;
+            const angleOffset = ((spd * Math.PI) / 180) * localTime;
             const angle = orbitAngle + angleOffset;
 
             this.keyframes.push({
@@ -206,7 +210,7 @@ export class CameraTimeline {
           }
 
           // Update orbit state
-          const finalAngleOffset = (lerp(startSpeed, endSpeed, 0.5) * Math.PI / 180) * duration;
+          const finalAngleOffset = ((lerp(startSpeed, endSpeed, 0.5) * Math.PI) / 180) * duration;
           orbitAngle += finalAngleOffset;
           orbitConfig = {
             distance: endDistance,
@@ -231,7 +235,9 @@ export class CameraTimeline {
           // Initialize orbit from current position
           orbitAngle = Math.atan2(currentPosition.x, currentPosition.z);
           orbitConfig = {
-            distance: step.orbitConfig.distance ?? Math.sqrt(currentPosition.x ** 2 + currentPosition.z ** 2),
+            distance:
+              step.orbitConfig.distance ??
+              Math.sqrt(currentPosition.x ** 2 + currentPosition.z ** 2),
             height: step.orbitConfig.height ?? currentPosition.y,
             speed: step.orbitConfig.speed ?? 10,
             lookAt: step.orbitConfig.lookAt ?? { x: 0, y: 0, z: 0 },
@@ -255,7 +261,7 @@ export class CameraTimeline {
 
             if (orbitConfig) {
               // Continue orbiting during delay
-              const angleOffset = (orbitConfig.speed * Math.PI / 180) * localTime;
+              const angleOffset = ((orbitConfig.speed * Math.PI) / 180) * localTime;
               const angle = orbitAngle + angleOffset;
 
               this.keyframes.push({
@@ -278,7 +284,7 @@ export class CameraTimeline {
           }
 
           if (orbitConfig) {
-            const angleOffset = (orbitConfig.speed * Math.PI / 180) * duration;
+            const angleOffset = ((orbitConfig.speed * Math.PI) / 180) * duration;
             orbitAngle += angleOffset;
             currentPosition = {
               x: Math.sin(orbitAngle) * orbitConfig.distance,

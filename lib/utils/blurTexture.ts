@@ -1,6 +1,6 @@
-import * as THREE from "three";
-import { HorizontalBlurShader } from "three/examples/jsm/shaders/HorizontalBlurShader.js";
-import { VerticalBlurShader } from "three/examples/jsm/shaders/VerticalBlurShader.js";
+import * as THREE from 'three';
+import { HorizontalBlurShader } from 'three/examples/jsm/shaders/HorizontalBlurShader.js';
+import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShader.js';
 
 // Brightness adjustment shader - dims the starfield
 const BrightnessShader = {

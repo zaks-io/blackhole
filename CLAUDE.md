@@ -9,7 +9,19 @@ bun dev          # Start Next.js dev server (port 3000 by default)
 bun build        # Production build
 bun start        # Start production server
 bun lint         # Run ESLint
+bun lint:fix     # Run ESLint with auto-fix
+bun format       # Format all files with Prettier
+bun format:check # Check formatting without changes
+bun typecheck    # Run TypeScript type checking
 ```
+
+## Code Quality
+
+- **ESLint** - Configured via `eslint.config.mjs` with Next.js, TypeScript, and Prettier rules
+- **Prettier** - Code formatting configured in `.prettierrc`
+- **Husky** - Git hooks in `.husky/` directory
+- **lint-staged** - Runs ESLint + Prettier on staged files before commit
+- **CI** - GitHub Actions workflow in `.github/workflows/ci.yml` runs format:check, lint, typecheck, and build on PRs
 
 ## Architecture
 
@@ -49,6 +61,7 @@ This is a Next.js 16 app with a real-time WebGL2 gravitational lensing simulatio
 ### Physics Model
 
 The simulation uses Schwarzschild geodesic equations for light bending:
+
 - Deflection: `a = -1.5 * rs * v_perp² / r²`
 - Event horizon at r < rs renders black
 - Photon sphere at r = 1.5rs creates bright ring

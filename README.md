@@ -38,18 +38,18 @@ Open `http://localhost:3001` in your browser.
 
 ### GUI Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| Schwarzschild Radius | Size of the event horizon | 1.0 |
-| Auto Ray Steps | Automatically scale steps based on resolution | On |
-| Ray March Steps | Number of integration steps per ray | 64-150 |
-| Inner Radius | Accretion disk inner edge (ISCO) | 3.0 rs |
-| Outer Radius | Accretion disk outer edge | 12.0 rs |
-| Inner Temp | Temperature at disk inner edge | 10,000 K |
-| Outer Temp | Temperature at disk outer edge | 3,000 K |
-| Bloom Threshold | HDR bloom cutoff | 0.3 |
-| Bloom Strength | Bloom intensity | 1.2 |
-| Bloom Radius | Bloom spread | 0.5 |
+| Parameter            | Description                                   | Default  |
+| -------------------- | --------------------------------------------- | -------- |
+| Schwarzschild Radius | Size of the event horizon                     | 1.0      |
+| Auto Ray Steps       | Automatically scale steps based on resolution | On       |
+| Ray March Steps      | Number of integration steps per ray           | 64-150   |
+| Inner Radius         | Accretion disk inner edge (ISCO)              | 3.0 rs   |
+| Outer Radius         | Accretion disk outer edge                     | 12.0 rs  |
+| Inner Temp           | Temperature at disk inner edge                | 10,000 K |
+| Outer Temp           | Temperature at disk outer edge                | 3,000 K  |
+| Bloom Threshold      | HDR bloom cutoff                              | 0.3      |
+| Bloom Strength       | Bloom intensity                               | 1.2      |
+| Bloom Radius         | Bloom spread                                  | 0.5      |
 
 ## Physics
 
@@ -62,6 +62,7 @@ a = -1.5 * rs * v_perp² / r²
 ```
 
 Where:
+
 - `rs` is the Schwarzschild radius (event horizon)
 - `v_perp` is the velocity component perpendicular to the radial direction
 - `r` is the distance from the black hole center
@@ -71,6 +72,7 @@ This creates the characteristic bending where light passing close to the black h
 ### Accretion Disk
 
 The disk is modeled analytically with:
+
 - **Inner edge** at the Innermost Stable Circular Orbit (ISCO = 3rs)
 - **Keplerian rotation**: v = √(GM/r)
 - **Temperature gradient**: Hotter near the center, cooler at edges
@@ -124,6 +126,7 @@ The simulation uses `starmap_2020_4k.exr`, a 4K HDR equirectangular star map fro
 ## Browser Support
 
 Requires WebGL2 support:
+
 - Chrome 56+
 - Firefox 51+
 - Safari 15+
@@ -138,4 +141,3 @@ MIT
 - [Interstellar Black Hole](https://iopscience.iop.org/article/10.1088/0264-9381/32/6/065001) - Oliver James et al.
 - [Gravitational Lensing by Spinning Black Holes](https://arxiv.org/abs/1502.03808)
 - [Black Hole Visualization](https://rantonels.github.io/starless/) - rantonels/starless
-

@@ -3,7 +3,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { track } from '@vercel/analytics';
 import { useAuth0 } from '@auth0/auth0-react';
-import BlackHoleSimulation, { CAMERA_PRESETS, CAMERA_SEQUENCES, EhtBlurController } from './BlackHoleSimulation';
+import BlackHoleSimulation, {
+  CAMERA_PRESETS,
+  CAMERA_SEQUENCES,
+  EhtBlurController,
+} from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
 import { ToggleControlBar } from './ToggleControlBar';
 import { InfoPanel } from './InfoPanel';
@@ -33,21 +37,23 @@ export default function AppView() {
   const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  const handleContextualUpdateReady = useCallback((sendUpdate: (text: string) => void) => {
-    sendContextualUpdateRef.current = sendUpdate;
+  const handleContextualUpdateReady = useCallback(
+    (sendUpdate: (text: string) => void) => {
+      sendContextualUpdateRef.current = sendUpdate;
 
-    const activeToggles = Object.entries(toggleState)
-      .filter(([, v]) => v)
-      .map(([k]) => k);
-    const toggleInfo = activeToggles.length > 0
-      ? `Active toggles: ${activeToggles.join(', ')}.`
-      : 'No toggles active.';
-    const ehtInfo = ehtMode
-      ? `EHT mode is on${ehtBlurEnabled ? ' with blur enabled' : ''}.`
-      : '';
+      const activeToggles = Object.entries(toggleState)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+      const toggleInfo =
+        activeToggles.length > 0
+          ? `Active toggles: ${activeToggles.join(', ')}.`
+          : 'No toggles active.';
+      const ehtInfo = ehtMode ? `EHT mode is on${ehtBlurEnabled ? ' with blur enabled' : ''}.` : '';
 
-    sendUpdate(`Current view: ${activePreset}. ${toggleInfo} ${ehtInfo}`.trim());
-  }, [activePreset, toggleState, ehtMode, ehtBlurEnabled]);
+      sendUpdate(`Current view: ${activePreset}. ${toggleInfo} ${ehtInfo}`.trim());
+    },
+    [activePreset, toggleState, ehtMode, ehtBlurEnabled]
+  );
 
   const sendContextualUpdate = useCallback((message: string) => {
     sendContextualUpdateRef.current?.(message);
@@ -94,30 +100,36 @@ export default function AppView() {
       sendContextualUpdate('User disabled EHT mode, returning to default view');
 
       const defaultPreset = CAMERA_PRESETS.default;
-      cameraController.moveTo(
-        { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
-        { duration: 2, ease: 'power2.inOut' }
-      ).then(() => {
-        cameraController.startOrbit({
-          distance: 20 * CONFIG.rs,
-          height: 1 * CONFIG.rs,
-          speed: 1,
+      cameraController
+        .moveTo(
+          { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
+          { duration: 2, ease: 'power2.inOut' }
+        )
+        .then(() => {
+          cameraController.startOrbit({
+            distance: 20 * CONFIG.rs,
+            height: 1 * CONFIG.rs,
+            speed: 1,
+          });
         });
-      });
     } else {
       // Enter EHT mode - move camera to EHT position then enable blur
       setEhtMode(true);
       setActivePreset('eht');
-      sendContextualUpdate('User enabled EHT mode to view the black hole as seen by the Event Horizon Telescope');
+      sendContextualUpdate(
+        'User enabled EHT mode to view the black hole as seen by the Event Horizon Telescope'
+      );
 
       const ehtPreset = CAMERA_PRESETS.eht;
-      cameraController.moveTo(
-        { position: ehtPreset.position, lookAt: ehtPreset.lookAt },
-        { duration: ehtPreset.duration, ease: ehtPreset.ease }
-      ).then(() => {
-        setEhtBlurEnabled(true);
-        ehtBlurController.setEnabled(true);
-      });
+      cameraController
+        .moveTo(
+          { position: ehtPreset.position, lookAt: ehtPreset.lookAt },
+          { duration: ehtPreset.duration, ease: ehtPreset.ease }
+        )
+        .then(() => {
+          setEhtBlurEnabled(true);
+          ehtBlurController.setEnabled(true);
+        });
     }
   }, [cameraController, ehtBlurController, ehtMode, sendContextualUpdate]);
 
@@ -138,16 +150,18 @@ export default function AppView() {
       sendContextualUpdate('User returned to auto camera mode');
 
       const defaultPreset = CAMERA_PRESETS.default;
-      cameraController.moveTo(
-        { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
-        { duration: 1.5, ease: 'power2.inOut' }
-      ).then(() => {
-        cameraController.startOrbit({
-          distance: 20 * CONFIG.rs,
-          height: 1 * CONFIG.rs,
-          speed: 1,
+      cameraController
+        .moveTo(
+          { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
+          { duration: 1.5, ease: 'power2.inOut' }
+        )
+        .then(() => {
+          cameraController.startOrbit({
+            distance: 20 * CONFIG.rs,
+            height: 1 * CONFIG.rs,
+            speed: 1,
+          });
         });
-      });
     } else {
       // Enter manual mode
       cameraController.returnToManual();
@@ -176,16 +190,18 @@ export default function AppView() {
     // Slight delay for choreography, then zoom camera
     setTimeout(() => {
       const defaultPreset = CAMERA_PRESETS.default;
-      cameraController.moveTo(
-        { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
-        { duration: 2.5, ease: 'power2.inOut' }
-      ).then(() => {
-        cameraController.startOrbit({
-          distance: 20 * CONFIG.rs,
-          height: 1 * CONFIG.rs,
-          speed: 1,
+      cameraController
+        .moveTo(
+          { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
+          { duration: 2.5, ease: 'power2.inOut' }
+        )
+        .then(() => {
+          cameraController.startOrbit({
+            distance: 20 * CONFIG.rs,
+            height: 1 * CONFIG.rs,
+            speed: 1,
+          });
         });
-      });
     }, 200);
   }, [ehtBlurController, cameraController]);
 
@@ -194,66 +210,77 @@ export default function AppView() {
     handleReveal();
   }, [handleReveal]);
 
-  const handleEhtBlurSet = useCallback((enabled: boolean) => {
-    if (!ehtBlurController) return;
-    setEhtBlurEnabled(enabled);
-    ehtBlurController.setEnabled(enabled);
-    sendContextualUpdate(`User ${enabled ? 'enabled' : 'disabled'} EHT blur effect`);
-  }, [ehtBlurController, sendContextualUpdate]);
+  const handleEhtBlurSet = useCallback(
+    (enabled: boolean) => {
+      if (!ehtBlurController) return;
+      setEhtBlurEnabled(enabled);
+      ehtBlurController.setEnabled(enabled);
+      sendContextualUpdate(`User ${enabled ? 'enabled' : 'disabled'} EHT blur effect`);
+    },
+    [ehtBlurController, sendContextualUpdate]
+  );
 
-  const handleToggleChange = useCallback((toggles: Partial<ToggleState>) => {
-    setToggleState(prev => ({ ...prev, ...toggles }));
-    const changes = Object.entries(toggles)
-      .map(([key, val]) => `${key}: ${val ? 'on' : 'off'}`)
-      .join(', ');
-    sendContextualUpdate(`User toggled: ${changes}`);
-  }, [sendContextualUpdate]);
+  const handleToggleChange = useCallback(
+    (toggles: Partial<ToggleState>) => {
+      setToggleState((prev) => ({ ...prev, ...toggles }));
+      const changes = Object.entries(toggles)
+        .map(([key, val]) => `${key}: ${val ? 'on' : 'off'}`)
+        .join(', ');
+      sendContextualUpdate(`User toggled: ${changes}`);
+    },
+    [sendContextualUpdate]
+  );
 
-  const handlePresetSelect = useCallback((presetName: string) => {
-    if (!cameraController) return;
+  const handlePresetSelect = useCallback(
+    (presetName: string) => {
+      if (!cameraController) return;
 
-    // Cancel any running sequence first
-    cameraController.cancelSequence();
+      // Cancel any running sequence first
+      cameraController.cancelSequence();
 
-    // Exit EHT mode when selecting other presets
-    if (ehtMode && presetName !== 'eht') {
-      setEhtMode(false);
-      setEhtBlurEnabled(false);
-      ehtBlurController?.setEnabled(false);
-    }
+      // Exit EHT mode when selecting other presets
+      if (ehtMode && presetName !== 'eht') {
+        setEhtMode(false);
+        setEhtBlurEnabled(false);
+        ehtBlurController?.setEnabled(false);
+      }
 
-    setActivePreset(presetName);
-    sendContextualUpdate(`User changed camera to ${presetName} view`);
+      setActivePreset(presetName);
+      sendContextualUpdate(`User changed camera to ${presetName} view`);
 
-    // Check if it's a sequence first
-    const sequence = CAMERA_SEQUENCES[presetName];
-    if (sequence) {
-      cameraController.runSequence(sequence);
-      return;
-    }
+      // Check if it's a sequence first
+      const sequence = CAMERA_SEQUENCES[presetName];
+      if (sequence) {
+        cameraController.runSequence(sequence);
+        return;
+      }
 
-    // Otherwise use existing preset logic
-    const preset = CAMERA_PRESETS[presetName];
-    if (!preset) return;
+      // Otherwise use existing preset logic
+      const preset = CAMERA_PRESETS[presetName];
+      if (!preset) return;
 
-    // Calculate orbit parameters from preset position
-    const pos = preset.position;
-    const distance = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
-    const height = pos.y;
+      // Calculate orbit parameters from preset position
+      const pos = preset.position;
+      const distance = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
+      const height = pos.y;
 
-    // Use moveTo for smooth transition to exact preset position, then start orbit
-    cameraController.moveTo(
-      { position: preset.position, lookAt: preset.lookAt },
-      { duration: preset.duration, ease: preset.ease }
-    ).then(() => {
-      cameraController.startOrbit({
-        distance,
-        height,
-        speed: 1,
-        lookAt: preset.lookAt,
-      });
-    });
-  }, [cameraController, ehtMode, ehtBlurController, sendContextualUpdate]);
+      // Use moveTo for smooth transition to exact preset position, then start orbit
+      cameraController
+        .moveTo(
+          { position: preset.position, lookAt: preset.lookAt },
+          { duration: preset.duration, ease: preset.ease }
+        )
+        .then(() => {
+          cameraController.startOrbit({
+            distance,
+            height,
+            speed: 1,
+            lookAt: preset.lookAt,
+          });
+        });
+    },
+    [cameraController, ehtMode, ehtBlurController, sendContextualUpdate]
+  );
 
   return (
     <>
@@ -269,11 +296,7 @@ export default function AppView() {
       {/* Intro Overlay */}
       <div className={`intro-overlay ${introComplete ? 'hidden' : ''}`}>
         <div className="intro-card">
-          <button
-            onClick={handleStart}
-            className="start-btn"
-            disabled={!ehtBlurController}
-          >
+          <button onClick={handleStart} className="start-btn" disabled={!ehtBlurController}>
             Start
           </button>
         </div>
@@ -305,10 +328,7 @@ export default function AppView() {
         show={introComplete}
       />
 
-      <InfoPanel
-        cameraDistance={cameraDistance}
-        show={introComplete}
-      />
+      <InfoPanel cameraDistance={cameraDistance} show={introComplete} />
 
       <UserMenu show={introComplete} />
 
@@ -321,9 +341,7 @@ export default function AppView() {
         />
       )}
 
-      {introComplete && !isAuthenticated && (
-        <VoiceLoginPrompt />
-      )}
+      {introComplete && !isAuthenticated && <VoiceLoginPrompt />}
 
       <style jsx>{`
         .intro-overlay {

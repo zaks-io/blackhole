@@ -37,7 +37,7 @@ export function UserMenu({ show = true }: UserMenuProps) {
 
   const handleSignIn = () => {
     loginWithRedirect({
-      appState: { returnTo: typeof window !== 'undefined' ? window.location.pathname : '/' }
+      appState: { returnTo: typeof window !== 'undefined' ? window.location.pathname : '/' },
     });
   };
 
@@ -78,10 +78,18 @@ export function UserMenu({ show = true }: UserMenuProps) {
               </div>
               {isAdmin && (
                 <>
-                  <Link href="/render" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                  <Link
+                    href="/render"
+                    className="dropdown-item"
+                    onClick={() => setDropdownOpen(false)}
+                  >
                     Render
                   </Link>
-                  <Link href="/dev" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                  <Link
+                    href="/dev"
+                    className="dropdown-item"
+                    onClick={() => setDropdownOpen(false)}
+                  >
                     Dev Controls
                   </Link>
                   <div className="dropdown-divider" />

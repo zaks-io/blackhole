@@ -33,20 +33,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <Auth0ProviderWrapper>
-          {children}
-        </Auth0ProviderWrapper>
+        <Auth0ProviderWrapper>{children}</Auth0ProviderWrapper>
         <Analytics />
       </body>
     </html>
   );
 }
-

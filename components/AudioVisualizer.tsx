@@ -66,6 +66,7 @@ export function AudioVisualizer({
         clearTimeout(speakingTimeoutRef.current);
         speakingTimeoutRef.current = null;
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional debounce pattern
       setDebouncedSpeaking(true);
     } else {
       speakingTimeoutRef.current = setTimeout(() => {

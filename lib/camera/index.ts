@@ -7,4 +7,3 @@ export type {
   CameraSequenceStep,
   SequenceStepType,
 } from './CameraController';
-

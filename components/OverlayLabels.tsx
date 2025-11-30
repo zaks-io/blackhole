@@ -86,7 +86,9 @@ export function OverlayLabels({ cameraController, toggleState, show }: OverlayLa
         y: worldPos.y,
         z: worldPos.z,
       };
-      const pointDist = Math.sqrt(toPoint.x * toPoint.x + toPoint.y * toPoint.y + toPoint.z * toPoint.z);
+      const pointDist = Math.sqrt(
+        toPoint.x * toPoint.x + toPoint.y * toPoint.y + toPoint.z * toPoint.z
+      );
 
       // Vector from camera to black hole
       const toBlackHole = {
@@ -94,7 +96,9 @@ export function OverlayLabels({ cameraController, toggleState, show }: OverlayLa
         y: -cameraPos.y,
         z: -cameraPos.z,
       };
-      const cameraDist = Math.sqrt(cameraPos.x * cameraPos.x + cameraPos.y * cameraPos.y + cameraPos.z * cameraPos.z);
+      const cameraDist = Math.sqrt(
+        cameraPos.x * cameraPos.x + cameraPos.y * cameraPos.y + cameraPos.z * cameraPos.z
+      );
 
       // Approximate impact parameter: perpendicular distance from camera-to-point ray to origin
       // For simplicity, use the distance from origin to the nearest point on the camera-to-label line
@@ -105,8 +109,8 @@ export function OverlayLabels({ cameraController, toggleState, show }: OverlayLa
       };
       const rayLength = Math.sqrt(
         cameraToLabel.x * cameraToLabel.x +
-        cameraToLabel.y * cameraToLabel.y +
-        cameraToLabel.z * cameraToLabel.z
+          cameraToLabel.y * cameraToLabel.y +
+          cameraToLabel.z * cameraToLabel.z
       );
 
       // Unit vector along ray
