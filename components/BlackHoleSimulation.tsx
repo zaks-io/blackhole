@@ -21,6 +21,42 @@ import { CONFIG } from '@/lib/config';
 import { CameraController, CameraSequence } from '@/lib/camera';
 import { ToggleState } from '@/lib/types';
 
+// Detect HDR display support
+function detectHDRSupport(): { hdr: boolean; colorGamut: string; details: string[] } {
+  const details: string[] = [];
+
+  // Check dynamic range via CSS media query
+  const hdrMediaQuery = window.matchMedia('(dynamic-range: high)');
+  const hasHighDynamicRange = hdrMediaQuery.matches;
+  details.push(`Dynamic range: ${hasHighDynamicRange ? 'high' : 'standard'}`);
+
+  // Check color gamut
+  let colorGamut = 'srgb';
+  if (window.matchMedia('(color-gamut: rec2020)').matches) {
+    colorGamut = 'rec2020';
+  } else if (window.matchMedia('(color-gamut: p3)').matches) {
+    colorGamut = 'p3';
+  }
+  details.push(`Color gamut: ${colorGamut}`);
+
+  // Check for HDR canvas support (Chrome 94+)
+  let canvasHDR = false;
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
+    canvasHDR = ctx !== null;
+    details.push(`Canvas P3: ${canvasHDR ? 'yes' : 'no'}`);
+  } catch {
+    details.push('Canvas P3: no');
+  }
+
+  return {
+    hdr: hasHighDynamicRange,
+    colorGamut,
+    details,
+  };
+}
+
 export interface CameraPreset {
   name: string;
   position: { x: number; y: number; z: number };
@@ -270,6 +306,10 @@ export default function BlackHoleSimulation({
       // Helper to check if this init instance is still valid
       const isStillValid = () => currentInitIdRef.current === initId;
 
+      // Detect HDR support
+      const hdrSupport = detectHDRSupport();
+      console.log('HDR Support:', hdrSupport.details.join(', '));
+
       // Create renderer
       const renderer = new THREE.WebGLRenderer({
         antialias: CONFIG.renderer.antialias,
@@ -277,10 +317,18 @@ export default function BlackHoleSimulation({
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.renderer.pixelRatioMax));
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = CONFIG.renderer.toneMappingExposure;
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.setClearColor(0x000000, 1.0);
+
+      // Auto-enable HDR if supported, otherwise use tone mapping
+      if (hdrSupport.hdr) {
+        renderer.toneMapping = THREE.NoToneMapping;
+        renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+        console.log('HDR output enabled automatically');
+      } else {
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = CONFIG.renderer.toneMappingExposure;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+      }
       container.appendChild(renderer.domElement);
       cleanupRef.current.renderer = renderer;
 
@@ -604,16 +652,20 @@ export default function BlackHoleSimulation({
         // ========== ENVIRONMENT ==========
         const envFolder = gui.addFolder('Environment');
         const defaultBg = 'milkyWay' as StarfieldKey;
+
         const envParams = {
           background: defaultBg,
           starfieldExposure: STARFIELD_BACKGROUNDS[defaultBg].exposure,
+          hdrOutput: hdrSupport.hdr, // Reflects auto-enabled state
+          masterExposure: CONFIG.renderer.toneMappingExposure,
         };
+
         const backgroundOptions = Object.fromEntries(
           Object.entries(STARFIELD_BACKGROUNDS).map(([key, val]) => [val.name, key])
         );
         const exposureController = envFolder
           .add(envParams, 'starfieldExposure', 0.01, 10.0, 0.05)
-          .name('HDR Exposure')
+          .name('Starfield Exposure')
           .onChange((value: number) => {
             lensingPass?.setStarfieldExposure(value);
           });
@@ -622,6 +674,28 @@ export default function BlackHoleSimulation({
           .name('Background')
           .onChange((key: StarfieldKey) => {
             swapStarfield(key, exposureController);
+          });
+        envFolder
+          .add(envParams, 'masterExposure', 0.1, 5.0, 0.1)
+          .name('Master Exposure')
+          .onChange((value: number) => {
+            renderer.toneMappingExposure = value;
+          });
+
+        const hdrLabel = hdrSupport.hdr
+          ? `HDR Output (${hdrSupport.colorGamut})`
+          : 'HDR Output (unsupported)';
+        envFolder
+          .add(envParams, 'hdrOutput')
+          .name(hdrLabel)
+          .onChange((value: boolean) => {
+            if (value) {
+              renderer.toneMapping = THREE.NoToneMapping;
+              renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+            } else {
+              renderer.toneMapping = THREE.ACESFilmicToneMapping;
+              renderer.outputColorSpace = THREE.SRGBColorSpace;
+            }
           });
 
         // ========== PHYSICS ==========
