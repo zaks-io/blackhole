@@ -321,6 +321,8 @@ export default function BlackHoleSimulation({
         bloomStrength: number;
         bloomRadius: number;
         autoSteps: boolean;
+        autoStepsMin: number;
+        autoStepsMax: number;
         fxaaEnabled: boolean;
         ehtBlurEnabled: boolean;
         ehtBlurStrength: number;
@@ -331,6 +333,8 @@ export default function BlackHoleSimulation({
         bloomStrength: CONFIG.bloom.strength,
         bloomRadius: CONFIG.bloom.radius,
         autoSteps: CONFIG.rayMarching.autoSteps,
+        autoStepsMin: CONFIG.rayMarching.autoStepsMin,
+        autoStepsMax: CONFIG.rayMarching.autoStepsMax,
         fxaaEnabled: CONFIG.antiAliasing.fxaaEnabled,
         supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
         ehtBlurEnabled: initialEhtBlurEnabled,
@@ -525,8 +529,8 @@ export default function BlackHoleSimulation({
 
         const minPixels = 2_000_000;
         const maxPixels = 8_300_000;
-        const minSteps = 64;
-        const maxSteps = 150;
+        const minSteps = params.autoStepsMin;
+        const maxSteps = params.autoStepsMax;
 
         const t = Math.max(
           0,
@@ -587,16 +591,59 @@ export default function BlackHoleSimulation({
           });
 
         simFolder
-          .add(params, "maxSteps", 16, 96, 4)
+          .add(params, "autoStepsMin", 16, 500, 4)
+          .name("Auto Steps Min")
+          .onChange(() => {
+            if (params.autoSteps) updateStepCount();
+          });
+
+        simFolder
+          .add(params, "autoStepsMax", 50, 1000, 4)
+          .name("Auto Steps Max")
+          .onChange(() => {
+            if (params.autoSteps) updateStepCount();
+          });
+
+        simFolder
+          .add(params, "maxSteps", 16, 1000, 4)
           .name("Ray March Steps")
           .listen()
           .onChange((value: number) => {
+            params.autoSteps = false;
             lensingPass?.updateParams({ maxSteps: value });
           });
 
         simFolder
           .add(params, "simulationSpeed", 0.0, 3.0, 0.1)
           .name("Simulation Speed");
+
+        simFolder
+          .add(params, "stepJitter", { Off: 0, On: 1 })
+          .name("Step Jitter")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ stepJitter: value });
+          });
+
+        simFolder
+          .add(params, "curvatureAdaptation", 0.0, 1.0, 0.1)
+          .name("Curvature Adaptation")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ curvatureAdaptation: value });
+          });
+
+        simFolder
+          .add(params, "coronaStepRefinement", 0.0, 1.0, 0.1)
+          .name("Corona Step Refine")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ coronaStepRefinement: value });
+          });
+
+        simFolder
+          .add(params, "baseStepSize", 0.01, 0.5, 0.005)
+          .name("Base Step Size")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ baseStepSize: value });
+          });
 
         // Disk folder
         const diskFolder = gui.addFolder("Accretion Disk");
@@ -801,7 +848,7 @@ export default function BlackHoleSimulation({
             lensingPass?.updateParams({ coronaRadius: value });
           });
         coronaFolder
-          .add(params, "coronaDensity", 0.1, 1.0, 0.05)
+          .add(params, "coronaDensity", 0.01, 1.0, 0.01)
           .name("Density")
           .onChange((value: number) => {
             lensingPass?.updateParams({ coronaDensity: value });

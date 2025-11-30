@@ -61,6 +61,11 @@ export interface LensingParams {
   lodEnabled: number;
   lodNearDistance: number;
   lodFarDistance: number;
+  // Anti-banding step refinement
+  stepJitter: number;
+  curvatureAdaptation: number;
+  coronaStepRefinement: number;
+  baseStepSize: number;
 }
 
 // Default params built from centralized config
@@ -116,7 +121,7 @@ const LensingShader = {
     // Corona layer uniforms
     coronaEnabled: { value: 0.0 },
     coronaRadius: { value: 6.0 },
-    coronaDensity: { value: 0.05 },
+    coronaDensity: { value: 0.1 },
     coronaTemperature: { value: 100000.0 },
     // Jets layer uniforms
     jetsEnabled: { value: 0.0 },
@@ -131,7 +136,12 @@ const LensingShader = {
     // LOD uniforms
     lodEnabled: { value: 1.0 },
     lodNearDistance: { value: 10.0 },
-    lodFarDistance: { value: 50.0 }
+    lodFarDistance: { value: 50.0 },
+    // Anti-banding step refinement uniforms
+    stepJitter: { value: 0.0 },
+    curvatureAdaptation: { value: 1.0 },
+    coronaStepRefinement: { value: 1.0 },
+    baseStepSize: { value: 0.2 }
   },
   vertexShader,
   fragmentShader
@@ -313,6 +323,19 @@ export class LensingPass extends ShaderPass {
     }
     if (params.lodFarDistance !== undefined) {
       this.uniforms['lodFarDistance'].value = params.lodFarDistance;
+    }
+    // Anti-banding step refinement parameters
+    if (params.stepJitter !== undefined) {
+      this.uniforms['stepJitter'].value = params.stepJitter;
+    }
+    if (params.curvatureAdaptation !== undefined) {
+      this.uniforms['curvatureAdaptation'].value = params.curvatureAdaptation;
+    }
+    if (params.coronaStepRefinement !== undefined) {
+      this.uniforms['coronaStepRefinement'].value = params.coronaStepRefinement;
+    }
+    if (params.baseStepSize !== undefined) {
+      this.uniforms['baseStepSize'].value = params.baseStepSize;
     }
   }
   
