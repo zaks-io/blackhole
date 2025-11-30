@@ -150,7 +150,7 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
         duration: 4,
         ease: "power1.in",
       },
-      // Emerge to see photon ring nearly touch accretion disk
+      // Emerge to see photon ring nearly touch accretion disk. Grandiose moment.
       {
         type: "moveTo",
         position: { x: 1.5, y: 0.01, z: 1.5 },

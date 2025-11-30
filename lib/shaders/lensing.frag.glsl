@@ -77,6 +77,12 @@ uniform float curvatureAdaptation;
 uniform float coronaStepRefinement;
 uniform float baseStepSize;  // Base step size h (default 0.2) - controls band width
 
+// Precomputed values (CPU-side optimization)
+uniform float photonRingLogInner;   // log(rs * 1.5) - precomputed for photon ring mapping
+uniform float photonRingLogOuter;   // log(diskInnerRadius) - precomputed for photon ring mapping
+uniform float diskRadiusRange;      // diskOuterRadius - diskInnerRadius
+uniform float anyOverlayEnabled;    // 1.0 if any overlay is on, 0.0 otherwise
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
@@ -410,26 +416,31 @@ MHDResult getMHDCombined(float r, float phi, float t, float lod) {
 
   // === DENSITY CALCULATION ===
 
-  // Large-scale turbulent streaks (using cached trig)
+  // Large-scale turbulent streaks - cache trig values
   float rot08 = t * diskMaterialSpeed * 0.08;
   float rotatedPhi08 = phi - rot08;
-  float x = r * cos(rotatedPhi08);
-  float y = r * sin(rotatedPhi08);
+  float cosRP08 = cos(rotatedPhi08);
+  float sinRP08 = sin(rotatedPhi08);
+  float x = r * cosRP08;
+  float y = r * sinRP08;
   vec2 pos = vec2(x, y);
   float warp = snoise(pos * 0.015 + t * 0.002) * 0.15;
-  vec2 tangent = vec2(-sin(rotatedPhi08), cos(rotatedPhi08));
-  vec2 radial = vec2(cos(rotatedPhi08), sin(rotatedPhi08));
+  vec2 tangent = vec2(-sinRP08, cosRP08);
+  vec2 radial = vec2(cosRP08, sinRP08);
   float tangentCoord = dot(pos, tangent) * 0.06 + warp;
   float radialCoord = dot(pos, radial) * 0.9;
   float blobs = snoise(vec2(tangentCoord, radialCoord));
 
-  // Second layer at different rotation speed
-  float rot2 = t * diskMaterialSpeed * 0.06;
-  float x2 = r * cos(phi - rot2);
-  float y2 = r * sin(phi - rot2);
+  // Second layer at different rotation speed - cache trig values
+  float rot06 = t * diskMaterialSpeed * 0.06;
+  float rotatedPhi06 = phi - rot06;
+  float cosRP06 = cos(rotatedPhi06);
+  float sinRP06 = sin(rotatedPhi06);
+  float x2 = r * cosRP06;
+  float y2 = r * sinRP06;
   vec2 pos2 = vec2(x2, y2);
-  vec2 tangent2 = vec2(-sin(phi - rot2), cos(phi - rot2));
-  vec2 radial2 = vec2(cos(phi - rot2), sin(phi - rot2));
+  vec2 tangent2 = vec2(-sinRP06, cosRP06);
+  vec2 radial2 = vec2(cosRP06, sinRP06);
   float tc2 = dot(pos2, tangent2) * 0.07;
   float rc2 = dot(pos2, radial2) * 0.8;
   float blobs2 = snoise(vec2(tc2 + 5.0, rc2 + 5.0));
@@ -447,24 +458,29 @@ MHDResult getMHDCombined(float r, float phi, float t, float lod) {
   // Fine detail layer (skip at low LOD)
   float fineMod = 1.0;
   if (lod > 0.3) {
-    // Fine detail (using cached trig for first layer)
+    // Fine detail - cache trig values
     float rot12 = t * diskMaterialSpeed * 0.12;
     float rotatedPhi12 = phi - rot12;
-    float xf = r * cos(rotatedPhi12);
-    float yf = r * sin(rotatedPhi12);
+    float cosRP12 = cos(rotatedPhi12);
+    float sinRP12 = sin(rotatedPhi12);
+    float xf = r * cosRP12;
+    float yf = r * sinRP12;
     vec2 posf = vec2(xf, yf);
-    vec2 tangentF = vec2(-sin(rotatedPhi12), cos(rotatedPhi12));
-    vec2 radialF = vec2(cos(rotatedPhi12), sin(rotatedPhi12));
+    vec2 tangentF = vec2(-sinRP12, cosRP12);
+    vec2 radialF = vec2(cosRP12, sinRP12);
     float tcf = dot(posf, tangentF) * 0.15;
     float rcf = dot(posf, radialF) * 1.4;
     float fine1 = snoise(vec2(tcf, rcf));
 
     float rot15 = t * diskMaterialSpeed * 0.15;
-    float xf2 = r * cos(phi - rot15);
-    float yf2 = r * sin(phi - rot15);
+    float rotatedPhi15 = phi - rot15;
+    float cosRP15 = cos(rotatedPhi15);
+    float sinRP15 = sin(rotatedPhi15);
+    float xf2 = r * cosRP15;
+    float yf2 = r * sinRP15;
     vec2 posf2 = vec2(xf2, yf2);
-    vec2 tangentF2 = vec2(-sin(phi - rot15), cos(phi - rot15));
-    vec2 radialF2 = vec2(cos(phi - rot15), sin(phi - rot15));
+    vec2 tangentF2 = vec2(-sinRP15, cosRP15);
+    vec2 radialF2 = vec2(cosRP15, sinRP15);
     float tcf2 = dot(posf2, tangentF2) * 0.18;
     float rcf2 = dot(posf2, radialF2) * 1.2;
     float fine2 = snoise(vec2(tcf2 + 5.0, rcf2 + 5.0));
@@ -757,7 +773,7 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   float mhdTemp = mhd.temperature;
   
   // Temperature with Doppler, gravitational redshift, and MHD modulation
-  float frac = (r - diskInnerRadius) / (diskOuterRadius - diskInnerRadius);
+  float frac = (r - diskInnerRadius) / diskRadiusRange;
   float baseTemp = mix(diskTemperatureInner, diskTemperatureOuter, frac);
   float temp = baseTemp * doppler * gravRedshift * mhdTemp;
   
@@ -821,10 +837,10 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   
   // Alpha: smooth edge fading
   // Inner edge: fairly sharp at ISCO
-  float innerEdgeWidth = (diskOuterRadius - diskInnerRadius) * 0.05;
+  float innerEdgeWidth = diskRadiusRange * 0.05;
   float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + innerEdgeWidth, r);
   // Outer edge: much wider/smoother fade for natural falloff
-  float outerEdgeWidth = (diskOuterRadius - diskInnerRadius) * 0.25;
+  float outerEdgeWidth = diskRadiusRange * 0.25;
   float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - outerEdgeWidth, r);
   
   // Bright rim at ISCO - material piles up at innermost stable orbit
@@ -961,17 +977,12 @@ vec4 traceRay(vec2 uv) {
       else if (hitR > rs * 1.5 && hitR < diskInnerRadius && diskCrossings > 0) {
         // Use logarithmic mapping to prevent excessive compression near photon sphere
         // This spreads the disk content more evenly across the photon ring
-        float innerBound = rs * 1.5;
-        float outerBound = diskInnerRadius;
-
-        // Logarithmic interpolation - prevents squishing near the inner edge
-        float logInner = log(innerBound);
-        float logOuter = log(outerBound);
+        // Using precomputed log bounds (photonRingLogInner/Outer) for performance
         float logHit = log(hitR);
-        float photonRingFrac = (logHit - logInner) / (logOuter - logInner);
+        float photonRingFrac = (logHit - photonRingLogInner) / (photonRingLogOuter - photonRingLogInner);
 
-        // Map across the full disk range
-        float mappedR = diskInnerRadius + photonRingFrac * (diskOuterRadius - diskInnerRadius);
+        // Map across the full disk range (using precomputed diskRadiusRange)
+        float mappedR = diskInnerRadius + photonRingFrac * diskRadiusRange;
 
         // Create a virtual hit position at the mapped radius
         vec3 virtualHitPos = vec3(hitPos.x, 0.0, hitPos.z) * (mappedR / hitR);
@@ -985,21 +996,23 @@ vec4 traceRay(vec2 uv) {
         diskAccum.a += newDisk.a * remaining;
       }
 
-      // Check disk-plane overlay rings at this crossing
-      float ringThickness = 0.15 * rs;
+      // Check disk-plane overlay rings at this crossing (skip if no overlays enabled)
+      if (anyOverlayEnabled > 0.5) {
+        float ringThickness = 0.15 * rs;
 
-      // ISCO ring (3rs) - Cyan
-      if (overlayIsco > 0.0) {
-        vec4 ring = renderDiskPlaneRing(newPos, rayPos, 3.0 * rs, ringThickness, vec3(0.0, 0.85, 0.85), overlayIsco);
-        overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
-        overlayAccum.a = max(overlayAccum.a, ring.a);
-      }
+        // ISCO ring (3rs) - Cyan
+        if (overlayIsco > 0.0) {
+          vec4 ring = renderDiskPlaneRing(newPos, rayPos, 3.0 * rs, ringThickness, vec3(0.0, 0.85, 0.85), overlayIsco);
+          overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
+          overlayAccum.a = max(overlayAccum.a, ring.a);
+        }
 
-      // Event horizon ring - Red - placed at 1.1rs to ensure rays detect it before terminating at horizon
-      if (overlayEventHorizon > 0.0) {
-        vec4 ring = renderDiskPlaneRing(newPos, rayPos, rs * 1.1, ringThickness, vec3(1.0, 0.15, 0.15), overlayEventHorizon);
-        overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
-        overlayAccum.a = max(overlayAccum.a, ring.a);
+        // Event horizon ring - Red - placed at 1.1rs to ensure rays detect it before terminating at horizon
+        if (overlayEventHorizon > 0.0) {
+          vec4 ring = renderDiskPlaneRing(newPos, rayPos, rs * 1.1, ringThickness, vec3(1.0, 0.15, 0.15), overlayEventHorizon);
+          overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
+          overlayAccum.a = max(overlayAccum.a, ring.a);
+        }
       }
 
       // Increment crossing counter regardless of whether we hit the disk
@@ -1008,19 +1021,29 @@ vec4 traceRay(vec2 uv) {
     }
 
     // Scale rings at 5rs intervals - elevated above disk plane for visibility
-    // Check every step, not just disk plane crossings
-    if (overlayScale > 0.0) {
-      float scaleHeight = 1.5 * rs;  // Height above disk plane
+    // Only check when ray crosses the scale ring planes (y = ±1.5*rs)
+    if (anyOverlayEnabled > 0.5 && overlayScale > 0.0) {
+      float scaleHeight = 1.5 * rs;
       float scaleThickness = 0.2 * rs;
-      for (float scaleR = 5.0; scaleR <= 15.0; scaleR += 5.0) {
-        // Render ring above the disk
-        vec4 ringAbove = renderHorizontalRing(newPos, rayPos, scaleR * rs, scaleHeight, scaleThickness, vec3(0.7, 0.7, 0.75), overlayScale);
-        overlayAccum.rgb += ringAbove.rgb * (1.0 - overlayAccum.a);
-        overlayAccum.a = max(overlayAccum.a, ringAbove.a);
-        // Render ring below the disk (mirror)
-        vec4 ringBelow = renderHorizontalRing(newPos, rayPos, scaleR * rs, -scaleHeight, scaleThickness, vec3(0.7, 0.7, 0.75), overlayScale);
-        overlayAccum.rgb += ringBelow.rgb * (1.0 - overlayAccum.a);
-        overlayAccum.a = max(overlayAccum.a, ringBelow.a);
+
+      // Check if ray crossed upper scale plane (y = +scaleHeight)
+      bool crossedUpperPlane = (prevY - scaleHeight) * (currY - scaleHeight) < 0.0;
+      // Check if ray crossed lower scale plane (y = -scaleHeight)
+      bool crossedLowerPlane = (prevY + scaleHeight) * (currY + scaleHeight) < 0.0;
+
+      if (crossedUpperPlane || crossedLowerPlane) {
+        for (float scaleR = 5.0; scaleR <= 15.0; scaleR += 5.0) {
+          if (crossedUpperPlane) {
+            vec4 ringAbove = renderHorizontalRing(newPos, rayPos, scaleR * rs, scaleHeight, scaleThickness, vec3(0.7, 0.7, 0.75), overlayScale);
+            overlayAccum.rgb += ringAbove.rgb * (1.0 - overlayAccum.a);
+            overlayAccum.a = max(overlayAccum.a, ringAbove.a);
+          }
+          if (crossedLowerPlane) {
+            vec4 ringBelow = renderHorizontalRing(newPos, rayPos, scaleR * rs, -scaleHeight, scaleThickness, vec3(0.7, 0.7, 0.75), overlayScale);
+            overlayAccum.rgb += ringBelow.rgb * (1.0 - overlayAccum.a);
+            overlayAccum.a = max(overlayAccum.a, ringBelow.a);
+          }
+        }
       }
     }
     
