@@ -5,7 +5,6 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { EXRLoader } from "three/examples/jsm/loaders/EXRLoader.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { HorizontalBlurShader } from "three/examples/jsm/shaders/HorizontalBlurShader.js";
@@ -328,35 +327,29 @@ export default function BlackHoleSimulation({
       let bloomPass: UnrealBloomPass;
       let blurPasses: { h: ShaderPass; v: ShaderPass }[] = [];
 
-      // Load starfield (pre-blur EXR texture to reduce noise without per-frame blur cost)
       const loadStarfield = (): Promise<THREE.Texture> => {
         return new Promise((resolve) => {
-          const exrLoader = new EXRLoader();
+          const loader = new THREE.TextureLoader();
 
-          exrLoader.load(
-            "/textures/starmap_2020_4k.exr",
-            (texture) => {
+          loader.load(
+            "/textures/starmap_4k.webp",
+            (texture: THREE.Texture) => {
               texture.mapping = THREE.EquirectangularReflectionMapping;
               texture.minFilter = THREE.LinearFilter;
               texture.magFilter = THREE.LinearFilter;
               texture.wrapS = THREE.RepeatWrapping;
               texture.wrapT = THREE.ClampToEdgeWrapping;
 
-              // Pre-blur the starfield texture slightly and dim bright stars
-              const blurredTexture = blurTexture(renderer, texture, 0.3, 1, 0.2);
+              // Blur to smooth compression artifacts
+              const blurredTexture = blurTexture(renderer, texture, 0.1, 1, 0.2);
               blurredTexture.mapping = THREE.EquirectangularReflectionMapping;
               blurredTexture.wrapS = THREE.RepeatWrapping;
               blurredTexture.wrapT = THREE.ClampToEdgeWrapping;
 
-              // Dispose original texture since we're using the blurred version
               texture.dispose();
-
               resolve(blurredTexture);
             },
-            (progress) => {
-              const percent = (progress.loaded / progress.total) * 100;
-              console.log(`Loading starfield: ${percent.toFixed(1)}%`);
-            },
+            undefined,
             () => {
               console.error("Error loading starfield, using fallback");
               resolve(createFallbackStarfield());
