@@ -286,7 +286,18 @@ export default function BlackHoleSimulation({
       };
 
       const setupPostProcessing = (starfieldTexture: THREE.Texture) => {
-        composer = new EffectComposer(renderer);
+        // Use HalfFloatType for render targets - sufficient precision with half the memory
+        const renderTarget = new THREE.WebGLRenderTarget(
+          window.innerWidth,
+          window.innerHeight,
+          {
+            type: THREE.HalfFloatType,
+            format: THREE.RGBAFormat,
+            minFilter: THREE.LinearFilter,
+            magFilter: THREE.LinearFilter,
+          }
+        );
+        composer = new EffectComposer(renderer, renderTarget);
         cleanupRef.current.composer = composer;
 
         lensingPass = new LensingPass(starfieldTexture);
@@ -303,8 +314,13 @@ export default function BlackHoleSimulation({
         fxaaPass.enabled = params.fxaaEnabled;
         composer.addPass(fxaaPass);
 
-        const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
-        bloomPass = new UnrealBloomPass(resolution, params.bloomStrength, params.bloomRadius, params.bloomThreshold);
+        // Use scaled resolution for bloom (default 0.5x for performance)
+        const bloomResScale = CONFIG.bloom.resolutionScale;
+        const bloomRes = new THREE.Vector2(
+          Math.floor(window.innerWidth * bloomResScale),
+          Math.floor(window.innerHeight * bloomResScale)
+        );
+        bloomPass = new UnrealBloomPass(bloomRes, params.bloomStrength, params.bloomRadius, params.bloomThreshold);
         composer.addPass(bloomPass);
 
         // EHT blur passes (multiple iterations for heavy blur)
@@ -760,7 +776,11 @@ export default function BlackHoleSimulation({
         }
 
         if (bloomPass) {
-          bloomPass.resolution.set(width, height);
+          const bloomResScale = CONFIG.bloom.resolutionScale;
+          bloomPass.resolution.set(
+            Math.floor(width * bloomResScale),
+            Math.floor(height * bloomResScale)
+          );
         }
 
         // Update blur passes for new resolution
