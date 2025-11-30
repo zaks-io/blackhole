@@ -709,7 +709,7 @@ vec3 sampleBlackbody(float temp) {
   return texture2D(blackbodyLUT, vec2(t, 0.5)).rgb;
 }
 
-vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod) {
+vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod, float rayMinRadius) {
   // Get azimuthal angle for MHD effects
   float phi = atan(hitPos.z, hitPos.x);
 
@@ -723,8 +723,10 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod)
   float doppler = sqrt((1.0 + vr) / (1.0 - vr));
 
   // Gravitational redshift: photons lose energy climbing out of gravity well
-  // Factor of sqrt(1 - rs/r) from Schwarzschild metric
-  float gravRedshift = sqrt(1.0 - rs / r);
+  // Use the ray's closest approach radius, not the disk hit point
+  // This correctly accounts for photon ring rays that dove deep near the photon sphere
+  float effectiveR = min(r, rayMinRadius);
+  float gravRedshift = sqrt(max(0.01, 1.0 - rs / effectiveR));
 
   // Get MHD modulations using optimized combined function
   MHDResult mhd = getMHDCombined(r, phi, time, lod);
@@ -786,9 +788,10 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod)
   // MHD modulation with boosted contrast
   float intensity = compressedIntensity * boostedDensity;
   
-  // Higher-order images (photon rings) are demagnified
-  // Each orbit around BH loses ~60% of brightness due to photon loss
-  float higherOrderDecay = pow(0.6, float(crossingIndex));
+  // Higher-order images (photon rings) are exponentially demagnified
+  // Each half-orbit around BH loses ~e^(-pi) ≈ 0.043 of brightness
+  // Using 0.15 per crossing as a compromise between physical accuracy and visibility
+  float higherOrderDecay = pow(0.15, float(crossingIndex));
   intensity *= higherOrderDecay;
   
   // Alpha: smooth edge fading
@@ -893,7 +896,7 @@ vec4 traceRay(vec2 uv) {
 
       // For direct disk hits (first crossing or within disk bounds)
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-        vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod);
+        vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, minRadius);
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
         diskAccum.a += newDisk.a * remaining;
@@ -920,9 +923,9 @@ vec4 traceRay(vec2 uv) {
         // Create a virtual hit position at the mapped radius
         vec3 virtualHitPos = vec3(hitPos.x, 0.0, hitPos.z) * (mappedR / hitR);
 
-        vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod);
-        // Dimming for photon ring images - less aggressive
-        newDisk.rgb *= 0.7;
+        // Pass minRadius for proper gravitational redshift of photon ring light
+        // The crossingIndex and minRadius together handle the dimming physics
+        vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, minRadius);
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
         diskAccum.a += newDisk.a * remaining;
@@ -997,7 +1000,7 @@ vec4 traceRay(vec2 uv) {
 
         if (shouldSample) {
           vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
-          vec4 volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod);
+          vec4 volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, minRadius);
 
           // Adjust alpha for sample skipping
           float skipMultiplier = 1.0;
