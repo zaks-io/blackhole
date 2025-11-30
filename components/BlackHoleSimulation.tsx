@@ -24,10 +24,6 @@ import { CONFIG } from "@/lib/config";
 import { CameraController, CameraSequence } from "@/lib/camera";
 import { OverlayState } from "@/lib/types";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface CameraPreset {
   name: string;
   position: { x: number; y: number; z: number };
@@ -57,10 +53,6 @@ export interface BlackHoleSimulationProps {
   /** Callback with EHT blur controller when ready */
   onEhtBlurReady?: (controller: EhtBlurController) => void;
 }
-
-// ============================================================================
-// Camera Presets
-// ============================================================================
 
 export const CAMERA_PRESETS: Record<string, CameraPreset> = {
   far: {
@@ -106,18 +98,12 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
     lookAt: { x: 0, y: 0, z: 0 },
     duration: 2.5,
   },
-  // Note: 'fallingIn' is now a sequence in CAMERA_SEQUENCES
 };
-
-// ============================================================================
-// Camera Sequences
-// ============================================================================
 
 export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
   fallIn: {
     name: "Fall In",
     steps: [
-      // First smoothly move far away
       {
         type: "moveTo",
         position: { x: 0, y: 10, z: 40 },
@@ -125,7 +111,6 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
         duration: 3,
         ease: "power2.inOut",
       },
-      // Then dramatic approach
       {
         type: "moveTo",
         position: { x: 1.3, y: 1.3, z: 0 },
@@ -154,21 +139,23 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
         duration: 4,
         ease: "power2.inOut",
       },
+      // Closer view of photon rings
       {
         type: "moveTo",
         position: { x: 2, y: 1, z: 2 },
         lookAt: { x: 1.6, y: 0, z: 0 },
-        duration: 6,
+        duration: 4,
         ease: "power1.inOut",
       },
-
+      // Shadow covers entire camera
       {
         type: "moveTo",
         position: { x: 1.5, y: 0.3, z: 1.5 },
         lookAt: { x: 0, y: 0.3, z: 0 },
-        duration: 3,
+        duration: 4,
         ease: "power1.in",
       },
+      // Emerge to see photon ring nearly touch accretion disk
       {
         type: "moveTo",
         position: { x: 1.5, y: 0.01, z: 1.5 },
@@ -176,11 +163,12 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
         duration: 8,
         ease: "power1.out",
       },
+      // Pan to top down view
       {
         type: "moveTo",
         position: { x: 1.5, y: 10, z: 1.5 },
         lookAt: { x: -0.1, y: 0.01, z: 0.01 },
-        duration: 8,
+        duration: 16,
         ease: "power1.inOut",
       },
     ],
@@ -189,12 +177,11 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
   shadowExplore: {
     name: "Shadow Explore",
     steps: [
-      // Close approach to shadow edge
       {
         type: "moveTo",
-        position: { x: 4, y: 1, z: 3 },
+        position: { x: 0, y: 0.3, z: 5 },
         lookAt: { x: 0, y: 0, z: 0 },
-        duration: 4,
+        duration: 6,
         ease: "power1.inOut",
       },
       {
@@ -204,29 +191,23 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
         duration: 6,
         ease: "power1.inOut",
       },
-
       {
         type: "moveTo",
         position: { x: 0, y: 0.01, z: 3 },
         lookAt: { x: 1.6, y: 0.01, z: 1.6 },
-        duration: 3,
+        duration: 6,
         ease: "power1.inOut",
       },
-      // Close Up
       {
         type: "moveTo",
         position: { x: 0, y: 0.3, z: 5 },
         lookAt: { x: 0, y: 0, z: 0 },
-        duration: 3,
+        duration: 6,
         ease: "power1.inOut",
       },
     ],
   },
 };
-
-// ============================================================================
-// Component
-// ============================================================================
 
 export default function BlackHoleSimulation({
   showDevControls = false,
@@ -239,7 +220,6 @@ export default function BlackHoleSimulation({
 }: BlackHoleSimulationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initRef = useRef(false);
-  // Track the current valid init instance ID (for React Strict Mode double-mount handling)
   const currentInitIdRef = useRef(0);
 
   // Store refs to objects that need cleanup
