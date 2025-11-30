@@ -49,9 +49,7 @@ export function RenderControlPanel({
   const totalFrames = Math.ceil(duration * preset.fps);
   const isRendering = status === 'rendering';
 
-  const progressPercent = progress
-    ? (progress.currentFrame / progress.totalFrames) * 100
-    : 0;
+  const progressPercent = progress ? (progress.currentFrame / progress.totalFrames) * 100 : 0;
 
   return (
     <div className="render-control-panel">
@@ -92,7 +90,9 @@ export function RenderControlPanel({
       <div className="info-section">
         <div className="info-row">
           <span>Resolution</span>
-          <span>{preset.resolution.width} x {preset.resolution.height}</span>
+          <span>
+            {preset.resolution.width} x {preset.resolution.height}
+          </span>
         </div>
         <div className="info-row">
           <span>Frame Rate</span>
@@ -126,7 +126,9 @@ export function RenderControlPanel({
           <div className="progress-details">
             <div className="progress-row">
               <span>Frame</span>
-              <span>{progress.currentFrame + 1} / {progress.totalFrames}</span>
+              <span>
+                {progress.currentFrame + 1} / {progress.totalFrames}
+              </span>
             </div>
             <div className="progress-row">
               <span>Elapsed</span>
@@ -150,11 +152,7 @@ export function RenderControlPanel({
         </div>
       )}
 
-      {status === 'cancelled' && (
-        <div className="status-message warning">
-          Render cancelled.
-        </div>
-      )}
+      {status === 'cancelled' && <div className="status-message warning">Render cancelled.</div>}
 
       <div className="button-group">
         {!isRendering ? (
@@ -172,7 +170,11 @@ export function RenderControlPanel({
         <p>Frames will download automatically as they render.</p>
         <p>Set your browser to auto-download without prompts.</p>
         <p>
-          To encode: <code>ffmpeg -framerate {preset.fps} -i frame_%05d.png -c:v libx264 -crf 18 -pix_fmt yuv420p output.mp4</code>
+          To encode:{' '}
+          <code>
+            ffmpeg -framerate {preset.fps} -i frame_%05d.png -c:v libx264 -crf 18 -pix_fmt yuv420p
+            output.mp4
+          </code>
         </p>
       </div>
 

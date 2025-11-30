@@ -45,10 +45,20 @@ const PRESET_LABELS: Record<string, string> = {
   manual: 'Manual',
 };
 
-export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlurEnabled, onEhtToggle, onEhtBlurToggle, show = true, isManualMode, onManualModeToggle }: CameraPresetBarProps) {
+export function CameraPresetBar({
+  onPresetSelect,
+  activePreset,
+  ehtMode,
+  ehtBlurEnabled,
+  onEhtToggle,
+  onEhtBlurToggle,
+  show = true,
+  isManualMode,
+  onManualModeToggle,
+}: CameraPresetBarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'eht');
+  const presetKeys = Object.keys(CAMERA_PRESETS).filter((key) => key !== 'eht');
   const sequenceKeys = Object.keys(CAMERA_SEQUENCES);
 
   return (
@@ -133,7 +143,9 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
           display: flex;
           flex-direction: column;
           align-items: center;
-          transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+          transition:
+            transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+            opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .preset-bar-container.hidden {
@@ -245,7 +257,7 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
           color: #ff8c42;
           background: rgba(255, 140, 66, 0.15);
           border-color: rgba(255, 140, 66, 0.4);
-          box-shadow: 
+          box-shadow:
             0 0 20px rgba(255, 140, 66, 0.15),
             inset 0 0 10px rgba(255, 140, 66, 0.1);
         }
@@ -336,8 +348,12 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
         }
 
         @keyframes rotate {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
         }
 
         /* Responsive adjustments */
@@ -360,4 +376,3 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
     </div>
   );
 }
-

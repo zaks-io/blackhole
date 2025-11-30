@@ -151,10 +151,10 @@ const LensingShader = {
     photonRingLogInner: { value: 0.0 },
     photonRingLogOuter: { value: 0.0 },
     diskRadiusRange: { value: 9.0 },
-    anyOverlayEnabled: { value: 0.0 }
+    anyOverlayEnabled: { value: 0.0 },
   },
   vertexShader,
-  fragmentShader
+  fragmentShader,
 };
 
 export class LensingPass extends ShaderPass {
@@ -196,11 +196,11 @@ export class LensingPass extends ShaderPass {
     this.uniforms['inverseProjection'].value.copy(camera.projectionMatrixInverse);
     this.uniforms['inverseView'].value.copy(camera.matrixWorld);
   }
-  
+
   updateResolution(width: number, height: number): void {
     this.uniforms['resolution'].value.set(width, height);
   }
-  
+
   updateParams(params: Partial<LensingParams>): void {
     if (params.rs !== undefined) {
       this.uniforms['rs'].value = params.rs;
@@ -364,11 +364,11 @@ export class LensingPass extends ShaderPass {
       this.uniforms['noiseTimeScale'].value = params.noiseTimeScale;
     }
   }
-  
+
   updateTime(time: number): void {
     this.uniforms['time'].value = time;
   }
-  
+
   setStarfield(texture: THREE.Texture): void {
     this.uniforms['starfield'].value = texture;
   }
@@ -394,7 +394,7 @@ export class LensingPass extends ShaderPass {
 
     // Set to 1.0 if any overlay is enabled, 0.0 otherwise
     this.uniforms['anyOverlayEnabled'].value =
-      (overlayIsco + overlayEventHorizon + overlayDoppler + overlayScale) > 0 ? 1.0 : 0.0;
+      overlayIsco + overlayEventHorizon + overlayDoppler + overlayScale > 0 ? 1.0 : 0.0;
   }
 
   dispose(): void {
@@ -402,4 +402,3 @@ export class LensingPass extends ShaderPass {
     this.noiseLUT.dispose();
   }
 }
-

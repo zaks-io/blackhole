@@ -21,7 +21,10 @@ export async function GET(request: Request) {
   if (!response.ok) {
     const errorData = await response.text();
     console.error('ElevenLabs API error:', response.status, errorData);
-    return NextResponse.json({ error: 'Failed to get token', details: errorData }, { status: response.status });
+    return NextResponse.json(
+      { error: 'Failed to get token', details: errorData },
+      { status: response.status }
+    );
   }
 
   const data = await response.json();

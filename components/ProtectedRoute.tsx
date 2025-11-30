@@ -12,18 +12,20 @@ interface Props {
 
 function LoadingScreen({ message }: { message: string }) {
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#000',
-      color: '#fff',
-      fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', monospace",
-      fontSize: '14px',
-      letterSpacing: '0.1em',
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#000',
+        color: '#fff',
+        fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', monospace",
+        fontSize: '14px',
+        letterSpacing: '0.1em',
+      }}
+    >
       {message}
     </div>
   );
@@ -33,39 +35,46 @@ function PendingApproval() {
   const { logout } = useAuth0();
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#000',
-      color: '#fff',
-      fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', monospace",
-      padding: '2rem',
-      textAlign: 'center',
-    }}>
-      <h1 style={{
-        fontSize: '1.5rem',
-        fontWeight: 300,
-        letterSpacing: '0.15em',
-        textTransform: 'uppercase',
-        marginBottom: '1.5rem',
-        background: 'linear-gradient(to bottom right, #fff, #ff8c42, #ff5e00)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-      }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#000',
+        color: '#fff',
+        fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', monospace",
+        padding: '2rem',
+        textAlign: 'center',
+      }}
+    >
+      <h1
+        style={{
+          fontSize: '1.5rem',
+          fontWeight: 300,
+          letterSpacing: '0.15em',
+          textTransform: 'uppercase',
+          marginBottom: '1.5rem',
+          background: 'linear-gradient(to bottom right, #fff, #ff8c42, #ff5e00)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}
+      >
         Account Pending Approval
       </h1>
-      <p style={{
-        fontSize: '14px',
-        color: '#999',
-        maxWidth: '400px',
-        lineHeight: 1.6,
-        marginBottom: '2rem',
-      }}>
-        Your account has been registered. Once approved, you&apos;ll have access to the black hole simulation.
+      <p
+        style={{
+          fontSize: '14px',
+          color: '#999',
+          maxWidth: '400px',
+          lineHeight: 1.6,
+          marginBottom: '2rem',
+        }}
+      >
+        Your account has been registered. Once approved, you&apos;ll have access to the black hole
+        simulation.
       </p>
       <button
         onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
@@ -100,36 +109,42 @@ function AccessDenied() {
   const { logout } = useAuth0();
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#000',
-      color: '#fff',
-      fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', monospace",
-      padding: '2rem',
-      textAlign: 'center',
-    }}>
-      <h1 style={{
-        fontSize: '1.5rem',
-        fontWeight: 300,
-        letterSpacing: '0.15em',
-        textTransform: 'uppercase',
-        marginBottom: '1.5rem',
-        color: '#ff5e00',
-      }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#000',
+        color: '#fff',
+        fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', monospace",
+        padding: '2rem',
+        textAlign: 'center',
+      }}
+    >
+      <h1
+        style={{
+          fontSize: '1.5rem',
+          fontWeight: 300,
+          letterSpacing: '0.15em',
+          textTransform: 'uppercase',
+          marginBottom: '1.5rem',
+          color: '#ff5e00',
+        }}
+      >
         Access Denied
       </h1>
-      <p style={{
-        fontSize: '14px',
-        color: '#999',
-        maxWidth: '400px',
-        lineHeight: 1.6,
-        marginBottom: '2rem',
-      }}>
+      <p
+        style={{
+          fontSize: '14px',
+          color: '#999',
+          maxWidth: '400px',
+          lineHeight: 1.6,
+          marginBottom: '2rem',
+        }}
+      >
         You don&apos;t have permission to access this page.
       </p>
       <button
@@ -170,7 +185,7 @@ export function ProtectedRoute({ component: Component, requiredRole = 'Blackhole
 
   if (!isAuthenticated) {
     loginWithRedirect({
-      appState: { returnTo: typeof window !== 'undefined' ? window.location.pathname : '/' }
+      appState: { returnTo: typeof window !== 'undefined' ? window.location.pathname : '/' },
     });
     return <LoadingScreen message="Redirecting to login..." />;
   }

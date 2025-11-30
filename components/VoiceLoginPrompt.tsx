@@ -7,7 +7,7 @@ export function VoiceLoginPrompt() {
 
   const handleSignIn = () => {
     loginWithRedirect({
-      appState: { returnTo: typeof window !== 'undefined' ? window.location.pathname : '/' }
+      appState: { returnTo: typeof window !== 'undefined' ? window.location.pathname : '/' },
     });
   };
 

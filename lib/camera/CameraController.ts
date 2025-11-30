@@ -37,7 +37,13 @@ export interface OrbitConfig {
 // Sequence Types
 // ============================================================================
 
-export type SequenceStepType = 'snapTo' | 'moveTo' | 'transitionOrbit' | 'startOrbit' | 'stopOrbit' | 'delay';
+export type SequenceStepType =
+  | 'snapTo'
+  | 'moveTo'
+  | 'transitionOrbit'
+  | 'startOrbit'
+  | 'stopOrbit'
+  | 'delay';
 
 export interface CameraSequenceStep {
   type: SequenceStepType;
@@ -63,11 +69,11 @@ export class CameraController {
   private camera: THREE.PerspectiveCamera;
   private orbitControls: OrbitControls;
   private mode: ControlMode = 'manual';
-  
+
   // Internal state for tweening
   private currentLookAt = new THREE.Vector3(0, 0, 0);
   private targetLookAt = new THREE.Vector3(0, 0, 0);
-  
+
   // Orbit state
   private orbitConfig: OrbitConfig | null = null;
   private orbitAngle = 0;
@@ -82,7 +88,7 @@ export class CameraController {
   constructor(camera: THREE.PerspectiveCamera, orbitControls: OrbitControls) {
     this.camera = camera;
     this.orbitControls = orbitControls;
-    
+
     // Initialize lookAt from current camera direction
     const direction = new THREE.Vector3();
     this.camera.getWorldDirection(direction);
@@ -114,10 +120,10 @@ export class CameraController {
 
     // Kill any active tweens
     this.killActiveTweens();
-    
+
     // Enter cinematic mode
     this.setMode('cinematic');
-    
+
     // Set target lookAt
     this.targetLookAt.set(state.lookAt.x, state.lookAt.y, state.lookAt.z);
 
@@ -246,7 +252,7 @@ export class CameraController {
     this.killActiveTweens();
     this.orbitConfig = null;
     this.setMode('manual');
-    
+
     // Update OrbitControls target to match current lookAt
     this.orbitControls.target.copy(this.currentLookAt);
     this.orbitControls.update();
@@ -345,10 +351,13 @@ export class CameraController {
 
         case 'delay':
           await new Promise<void>((resolve) => {
-            this.delayTimeoutId = setTimeout(() => {
-              this.delayTimeoutId = null;
-              resolve();
-            }, (step.duration || 1) * 1000);
+            this.delayTimeoutId = setTimeout(
+              () => {
+                this.delayTimeoutId = null;
+                resolve();
+              },
+              (step.duration || 1) * 1000
+            );
           });
           break;
       }
@@ -425,12 +434,12 @@ export class CameraController {
       // Update orbit angle
       const speedRad = THREE.MathUtils.degToRad(this.orbitConfig.speed);
       this.orbitAngle += speedRad * deltaTime;
-      
+
       // Calculate new position
       const x = Math.sin(this.orbitAngle) * this.orbitConfig.distance;
       const z = Math.cos(this.orbitAngle) * this.orbitConfig.distance;
       const y = this.orbitConfig.height;
-      
+
       this.camera.position.set(x, y, z);
       this.camera.lookAt(this.currentLookAt);
     }
@@ -442,9 +451,9 @@ export class CameraController {
 
   private setMode(newMode: ControlMode): void {
     if (this.mode === newMode) return;
-    
+
     this.mode = newMode;
-    
+
     // Toggle OrbitControls
     this.orbitControls.enabled = newMode === 'manual';
   }
@@ -463,4 +472,3 @@ export class CameraController {
     }
   }
 }
-

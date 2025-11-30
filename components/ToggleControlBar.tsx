@@ -9,13 +9,55 @@ interface ToggleControlBarProps {
   show?: boolean;
 }
 
-const TOGGLE_CONFIG: { key: keyof ToggleState; icon: string; label: string; description: string; color: string }[] = [
-  { key: 'disk', icon: '◉', label: 'Disk', description: 'Accretion Disk - hot matter orbiting the black hole', color: '#ff8c00' },
-  { key: 'jets', icon: '↕', label: 'Jets', description: 'Relativistic Jets - plasma ejected at near light speed', color: '#00ccff' },
-  { key: 'isco', icon: '◎', label: 'ISCO', description: 'Innermost Stable Circular Orbit (3 rs) - closest stable orbit for matter', color: '#00d9d9' },
-  { key: 'eventHorizon', icon: '●', label: 'Horizon', description: 'Event Horizon (1 rs) - point of no return', color: '#ff2626' },
-  { key: 'doppler', icon: '↔', label: 'Doppler', description: 'Doppler Shift - blue=approaching, red=receding', color: '#6699ff' },
-  { key: 'scale', icon: '⊕', label: 'Scale', description: 'Scale Rings - reference circles at 5, 10, 15 rs', color: '#b3b3bf' },
+const TOGGLE_CONFIG: {
+  key: keyof ToggleState;
+  icon: string;
+  label: string;
+  description: string;
+  color: string;
+}[] = [
+  {
+    key: 'disk',
+    icon: '◉',
+    label: 'Disk',
+    description: 'Accretion Disk - hot matter orbiting the black hole',
+    color: '#ff8c00',
+  },
+  {
+    key: 'jets',
+    icon: '↕',
+    label: 'Jets',
+    description: 'Relativistic Jets - plasma ejected at near light speed',
+    color: '#00ccff',
+  },
+  {
+    key: 'isco',
+    icon: '◎',
+    label: 'ISCO',
+    description: 'Innermost Stable Circular Orbit (3 rs) - closest stable orbit for matter',
+    color: '#00d9d9',
+  },
+  {
+    key: 'eventHorizon',
+    icon: '●',
+    label: 'Horizon',
+    description: 'Event Horizon (1 rs) - point of no return',
+    color: '#ff2626',
+  },
+  {
+    key: 'doppler',
+    icon: '↔',
+    label: 'Doppler',
+    description: 'Doppler Shift - blue=approaching, red=receding',
+    color: '#6699ff',
+  },
+  {
+    key: 'scale',
+    icon: '⊕',
+    label: 'Scale',
+    description: 'Scale Rings - reference circles at 5, 10, 15 rs',
+    color: '#b3b3bf',
+  },
 ];
 
 export function ToggleControlBar({ toggleState, onToggle, show = true }: ToggleControlBarProps) {
@@ -59,7 +101,9 @@ export function ToggleControlBar({ toggleState, onToggle, show = true }: ToggleC
           display: flex;
           flex-direction: column;
           align-items: center;
-          transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+          transition:
+            transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+            opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .toggle-bar-container.hidden {
