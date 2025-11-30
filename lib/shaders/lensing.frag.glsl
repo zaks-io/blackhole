@@ -1,6 +1,9 @@
 precision highp float;
 
 uniform sampler2D starfield;
+uniform sampler2D starfieldNext;
+uniform float starfieldBlend;
+uniform float starfieldExposure;
 uniform sampler2D blackbodyLUT;
 uniform sampler3D noiseLUT;
 uniform float noiseTimeScale;
@@ -716,7 +719,10 @@ vec2 dirToUV(vec3 dir) {
 }
 
 vec3 sampleStarfield(vec3 dir) {
-  return texture2D(starfield, dirToUV(dir)).rgb;
+  vec2 uv = dirToUV(dir);
+  vec3 current = texture2D(starfield, uv).rgb * starfieldExposure;
+  vec3 next = texture2D(starfieldNext, uv).rgb * starfieldExposure;
+  return mix(current, next, starfieldBlend);
 }
 
 vec3 sampleBlackbody(float temp) {

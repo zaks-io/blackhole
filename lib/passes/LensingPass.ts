@@ -79,6 +79,9 @@ const LensingShader = {
   uniforms: {
     tDiffuse: { value: null },
     starfield: { value: null },
+    starfieldNext: { value: null },
+    starfieldBlend: { value: 0.0 },
+    starfieldExposure: { value: 0.5 },
     blackbodyLUT: { value: null },
     noiseLUT: { value: null },
     noiseTimeScale: { value: 0.02 },
@@ -172,6 +175,7 @@ export class LensingPass extends ShaderPass {
     this.blackbodyLUT = createBlackbodyLUT();
     this.uniforms['blackbodyLUT'].value = this.blackbodyLUT;
     this.uniforms['starfield'].value = starfieldTexture;
+    this.uniforms['starfieldNext'].value = starfieldTexture;
 
     // Create 3D noise LUT texture
     this.noiseLUT = createNoiseLUT3D(noiseTextureSize);
@@ -371,6 +375,29 @@ export class LensingPass extends ShaderPass {
 
   setStarfield(texture: THREE.Texture): void {
     this.uniforms['starfield'].value = texture;
+    this.uniforms['starfieldNext'].value = texture;
+    this.uniforms['starfieldBlend'].value = 0.0;
+  }
+
+  setStarfieldNext(texture: THREE.Texture): void {
+    this.uniforms['starfieldNext'].value = texture;
+  }
+
+  setStarfieldBlend(blend: number): void {
+    this.uniforms['starfieldBlend'].value = blend;
+  }
+
+  finalizeStarfieldTransition(): void {
+    this.uniforms['starfield'].value = this.uniforms['starfieldNext'].value;
+    this.uniforms['starfieldBlend'].value = 0.0;
+  }
+
+  getCurrentStarfield(): THREE.Texture {
+    return this.uniforms['starfield'].value as THREE.Texture;
+  }
+
+  setStarfieldExposure(exposure: number): void {
+    this.uniforms['starfieldExposure'].value = exposure;
   }
 
   private updatePrecomputedUniforms(): void {
