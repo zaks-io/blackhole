@@ -167,9 +167,7 @@ export function buildLensingParams(): LensingParams {
     photonSphereIntensity: CONFIG.photonSphere.intensity,
     // Overlays default to off
     overlayIsco: 0,
-    overlayPhotonSphere: 0,
     overlayEventHorizon: 0,
-    overlayShadowEdge: 0,
     overlayDoppler: 0,
     overlayScale: 0,
     // Layer system

@@ -1193,9 +1193,7 @@ export default function BlackHoleSimulation({
     if (cleanupRef.current.lensingPass && overlayState) {
       cleanupRef.current.lensingPass.updateParams({
         overlayIsco: overlayState.isco ? 1.0 : 0.0,
-        overlayPhotonSphere: overlayState.photonSphere ? 1.0 : 0.0,
         overlayEventHorizon: overlayState.eventHorizon ? 1.0 : 0.0,
-        overlayShadowEdge: overlayState.shadowEdge ? 1.0 : 0.0,
         overlayDoppler: overlayState.doppler ? 1.0 : 0.0,
         overlayScale: overlayState.scale ? 1.0 : 0.0,
       });

@@ -18,7 +18,7 @@ export interface VoiceAgentPopupProps {
 }
 
 const VALID_PRESETS = ['far', 'default', 'accretionDisk', 'topDown', 'edgeOn', 'eht', 'photonSphere', 'doppler', 'fallingIn'];
-const VALID_OVERLAY_KEYS: (keyof OverlayState)[] = ['isco', 'photonSphere', 'eventHorizon', 'shadowEdge', 'doppler', 'scale'];
+const VALID_OVERLAY_KEYS: (keyof OverlayState)[] = ['isco', 'eventHorizon', 'doppler', 'scale'];
 
 export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOverlayToggle, onContextualUpdateReady, onConnected, autoConnect = false }: VoiceAgentPopupProps) {
   const [error, setError] = useState<string | null>(null);
