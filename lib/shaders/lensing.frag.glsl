@@ -789,9 +789,11 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   float intensity = compressedIntensity * boostedDensity;
   
   // Higher-order images (photon rings) are exponentially demagnified
-  // Each half-orbit around BH loses ~e^(-pi) ≈ 0.043 of brightness
-  // Using 0.15 per crossing as a compromise between physical accuracy and visibility
-  float higherOrderDecay = pow(0.15, float(crossingIndex));
+  // Each full orbit around BH loses ~e^(-2*pi) of brightness
+  // crossingIndex counts disk plane crossings; 2 crossings ≈ 1 orbit
+  // Using 0.25 per half-orbit as a compromise between physical accuracy and visibility
+  int orbits = crossingIndex / 2;  // Full orbits (2 crossings = 1 orbit)
+  float higherOrderDecay = pow(0.25, float(orbits));
   intensity *= higherOrderDecay;
   
   // Alpha: smooth edge fading
