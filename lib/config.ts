@@ -106,8 +106,8 @@ export const CONFIG = {
   // EHT-style blur effect (replicates telescope diffraction)
   ehtBlur: {
     enabled: false,
-    strength: 1.8, // Increased to compensate for fewer iterations
-    iterations: 2, // Reduced from 6 for performance
+    strength: 1.8,
+    iterations: 6,
   },
 
   // Multi-layer disk system

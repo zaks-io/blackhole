@@ -28,6 +28,7 @@ export function RenderView() {
   const renderControllerRef = useRef<RenderController | null>(null);
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const animationIdRef = useRef<number | null>(null);
+  const blurPassesRef = useRef<{ h: ShaderPass; v: ShaderPass }[]>([]);
 
   const [selectedSequence, setSelectedSequence] = useState<string>('fallIn');
   const [selectedPreset, setSelectedPreset] = useState<string>(DEFAULT_PRESET);
@@ -129,22 +130,28 @@ export function RenderView() {
       );
       composer.addPass(bloomPass);
 
-      // EHT blur passes - minimal blur for render output
+      // EHT blur passes - controlled by preset
       const iterations = CONFIG.ehtBlur.iterations;
+      const blurPasses: { h: ShaderPass; v: ShaderPass }[] = [];
+      const preset = RENDER_PRESETS[selectedPreset];
+      const ehtBlurEnabled = preset.ehtBlur?.enabled ?? false;
+      const ehtBlurAmount = preset.ehtBlur?.amount ?? 0;
+
       for (let i = 0; i < iterations; i++) {
         const hBlurPass = new ShaderPass(HorizontalBlurShader);
         const vBlurPass = new ShaderPass(VerticalBlurShader);
 
-        const blurAmount = 0.001;
-        hBlurPass.uniforms['h'].value = blurAmount / container.clientWidth;
-        vBlurPass.uniforms['v'].value = blurAmount / container.clientHeight;
+        hBlurPass.uniforms['h'].value = ehtBlurAmount / container.clientWidth;
+        vBlurPass.uniforms['v'].value = ehtBlurAmount / container.clientHeight;
 
-        hBlurPass.enabled = true;
-        vBlurPass.enabled = true;
+        hBlurPass.enabled = ehtBlurEnabled;
+        vBlurPass.enabled = ehtBlurEnabled;
 
         composer.addPass(hBlurPass);
         composer.addPass(vBlurPass);
+        blurPasses.push({ h: hBlurPass, v: vBlurPass });
       }
+      blurPassesRef.current = blurPasses;
 
       setIsReady(true);
 
@@ -185,6 +192,39 @@ export function RenderView() {
       }
     };
   }, []);
+
+  // Update blur passes when preset changes
+  useEffect(() => {
+    if (!containerRef.current || blurPassesRef.current.length === 0) return;
+
+    const preset = RENDER_PRESETS[selectedPreset];
+    const ehtBlurEnabled = preset.ehtBlur?.enabled ?? false;
+    const ehtBlurAmount = preset.ehtBlur?.amount ?? 0;
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
+
+    blurPassesRef.current.forEach(({ h, v }) => {
+      h.uniforms['h'].value = ehtBlurAmount / width;
+      v.uniforms['v'].value = ehtBlurAmount / height;
+      h.enabled = ehtBlurEnabled;
+      v.enabled = ehtBlurEnabled;
+    });
+  }, [selectedPreset]);
+
+  // Update camera preview when sequence changes
+  useEffect(() => {
+    const camera = cameraRef.current;
+    if (!camera) return;
+
+    const sequence = CAMERA_SEQUENCES[selectedSequence];
+    if (!sequence) return;
+
+    const firstStep = sequence.steps[0];
+    if ((firstStep?.type === 'snapTo' || firstStep?.type === 'moveTo') && firstStep.position && firstStep.lookAt) {
+      camera.position.set(firstStep.position.x, firstStep.position.y, firstStep.position.z);
+      camera.lookAt(firstStep.lookAt.x, firstStep.lookAt.y, firstStep.lookAt.z);
+    }
+  }, [selectedSequence]);
 
   // Create procedural starfield fallback
   const createProceduralStarfield = useCallback(() => {
