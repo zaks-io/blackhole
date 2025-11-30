@@ -44,9 +44,7 @@ uniform float photonSphereIntensity;
 
 // Overlay visibility uniforms (0 = off, 1 = on)
 uniform float overlayIsco;
-uniform float overlayPhotonSphere;
 uniform float overlayEventHorizon;
-uniform float overlayShadowEdge;
 uniform float overlayDoppler;
 uniform float overlayScale;
 
@@ -893,16 +891,41 @@ vec4 traceRay(vec2 uv) {
       vec3 hitPos = mix(rayPos, newPos, t);
       float hitR = length(hitPos.xz);
 
+      // For direct disk hits (first crossing or within disk bounds)
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-        // Pass crossing index for higher-order image brightness decay
         vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod);
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
         diskAccum.a += newDisk.a * remaining;
 
-        // Allow multiple crossings (up to 4) for higher-order photon rings
-        // Only break early if we've accumulated enough opacity
         if (diskAccum.a > 0.99 && diskCrossings >= 2) break;
+      }
+      // For photon rings: rays that cross near the photon sphere (1.5rs to 3rs)
+      // are lensed images of the disk - sample the disk at a mapped radius
+      else if (hitR > rs * 1.5 && hitR < diskInnerRadius && diskCrossings > 0) {
+        // Use logarithmic mapping to prevent excessive compression near photon sphere
+        // This spreads the disk content more evenly across the photon ring
+        float innerBound = rs * 1.5;
+        float outerBound = diskInnerRadius;
+
+        // Logarithmic interpolation - prevents squishing near the inner edge
+        float logInner = log(innerBound);
+        float logOuter = log(outerBound);
+        float logHit = log(hitR);
+        float photonRingFrac = (logHit - logInner) / (logOuter - logInner);
+
+        // Map across the full disk range
+        float mappedR = diskInnerRadius + photonRingFrac * (diskOuterRadius - diskInnerRadius);
+
+        // Create a virtual hit position at the mapped radius
+        vec3 virtualHitPos = vec3(hitPos.x, 0.0, hitPos.z) * (mappedR / hitR);
+
+        vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod);
+        // Dimming for photon ring images - less aggressive
+        newDisk.rgb *= 0.7;
+        float remaining = 1.0 - diskAccum.a;
+        diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
+        diskAccum.a += newDisk.a * remaining;
       }
 
       // Check disk-plane overlay rings at this crossing
@@ -911,20 +934,6 @@ vec4 traceRay(vec2 uv) {
       // ISCO ring (3rs) - Cyan
       if (overlayIsco > 0.0) {
         vec4 ring = renderDiskPlaneRing(newPos, rayPos, 3.0 * rs, ringThickness, vec3(0.0, 0.85, 0.85), overlayIsco);
-        overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
-        overlayAccum.a = max(overlayAccum.a, ring.a);
-      }
-
-      // Shadow edge ring (~2.6rs) - Purple/Magenta
-      if (overlayShadowEdge > 0.0) {
-        vec4 ring = renderDiskPlaneRing(newPos, rayPos, 2.598 * rs, ringThickness, vec3(0.8, 0.3, 0.9), overlayShadowEdge);
-        overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
-        overlayAccum.a = max(overlayAccum.a, ring.a);
-      }
-
-      // Photon sphere ring (1.5rs) - Gold
-      if (overlayPhotonSphere > 0.0) {
-        vec4 ring = renderDiskPlaneRing(newPos, rayPos, 1.5 * rs, ringThickness * 0.8, vec3(1.0, 0.85, 0.0), overlayPhotonSphere);
         overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
         overlayAccum.a = max(overlayAccum.a, ring.a);
       }

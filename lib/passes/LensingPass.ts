@@ -39,9 +39,7 @@ export interface LensingParams {
   photonSphereIntensity: number;
   // Overlay visibility (0 = off, 1 = on)
   overlayIsco: number;
-  overlayPhotonSphere: number;
   overlayEventHorizon: number;
-  overlayShadowEdge: number;
   overlayDoppler: number;
   overlayScale: number;
   // Corona layer
@@ -112,9 +110,7 @@ const LensingShader = {
     photonSphereIntensity: { value: 0.5 },
     // Overlay uniforms
     overlayIsco: { value: 0.0 },
-    overlayPhotonSphere: { value: 0.0 },
     overlayEventHorizon: { value: 0.0 },
-    overlayShadowEdge: { value: 0.0 },
     overlayDoppler: { value: 0.0 },
     overlayScale: { value: 0.0 },
     // Corona layer uniforms
@@ -260,14 +256,8 @@ export class LensingPass extends ShaderPass {
     if (params.overlayIsco !== undefined) {
       this.uniforms['overlayIsco'].value = params.overlayIsco;
     }
-    if (params.overlayPhotonSphere !== undefined) {
-      this.uniforms['overlayPhotonSphere'].value = params.overlayPhotonSphere;
-    }
     if (params.overlayEventHorizon !== undefined) {
       this.uniforms['overlayEventHorizon'].value = params.overlayEventHorizon;
-    }
-    if (params.overlayShadowEdge !== undefined) {
-      this.uniforms['overlayShadowEdge'].value = params.overlayShadowEdge;
     }
     if (params.overlayDoppler !== undefined) {
       this.uniforms['overlayDoppler'].value = params.overlayDoppler;
