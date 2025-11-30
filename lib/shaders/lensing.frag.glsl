@@ -838,6 +838,12 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
 }
 
+// Compute impact parameter b = |r x v| (perpendicular distance from ray to origin at infinity)
+// For Schwarzschild BH, rays with b > disk outer radius cannot hit the disk
+float computeImpactParameter(vec3 pos, vec3 dir) {
+  return length(cross(pos, dir));
+}
+
 // Trace a single ray and return the color + TAA mask in alpha
 vec4 traceRay(vec2 uv) {
   // Ray from camera through pixel
@@ -857,6 +863,13 @@ vec4 traceRay(vec2 uv) {
     float startOffset = interleavedGradientNoise(uv * resolution) * 0.2;
     rayPos = rayPos + rayDir * startOffset;
   }
+
+  // Ray classification based on impact parameter (b = perpendicular distance to BH)
+  // Rays with b > diskOuterRadius cannot hit the disk - use faster path
+  float impactParam = computeImpactParameter(rayPos, rayDir);
+  bool canHitDisk = impactParam < diskOuterRadius * 1.2;
+  float stepMultiplier = canHitDisk ? 1.0 : 1.5;
+  int effectiveMaxSteps = canHitDisk ? maxSteps : (maxSteps * 2) / 3;
 
   vec3 color = vec3(0.0);
   vec4 diskAccum = vec4(0.0);
@@ -879,7 +892,7 @@ vec4 traceRay(vec2 uv) {
   float diskOuterSq = diskOuterRadius * diskOuterRadius;
 
   for (int i = 0; i < 300; i++) {
-    if (i >= maxSteps) break;
+    if (i >= effectiveMaxSteps) break;
 
     // Use squared distance to avoid sqrt when possible
     float rSq = dot(rayPos, rayPos);
@@ -932,15 +945,16 @@ vec4 traceRay(vec2 uv) {
       jitterMultiplier = 0.8 + 0.4 * stepNoise;
     }
 
-    // Combined step
-    float step = baseStep * curvatureMultiplier * jitterMultiplier;
-    step = clamp(step, 0.02, 0.5);
-    
-    vec3 newPos = rayPos + rayDir * step;
+    // Combined step (stepMultiplier allows larger steps for rays that won't hit disk)
+    float stepSize = baseStep * curvatureMultiplier * jitterMultiplier * stepMultiplier;
+    stepSize = clamp(stepSize, 0.02, 0.75);
+
+    vec3 newPos = rayPos + rayDir * stepSize;
     float currY = newPos.y;
     
     // Disk plane crossing detection - track multiple crossings for photon rings
-    if (prevY * currY < 0.0) {
+    // Skip expensive disk sampling for rays that can't reach the disk
+    if (prevY * currY < 0.0 && canHitDisk) {
       float t = abs(prevY) / (abs(prevY) + abs(currY));
       vec3 hitPos = mix(rayPos, newPos, t);
       float hitR = length(hitPos.xz);
@@ -1007,36 +1021,41 @@ vec4 traceRay(vec2 uv) {
     if (anyOverlayEnabled > 0.5 && overlayScale > 0.0) {
       float scaleHeight = 1.5 * rs;
       float scaleThickness = 0.2 * rs;
+      vec3 scaleColor = vec3(0.7, 0.7, 0.75);
 
-      // Check if ray crossed upper scale plane (y = +scaleHeight)
-      bool crossedUpperPlane = (prevY - scaleHeight) * (currY - scaleHeight) < 0.0;
-      // Check if ray crossed lower scale plane (y = -scaleHeight)
-      bool crossedLowerPlane = (prevY + scaleHeight) * (currY + scaleHeight) < 0.0;
+      // Check plane crossings (branchless)
+      float crossedUpper = step(0.0, -(prevY - scaleHeight) * (currY - scaleHeight));
+      float crossedLower = step(0.0, -(prevY + scaleHeight) * (currY + scaleHeight));
 
-      if (crossedUpperPlane || crossedLowerPlane) {
-        for (float scaleR = 5.0; scaleR <= 15.0; scaleR += 5.0) {
-          if (crossedUpperPlane) {
-            vec4 ringAbove = renderHorizontalRing(newPos, rayPos, scaleR * rs, scaleHeight, scaleThickness, vec3(0.7, 0.7, 0.75), overlayScale);
-            overlayAccum.rgb += ringAbove.rgb * (1.0 - overlayAccum.a);
-            overlayAccum.a = max(overlayAccum.a, ringAbove.a);
-          }
-          if (crossedLowerPlane) {
-            vec4 ringBelow = renderHorizontalRing(newPos, rayPos, scaleR * rs, -scaleHeight, scaleThickness, vec3(0.7, 0.7, 0.75), overlayScale);
-            overlayAccum.rgb += ringBelow.rgb * (1.0 - overlayAccum.a);
-            overlayAccum.a = max(overlayAccum.a, ringBelow.a);
-          }
-        }
+      if (crossedUpper > 0.0 || crossedLower > 0.0) {
+        // Unrolled loop for 5rs, 10rs, 15rs rings
+        // 5rs rings
+        vec4 ring5up = renderHorizontalRing(newPos, rayPos, 5.0 * rs, scaleHeight, scaleThickness, scaleColor, overlayScale) * crossedUpper;
+        vec4 ring5dn = renderHorizontalRing(newPos, rayPos, 5.0 * rs, -scaleHeight, scaleThickness, scaleColor, overlayScale) * crossedLower;
+        // 10rs rings
+        vec4 ring10up = renderHorizontalRing(newPos, rayPos, 10.0 * rs, scaleHeight, scaleThickness, scaleColor, overlayScale) * crossedUpper;
+        vec4 ring10dn = renderHorizontalRing(newPos, rayPos, 10.0 * rs, -scaleHeight, scaleThickness, scaleColor, overlayScale) * crossedLower;
+        // 15rs rings
+        vec4 ring15up = renderHorizontalRing(newPos, rayPos, 15.0 * rs, scaleHeight, scaleThickness, scaleColor, overlayScale) * crossedUpper;
+        vec4 ring15dn = renderHorizontalRing(newPos, rayPos, 15.0 * rs, -scaleHeight, scaleThickness, scaleColor, overlayScale) * crossedLower;
+
+        // Accumulate all rings
+        float remaining = 1.0 - overlayAccum.a;
+        overlayAccum.rgb += (ring5up.rgb + ring5dn.rgb + ring10up.rgb + ring10dn.rgb + ring15up.rgb + ring15dn.rgb) * remaining;
+        overlayAccum.a = max(overlayAccum.a, max(max(ring5up.a, ring5dn.a), max(max(ring10up.a, ring10dn.a), max(ring15up.a, ring15dn.a))));
       }
     }
     
     rayPos = newPos;
 
     // Volumetric disk sampling with configurable thickness
-    float effectiveThickness = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
-    float absY = abs(rayPos.y);
-    if (absY < effectiveThickness) {
-      float hitR = length(rayPos.xz);
-      if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
+    // Skip for rays that can't reach the disk based on impact parameter
+    if (canHitDisk) {
+      float effectiveThickness = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
+      float absY = abs(rayPos.y);
+      if (absY < effectiveThickness) {
+        float hitR = length(rayPos.xz);
+        if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
         float normalizedY = absY / effectiveThickness;
 
         // Vertical density profile
@@ -1067,33 +1086,32 @@ vec4 traceRay(vec2 uv) {
             skipMultiplier = lod < 0.3 ? 3.0 : 2.0;
           }
 
-          float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * step * skipMultiplier;
+          float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier;
           float remaining = 1.0 - diskAccum.a;
           diskAccum.rgb += volColor.rgb * volAlpha * remaining;
           diskAccum.a += volAlpha * remaining;
         }
       }
+      }
     }
 
-    // Corona sampling
+    // Corona sampling (branchless inner alpha check)
     if (coronaEnabled > 0.5 && r < coronaRadius * 2.0) {
       vec4 coronaSample = sampleCorona(rayPos, rayDir, r, lod);
-      if (coronaSample.a > 0.001) {
-        float remaining = 1.0 - diskAccum.a;
-        diskAccum.rgb += coronaSample.rgb * coronaSample.a * remaining;
-        diskAccum.a += coronaSample.a * remaining;
-      }
+      float coronaContrib = step(0.001, coronaSample.a);
+      float remaining = 1.0 - diskAccum.a;
+      diskAccum.rgb += coronaSample.rgb * coronaSample.a * remaining * coronaContrib;
+      diskAccum.a += coronaSample.a * remaining * coronaContrib;
     }
 
-    // Jets sampling - additive emission (jets emit light, don't occlude)
+    // Jets sampling - additive emission (branchless inner alpha check)
     if (jetsEnabled > 0.5 && abs(rayPos.y) > rs * 0.3) {
       vec4 jetSample = sampleJet(rayPos, rayDir, r, lod);
-      if (jetSample.a > 0.001) {
-        // Pure additive blending - jet light adds to whatever is there
-        diskAccum.rgb += jetSample.rgb;
-        // Small alpha contribution so jets don't disappear entirely
-        diskAccum.a = max(diskAccum.a, jetSample.a * 0.3);
-      }
+      float jetContrib = step(0.001, jetSample.a);
+      // Pure additive blending - jet light adds to whatever is there
+      diskAccum.rgb += jetSample.rgb * jetContrib;
+      // Small alpha contribution so jets don't disappear entirely
+      diskAccum.a = max(diskAccum.a, jetSample.a * 0.3 * jetContrib);
     }
   }
   
