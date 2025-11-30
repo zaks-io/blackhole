@@ -7,6 +7,7 @@ import BlackHoleSimulation, { CAMERA_PRESETS, CAMERA_SEQUENCES, EhtBlurControlle
 import { CameraPresetBar } from './CameraPresetBar';
 import { ToggleControlBar } from './ToggleControlBar';
 import { InfoPanel } from './InfoPanel';
+import { OverlayLabels } from './OverlayLabels';
 import { VoiceAgentPopup } from './VoiceAgentPopup';
 import { VoiceLoginPrompt } from './VoiceLoginPrompt';
 import { UserMenu } from './UserMenu';
@@ -295,6 +296,12 @@ export default function AppView() {
       <ToggleControlBar
         toggleState={toggleState}
         onToggle={handleToggleChange}
+        show={introComplete}
+      />
+
+      <OverlayLabels
+        cameraController={cameraController}
+        toggleState={toggleState}
         show={introComplete}
       />
 
