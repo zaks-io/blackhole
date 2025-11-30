@@ -14,6 +14,8 @@ import GUI from 'lil-gui';
 import gsap from 'gsap';
 import Stats from 'stats.js';
 
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { LensingPass, defaultLensingParams, LensingParams } from '@/lib/passes/LensingPass';
 import { CONFIG } from '@/lib/config';
 import { CameraController, CameraSequence } from '@/lib/camera';
@@ -94,6 +96,42 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
     duration: 2.5,
   },
 };
+
+export const STARFIELD_BACKGROUNDS = {
+  milkyWay: { name: 'Milky Way', path: '/textures/starmap_4k.webp', hdr: false, exposure: 0.5 },
+  milkyWayHdr: {
+    name: 'Milky Way HDR',
+    path: '/textures/starmap_2020_4k.exr',
+    hdr: true,
+    exposure: 0.5,
+  },
+  nebulaBlue: {
+    name: 'Blue Nebula',
+    path: '/textures/HDR_rich_blue_nebulae_1_4k.exr',
+    hdr: true,
+    exposure: 1.0,
+  },
+  nebulaPlanet: {
+    name: 'Planet Nebula',
+    path: '/textures/HDR_artificial_planet_4k.exr',
+    hdr: true,
+    exposure: 1.0,
+  },
+  nebulaHazy: {
+    name: 'Hazy Nebula',
+    path: '/textures/HDR_hazy_nebulae_4k.exr',
+    hdr: true,
+    exposure: 5.0,
+  },
+  nebulaMulti: {
+    name: 'Multi Nebula',
+    path: '/textures/HDR_rich_multi_nebulae_2_4k.exr',
+    hdr: true,
+    exposure: 0.5,
+  },
+} as const;
+
+export type StarfieldKey = keyof typeof STARFIELD_BACKGROUNDS;
 
 export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
   fallIn: {
@@ -317,34 +355,57 @@ export default function BlackHoleSimulation({
       let bloomPass: UnrealBloomPass;
       let blurPasses: { h: ShaderPass; v: ShaderPass }[] = [];
 
-      const loadStarfield = (): Promise<THREE.Texture> => {
+      const loadStarfield = (
+        path: string = STARFIELD_BACKGROUNDS.milkyWay.path,
+        isHdr: boolean = STARFIELD_BACKGROUNDS.milkyWay.hdr
+      ): Promise<THREE.Texture> => {
         return new Promise((resolve) => {
-          const loader = new THREE.TextureLoader();
+          if (isHdr) {
+            const isExr = path.endsWith('.exr');
+            const hdrLoader = isExr ? new EXRLoader() : new RGBELoader();
+            hdrLoader.load(
+              path,
+              (texture) => {
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.ClampToEdgeWrapping;
+                resolve(texture);
+              },
+              undefined,
+              () => {
+                console.error('Error loading HDR starfield, using fallback');
+                resolve(createFallbackStarfield());
+              }
+            );
+          } else {
+            const loader = new THREE.TextureLoader();
+            loader.load(
+              path,
+              (texture: THREE.Texture) => {
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.ClampToEdgeWrapping;
 
-          loader.load(
-            '/textures/starmap_4k.webp',
-            (texture: THREE.Texture) => {
-              texture.mapping = THREE.EquirectangularReflectionMapping;
-              texture.minFilter = THREE.LinearFilter;
-              texture.magFilter = THREE.LinearFilter;
-              texture.wrapS = THREE.RepeatWrapping;
-              texture.wrapT = THREE.ClampToEdgeWrapping;
+                // Blur to smooth compression artifacts (only for non-HDR)
+                const blurredTexture = blurTexture(renderer, texture, 0.1, 1, 1.0);
+                blurredTexture.mapping = THREE.EquirectangularReflectionMapping;
+                blurredTexture.wrapS = THREE.RepeatWrapping;
+                blurredTexture.wrapT = THREE.ClampToEdgeWrapping;
 
-              // Blur to smooth compression artifacts
-              const blurredTexture = blurTexture(renderer, texture, 0.1, 1, 0.2);
-              blurredTexture.mapping = THREE.EquirectangularReflectionMapping;
-              blurredTexture.wrapS = THREE.RepeatWrapping;
-              blurredTexture.wrapT = THREE.ClampToEdgeWrapping;
-
-              texture.dispose();
-              resolve(blurredTexture);
-            },
-            undefined,
-            () => {
-              console.error('Error loading starfield, using fallback');
-              resolve(createFallbackStarfield());
-            }
-          );
+                texture.dispose();
+                resolve(blurredTexture);
+              },
+              undefined,
+              () => {
+                console.error('Error loading starfield, using fallback');
+                resolve(createFallbackStarfield());
+              }
+            );
+          }
         });
       };
 
@@ -497,12 +558,71 @@ export default function BlackHoleSimulation({
         );
       };
 
+      // Track starfield transition state
+      let isTransitioning = false;
+
+      // Swap starfield texture with crossfade
+      const swapStarfield = async (
+        key: StarfieldKey,
+        exposureController?: { setValue: (v: number) => void }
+      ) => {
+        if (!lensingPass || isTransitioning) return;
+
+        const bg = STARFIELD_BACKGROUNDS[key];
+        const newTexture = await loadStarfield(bg.path, bg.hdr);
+        const oldTexture = lensingPass.getCurrentStarfield();
+
+        isTransitioning = true;
+        lensingPass.setStarfieldNext(newTexture);
+        lensingPass.setStarfieldExposure(bg.exposure);
+        exposureController?.setValue(bg.exposure);
+
+        // Animate the blend
+        const blendState = { value: 0 };
+        gsap.to(blendState, {
+          value: 1,
+          duration: 0.8,
+          ease: 'power2.inOut',
+          onUpdate: () => {
+            lensingPass?.setStarfieldBlend(blendState.value);
+          },
+          onComplete: () => {
+            lensingPass?.finalizeStarfieldTransition();
+            oldTexture?.dispose();
+            isTransitioning = false;
+          },
+        });
+      };
+
       // Setup GUI (only if showDevControls is true)
       const setupGUI = () => {
         if (!showDevControls) return;
 
         const gui = new GUI({ title: 'Black Hole Controls' });
         cleanupRef.current.gui = gui;
+
+        // ========== ENVIRONMENT ==========
+        const envFolder = gui.addFolder('Environment');
+        const defaultBg = 'milkyWay' as StarfieldKey;
+        const envParams = {
+          background: defaultBg,
+          starfieldExposure: STARFIELD_BACKGROUNDS[defaultBg].exposure,
+        };
+        const backgroundOptions = Object.fromEntries(
+          Object.entries(STARFIELD_BACKGROUNDS).map(([key, val]) => [val.name, key])
+        );
+        const exposureController = envFolder
+          .add(envParams, 'starfieldExposure', 0.01, 10.0, 0.05)
+          .name('HDR Exposure')
+          .onChange((value: number) => {
+            lensingPass?.setStarfieldExposure(value);
+          });
+        envFolder
+          .add(envParams, 'background', backgroundOptions)
+          .name('Background')
+          .onChange((key: StarfieldKey) => {
+            swapStarfield(key, exposureController);
+          });
 
         // ========== PHYSICS ==========
         const physicsFolder = gui.addFolder('Physics');
