@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { createBlackbodyLUT } from '../utils/blackbodyLUT';
+import { createNoiseLUT3D } from '../utils/noiseLUT';
 import { buildLensingParams } from '../config';
 import vertexShader from '../shaders/lensing.vert.glsl';
 import fragmentShader from '../shaders/lensing.frag.glsl';
@@ -66,6 +67,8 @@ export interface LensingParams {
   curvatureAdaptation: number;
   coronaStepRefinement: number;
   baseStepSize: number;
+  // Noise LUT animation
+  noiseTimeScale: number;
 }
 
 // Default params built from centralized config
@@ -77,6 +80,8 @@ const LensingShader = {
     tDiffuse: { value: null },
     starfield: { value: null },
     blackbodyLUT: { value: null },
+    noiseLUT: { value: null },
+    noiseTimeScale: { value: 0.02 },
     cameraPos: { value: new THREE.Vector3() },
     inverseProjection: { value: new THREE.Matrix4() },
     inverseView: { value: new THREE.Matrix4() },
@@ -154,18 +159,23 @@ const LensingShader = {
 
 export class LensingPass extends ShaderPass {
   private blackbodyLUT: THREE.DataTexture;
+  private noiseLUT: THREE.Data3DTexture;
 
   // Camera caching for uniform update optimization
   private lastCameraPosition = new THREE.Vector3();
   private lastCameraMatrixWorld = new THREE.Matrix4();
 
-  constructor(starfieldTexture: THREE.Texture) {
+  constructor(starfieldTexture: THREE.Texture, noiseTextureSize: number = 128) {
     super(LensingShader);
 
     // Create blackbody LUT texture
     this.blackbodyLUT = createBlackbodyLUT();
     this.uniforms['blackbodyLUT'].value = this.blackbodyLUT;
     this.uniforms['starfield'].value = starfieldTexture;
+
+    // Create 3D noise LUT texture
+    this.noiseLUT = createNoiseLUT3D(noiseTextureSize);
+    this.uniforms['noiseLUT'].value = this.noiseLUT;
   }
 
   updateCamera(camera: THREE.PerspectiveCamera): void {
@@ -350,6 +360,9 @@ export class LensingPass extends ShaderPass {
     if (params.baseStepSize !== undefined) {
       this.uniforms['baseStepSize'].value = params.baseStepSize;
     }
+    if (params.noiseTimeScale !== undefined) {
+      this.uniforms['noiseTimeScale'].value = params.noiseTimeScale;
+    }
   }
   
   updateTime(time: number): void {
@@ -386,6 +399,7 @@ export class LensingPass extends ShaderPass {
 
   dispose(): void {
     this.blackbodyLUT.dispose();
+    this.noiseLUT.dispose();
   }
 }
 

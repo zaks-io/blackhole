@@ -110,6 +110,12 @@ export const CONFIG = {
     iterations: 6,
   },
 
+  // Noise texture LUT settings
+  noise: {
+    textureSize: 64,    // 64-256, controls quality/memory tradeoff
+    timeScale: 0.02,     // Animation speed through Z slices
+  },
+
   // Multi-layer disk system
   layers: {
     corona: {
@@ -198,6 +204,8 @@ export function buildLensingParams(): LensingParams {
     curvatureAdaptation: CONFIG.rayMarching.curvatureAdaptation,
     coronaStepRefinement: CONFIG.rayMarching.coronaStepRefinement,
     baseStepSize: CONFIG.rayMarching.baseStepSize,
+    // Noise LUT animation
+    noiseTimeScale: CONFIG.noise.timeScale,
   };
 }
 
