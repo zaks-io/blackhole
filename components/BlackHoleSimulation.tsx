@@ -10,6 +10,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { HorizontalBlurShader } from "three/examples/jsm/shaders/HorizontalBlurShader.js";
 import { VerticalBlurShader } from "three/examples/jsm/shaders/VerticalBlurShader.js";
+import { blurTexture } from "@/lib/utils/blurTexture";
 import GUI from "lil-gui";
 import gsap from "gsap";
 import Stats from "stats.js";
@@ -350,7 +351,7 @@ export default function BlackHoleSimulation({
       let bloomPass: UnrealBloomPass;
       let blurPasses: { h: ShaderPass; v: ShaderPass }[] = [];
 
-      // Load starfield
+      // Load starfield (pre-blur EXR texture to reduce noise without per-frame blur cost)
       const loadStarfield = (): Promise<THREE.Texture> => {
         return new Promise((resolve) => {
           const exrLoader = new EXRLoader();
@@ -363,7 +364,17 @@ export default function BlackHoleSimulation({
               texture.magFilter = THREE.LinearFilter;
               texture.wrapS = THREE.RepeatWrapping;
               texture.wrapT = THREE.ClampToEdgeWrapping;
-              resolve(texture);
+
+              // Pre-blur the starfield texture slightly and dim bright stars
+              const blurredTexture = blurTexture(renderer, texture, 0.3, 1, 0.2);
+              blurredTexture.mapping = THREE.EquirectangularReflectionMapping;
+              blurredTexture.wrapS = THREE.RepeatWrapping;
+              blurredTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+              // Dispose original texture since we're using the blurred version
+              texture.dispose();
+
+              resolve(blurredTexture);
             },
             (progress) => {
               const percent = (progress.loaded / progress.total) * 100;
@@ -455,21 +466,20 @@ export default function BlackHoleSimulation({
         composer.addPass(bloomPass);
 
         // EHT blur passes (multiple iterations for heavy blur)
-        // Always enabled with tiny blur to avoid transition artifacts
+        // Disabled by default since starfield is pre-blurred
         const iterations = CONFIG.ehtBlur.iterations;
         for (let i = 0; i < iterations; i++) {
           const hBlurPass = new ShaderPass(HorizontalBlurShader);
           const vBlurPass = new ShaderPass(VerticalBlurShader);
 
-          // Set blur strength based on resolution and intensity (minimum tiny blur)
-          const blurAmount =
-            params.ehtBlurStrength * Math.max(0.001, ehtBlurState.intensity);
+          // Set blur strength based on resolution and intensity
+          const blurAmount = params.ehtBlurStrength * ehtBlurState.intensity;
           hBlurPass.uniforms["h"].value = blurAmount / window.innerWidth;
           vBlurPass.uniforms["v"].value = blurAmount / window.innerHeight;
 
-          // Always enabled to avoid transition artifacts
-          hBlurPass.enabled = true;
-          vBlurPass.enabled = true;
+          // Disabled by default (starfield is pre-blurred)
+          hBlurPass.enabled = params.ehtBlurEnabled;
+          vBlurPass.enabled = params.ehtBlurEnabled;
 
           composer.addPass(hBlurPass);
           composer.addPass(vBlurPass);
@@ -481,13 +491,15 @@ export default function BlackHoleSimulation({
         updateStepCount();
       };
 
-      // Update blur passes strength (always keep tiny minimum to avoid artifacts)
+      // Update blur passes strength and enabled state
       const updateBlurStrength = (intensity: number) => {
-        const effectiveIntensity = Math.max(0.001, intensity);
-        const blurAmount = params.ehtBlurStrength * effectiveIntensity;
+        const blurAmount = params.ehtBlurStrength * intensity;
+        const enabled = intensity > 0;
         blurPasses.forEach(({ h, v }) => {
           h.uniforms["h"].value = blurAmount / window.innerWidth;
           v.uniforms["v"].value = blurAmount / window.innerHeight;
+          h.enabled = enabled;
+          v.enabled = enabled;
         });
       };
 
