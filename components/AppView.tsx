@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { track } from '@vercel/analytics';
-import BlackHoleSimulation, { CAMERA_PRESETS, EhtBlurController } from './BlackHoleSimulation';
+import BlackHoleSimulation, { CAMERA_PRESETS, CAMERA_SEQUENCES, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
 import { OverlayControlBar } from './OverlayControlBar';
 import { InfoPanel } from './InfoPanel';
@@ -196,8 +196,7 @@ export default function AppView() {
   }, [sendContextualUpdate]);
 
   const handlePresetSelect = useCallback((presetName: string) => {
-    const preset = CAMERA_PRESETS[presetName];
-    if (!preset || !cameraController) return;
+    if (!cameraController) return;
 
     // Exit EHT mode when selecting other presets
     if (ehtMode && presetName !== 'eht') {
@@ -208,6 +207,17 @@ export default function AppView() {
 
     setActivePreset(presetName);
     sendContextualUpdate(`User changed camera to ${presetName} view`);
+
+    // Check if it's a sequence first
+    const sequence = CAMERA_SEQUENCES[presetName];
+    if (sequence) {
+      cameraController.runSequence(sequence);
+      return;
+    }
+
+    // Otherwise use existing preset logic
+    const preset = CAMERA_PRESETS[presetName];
+    if (!preset) return;
 
     // Calculate orbit parameters from preset position
     const pos = preset.position;
