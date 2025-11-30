@@ -9,13 +9,13 @@ interface OverlayControlBarProps {
   show?: boolean;
 }
 
-const OVERLAY_CONFIG: { key: keyof OverlayState; icon: string; label: string; color: string }[] = [
-  { key: 'isco', icon: '◎', label: 'ISCO', color: '#00d9d9' },
-  { key: 'photonSphere', icon: '◐', label: 'Photon', color: '#ffd900' },
-  { key: 'eventHorizon', icon: '●', label: 'Horizon', color: '#ff2626' },
-  { key: 'shadowEdge', icon: '◯', label: 'Shadow', color: '#cc4de6' },
-  { key: 'doppler', icon: '↔', label: 'Doppler', color: '#6699ff' },
-  { key: 'scale', icon: '⊕', label: 'Scale', color: '#b3b3bf' },
+const OVERLAY_CONFIG: { key: keyof OverlayState; icon: string; label: string; description: string; color: string }[] = [
+  { key: 'isco', icon: '◎', label: 'ISCO', description: 'Innermost Stable Circular Orbit (3 rs) - closest stable orbit for matter', color: '#00d9d9' },
+  { key: 'photonSphere', icon: '◐', label: 'Photon', description: 'Photon Sphere (1.5 rs) - light can orbit here', color: '#ffd900' },
+  { key: 'eventHorizon', icon: '●', label: 'Horizon', description: 'Event Horizon (1 rs) - point of no return', color: '#ff2626' },
+  { key: 'shadowEdge', icon: '◯', label: 'Shadow', description: 'Shadow Edge (2.6 rs) - apparent size of black hole', color: '#cc4de6' },
+  { key: 'doppler', icon: '↔', label: 'Doppler', description: 'Doppler Shift - blue=approaching, red=receding', color: '#6699ff' },
+  { key: 'scale', icon: '⊕', label: 'Scale', description: 'Scale Rings - reference circles at 5, 10, 15 rs', color: '#b3b3bf' },
 ];
 
 export function OverlayControlBar({ overlayState, onToggle, show = true }: OverlayControlBarProps) {
@@ -31,14 +31,14 @@ export function OverlayControlBar({ overlayState, onToggle, show = true }: Overl
         <span className="chevron">▼</span>
       </button>
       <div className={`overlay-bar ${isOpen ? 'expanded' : ''}`}>
-        {OVERLAY_CONFIG.map(({ key, icon, label, color }) => {
+        {OVERLAY_CONFIG.map(({ key, icon, label, description, color }) => {
           const isActive = overlayState[key];
           return (
             <button
               key={key}
               className={`overlay-btn ${isActive ? 'active' : ''}`}
               onClick={() => onToggle({ [key]: !isActive })}
-              title={label}
+              title={description}
               style={{ '--accent-color': color } as React.CSSProperties}
             >
               <span className="overlay-icon">{icon}</span>
