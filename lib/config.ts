@@ -45,7 +45,7 @@ export const CONFIG = {
     luminanceCompression: 0.2,
     textureContrast: 1.0,
     materialSpeed: 15.0,
-    opacity: 0.85,
+    opacity: 0.3,
   },
 
   // MHD turbulence effects
@@ -63,6 +63,13 @@ export const CONFIG = {
   rayMarching: {
     maxSteps: 100,
     autoSteps: true,
+    autoStepsMin: 64,
+    autoStepsMax: 128,
+    // Anti-banding step refinement
+    stepJitter: false,
+    curvatureAdaptation: 1.0,
+    coronaStepRefinement: 1.0,
+    baseStepSize: 0.2,  // Controls band width - smaller = finer bands = more steps needed
   },
 
   // Anti-aliasing settings
@@ -108,7 +115,7 @@ export const CONFIG = {
     corona: {
       enabled: true,
       radius: 3.0, // Outer boundary (rs) - concentrated near ISCO
-      density: 0.2, // Subtle glow
+      density: 0.1, // Subtle glow - lower density reduces banding visibility
       temperature: 100000, // Hot blue-white
     },
     jets: {
@@ -186,6 +193,11 @@ export function buildLensingParams(): LensingParams {
     lodEnabled: CONFIG.layers.lod.enabled ? 1 : 0,
     lodNearDistance: CONFIG.layers.lod.nearDistance,
     lodFarDistance: CONFIG.layers.lod.farDistance,
+    // Anti-banding step refinement
+    stepJitter: CONFIG.rayMarching.stepJitter ? 1 : 0,
+    curvatureAdaptation: CONFIG.rayMarching.curvatureAdaptation,
+    coronaStepRefinement: CONFIG.rayMarching.coronaStepRefinement,
+    baseStepSize: CONFIG.rayMarching.baseStepSize,
   };
 }
 

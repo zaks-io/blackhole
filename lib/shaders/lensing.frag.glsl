@@ -71,6 +71,12 @@ uniform float lodEnabled;
 uniform float lodNearDistance;
 uniform float lodFarDistance;
 
+// Anti-banding step refinement uniforms
+uniform float stepJitter;
+uniform float curvatureAdaptation;
+uniform float coronaStepRefinement;
+uniform float baseStepSize;  // Base step size h (default 0.2) - controls band width
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
@@ -110,6 +116,13 @@ float snoise(vec2 v) {
   g.x = a0.x * x0.x + h.x * x0.y;
   g.yz = a0.yz * x12.xz + h.yz * x12.yw;
   return 130.0 * dot(m, g);
+}
+
+// Interleaved Gradient Noise - Jorge Jimenez 2014
+// Better than white noise for breaking up banding - has blue noise properties
+float interleavedGradientNoise(vec2 screenPos) {
+  vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+  return fract(magic.z * fract(dot(screenPos, magic.xy)));
 }
 
 // Fractal Brownian Motion - 4 octaves
@@ -511,7 +524,17 @@ vec4 sampleCorona(vec3 rayPos, vec3 rayDir, float r, float lod) {
 
   // Density falloff - peaks at inner edge, falls off outward
   float normalizedR = (spheroidR - rs) / (coronaRadius - rs);
-  float density = coronaDensity * exp(-normalizedR * normalizedR * 2.0);
+
+  // Anti-banding: add noise to break up discrete sampling artifacts
+  float noiseOffset = 0.0;
+  if (coronaStepRefinement > 0.0) {
+    float phi = atan(rayPos.z, rayPos.x);
+    // High-frequency noise based on position to dither the density
+    float dither = snoise(vec2(spheroidR * 8.0, phi * 6.0 + time * 0.05));
+    noiseOffset = dither * 0.08 * coronaStepRefinement;
+  }
+
+  float density = coronaDensity * exp(-(normalizedR + noiseOffset) * (normalizedR + noiseOffset) * 2.0);
 
   // Turbulent structure at high LOD
   if (lod > 0.5) {
@@ -830,6 +853,13 @@ vec4 traceRay(vec2 uv) {
   float camDist = length(cameraPos);
   float lod = calculateLOD(camDist);
 
+  // Per-pixel ray start offset to break banding patterns
+  // This desynchronizes sampling shells between neighboring pixels
+  if (stepJitter > 0.5) {
+    float startOffset = interleavedGradientNoise(uv * resolution) * 0.2;
+    rayPos = rayPos + rayDir * startOffset;
+  }
+
   vec3 color = vec3(0.0);
   vec4 diskAccum = vec4(0.0);
   vec4 overlayAccum = vec4(0.0); // Accumulated overlay contributions
@@ -842,7 +872,7 @@ vec4 traceRay(vec2 uv) {
   // Track disk plane crossings for higher-order photon ring images
   int diskCrossings = 0;
 
-  float h = 0.2;
+  float h = baseStepSize;
   
   // Precompute loop invariants for performance
   float rsSq = rs * rs;
@@ -879,13 +909,34 @@ vec4 traceRay(vec2 uv) {
     float vDotR = radialVel; // Already computed above
     float vPerpSq = 1.0 - vDotR * vDotR;
     float accel = -1.5 * rs * vPerpSq / rSq;
-    
+
     vec3 dv = accel * rHat * h;
     rayDir = normalize(rayDir + dv);
-    
+
     float prevY = rayPos.y;
-    float step = h * max(1.0, (r - rs) / rs);
-    step = min(step, 0.5);
+
+    // Base step size (original distance-based)
+    float baseStep = h * max(1.0, (r - rs) / rs);
+
+    // Curvature adaptation - smaller steps in high-curvature regions
+    float curvatureMultiplier = 1.0;
+    if (curvatureAdaptation > 0.0) {
+      float photonSphereCurvature = 1.5 * rs / (2.25 * rs * rs);
+      float normalizedCurvature = clamp(abs(accel) / photonSphereCurvature, 0.0, 1.0);
+      curvatureMultiplier = mix(1.0, 0.3, normalizedCurvature * normalizedCurvature * curvatureAdaptation);
+    }
+
+    // Optional jitter to break up banding patterns
+    float jitterMultiplier = 1.0;
+    if (stepJitter > 0.5) {
+      vec2 pixelCoord = vUv * resolution;
+      float stepNoise = interleavedGradientNoise(pixelCoord + float(i) * 7.23);
+      jitterMultiplier = 0.8 + 0.4 * stepNoise;
+    }
+
+    // Combined step
+    float step = baseStep * curvatureMultiplier * jitterMultiplier;
+    step = clamp(step, 0.02, 0.5);
     
     vec3 newPos = rayPos + rayDir * step;
     float currY = newPos.y;
