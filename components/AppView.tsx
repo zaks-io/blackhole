@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { track } from '@vercel/analytics';
 import BlackHoleSimulation, { CAMERA_PRESETS, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
 import { OverlayControlBar } from './OverlayControlBar';
+import { InfoPanel } from './InfoPanel';
 import { VoiceAgentPopup } from './VoiceAgentPopup';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
@@ -26,7 +27,9 @@ export default function AppView() {
   const [voiceConnecting, setVoiceConnecting] = useState(false);
   const [startedWithVoice, setStartedWithVoice] = useState(false);
   const [overlayState, setOverlayState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
+  const [cameraDistance, setCameraDistance] = useState(20); // Default distance in rs
   const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   const handleContextualUpdateReady = useCallback((sendUpdate: (text: string) => void) => {
     sendContextualUpdateRef.current = sendUpdate;
@@ -50,7 +53,27 @@ export default function AppView() {
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
+    // Initial distance
+    setCameraDistance(controller.getDistance());
   }, []);
+
+  // Update camera distance on each frame
+  useEffect(() => {
+    if (!cameraController) return;
+
+    const updateDistance = () => {
+      setCameraDistance(cameraController.getDistance());
+      animationFrameRef.current = requestAnimationFrame(updateDistance);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(updateDistance);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [cameraController]);
 
   const handleEhtBlurReady = useCallback((controller: EhtBlurController) => {
     setEhtBlurController(controller);
@@ -271,6 +294,11 @@ export default function AppView() {
       <OverlayControlBar
         overlayState={overlayState}
         onToggle={handleOverlayToggle}
+        show={introComplete}
+      />
+
+      <InfoPanel
+        cameraDistance={cameraDistance}
         show={introComplete}
       />
 
