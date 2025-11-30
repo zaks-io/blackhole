@@ -45,7 +45,7 @@ export const CONFIG = {
     luminanceCompression: 0.2,
     textureContrast: 1.0,
     materialSpeed: 15.0,
-    opacity: 0.3,
+    opacity: 0.4,
   },
 
   // MHD turbulence effects
@@ -131,7 +131,7 @@ export const CONFIG = {
       puffiness: 0.4, // Gaussian falloff
     },
     lod: {
-      enabled: true,
+      enabled: false,
       nearDistance: 10, // Full detail (rs)
       farDistance: 50, // Minimum detail (rs)
     },
