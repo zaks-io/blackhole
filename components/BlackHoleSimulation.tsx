@@ -523,10 +523,10 @@ export default function BlackHoleSimulation({
         const gui = new GUI({ title: "Black Hole Controls" });
         cleanupRef.current.gui = gui;
 
-        // Simulation folder
-        const simFolder = gui.addFolder("Simulation");
-        simFolder.close();
-        simFolder
+        // ========== PHYSICS ==========
+        const physicsFolder = gui.addFolder("Physics");
+        physicsFolder.close();
+        physicsFolder
           .add(params, "rs", 0.5, 2.0, 0.1)
           .name("Schwarzschild Radius")
           .onChange((value: number) => {
@@ -534,142 +534,85 @@ export default function BlackHoleSimulation({
             controls.minDistance = CONFIG.camera.minDistance * value;
             controls.maxDistance = CONFIG.camera.maxDistance * value;
           });
-
-        simFolder
-          .add(params, "bhEdgeSoftness", 0.0, 1.0, 0.05)
-          .name("Edge AA")
-          .onChange((value: number) => {
-            lensingPass?.updateParams({ bhEdgeSoftness: value });
-          });
-
-        simFolder
+        physicsFolder
           .add(params, "photonSphereIntensity", 0.0, 1.0, 0.05)
           .name("Photon Sphere Glow")
           .onChange((value: number) => {
             lensingPass?.updateParams({ photonSphereIntensity: value });
           });
-
-        simFolder
-          .add(params, "autoSteps")
-          .name("Auto Ray Steps")
-          .onChange(() => {
-            if (params.autoSteps) updateStepCount();
-          });
-
-        simFolder
-          .add(params, "autoStepsMin", 16, 500, 4)
-          .name("Auto Steps Min")
-          .onChange(() => {
-            if (params.autoSteps) updateStepCount();
-          });
-
-        simFolder
-          .add(params, "autoStepsMax", 50, 1000, 4)
-          .name("Auto Steps Max")
-          .onChange(() => {
-            if (params.autoSteps) updateStepCount();
-          });
-
-        simFolder
-          .add(params, "maxSteps", 16, 1000, 4)
-          .name("Ray March Steps")
-          .listen()
-          .onChange((value: number) => {
-            params.autoSteps = false;
-            lensingPass?.updateParams({ maxSteps: value });
-          });
-
-        simFolder
+        physicsFolder
           .add(params, "simulationSpeed", 0.0, 3.0, 0.1)
-          .name("Simulation Speed");
+          .name("Time Scale");
 
-        simFolder
-          .add(params, "stepJitter", { Off: 0, On: 1 })
-          .name("Step Jitter")
-          .onChange((value: number) => {
-            lensingPass?.updateParams({ stepJitter: value });
-          });
-
-        simFolder
-          .add(params, "curvatureAdaptation", 0.0, 1.0, 0.1)
-          .name("Curvature Adaptation")
-          .onChange((value: number) => {
-            lensingPass?.updateParams({ curvatureAdaptation: value });
-          });
-
-        simFolder
-          .add(params, "coronaStepRefinement", 0.0, 1.0, 0.1)
-          .name("Corona Step Refine")
-          .onChange((value: number) => {
-            lensingPass?.updateParams({ coronaStepRefinement: value });
-          });
-
-        simFolder
-          .add(params, "baseStepSize", 0.01, 0.5, 0.005)
-          .name("Base Step Size")
-          .onChange((value: number) => {
-            lensingPass?.updateParams({ baseStepSize: value });
-          });
-
-        // Disk folder
+        // ========== ACCRETION DISK ==========
         const diskFolder = gui.addFolder("Accretion Disk");
         diskFolder.close();
-        diskFolder
+
+        // Geometry
+        const diskGeomFolder = diskFolder.addFolder("Geometry");
+        diskGeomFolder
           .add(params, "diskInnerRadius", 1.5, 6.0, 0.1)
           .name("Inner Radius (rs)")
           .onChange((value: number) => {
             lensingPass?.updateParams({ diskInnerRadius: value });
           });
-
-        diskFolder
+        diskGeomFolder
           .add(params, "diskOuterRadius", 6.0, 20.0, 0.5)
           .name("Outer Radius (rs)")
           .onChange((value: number) => {
             lensingPass?.updateParams({ diskOuterRadius: value });
           });
+        diskGeomFolder
+          .add(params, "thickDiskEnabled", { Off: 0, On: 1 })
+          .name("3D Thickness")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ thickDiskEnabled: value });
+          });
+        diskGeomFolder
+          .add(params, "thickDiskHalfThickness", 0.1, 1.0, 0.05)
+          .name("Thickness (rs)")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ thickDiskHalfThickness: value });
+          });
+        diskGeomFolder
+          .add(params, "thickDiskPuffiness", 0.1, 0.8, 0.05)
+          .name("Puffiness")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ thickDiskPuffiness: value });
+          });
 
-        diskFolder
+        // Appearance
+        const diskAppearFolder = diskFolder.addFolder("Appearance");
+        diskAppearFolder
           .add(params, "diskTemperatureInner", 5000, 20000, 500)
           .name("Inner Temp (K)")
           .onChange((value: number) => {
             lensingPass?.updateParams({ diskTemperatureInner: value });
           });
-
-        diskFolder
+        diskAppearFolder
           .add(params, "diskTemperatureOuter", 1000, 8000, 200)
           .name("Outer Temp (K)")
           .onChange((value: number) => {
             lensingPass?.updateParams({ diskTemperatureOuter: value });
           });
-
-        diskFolder
+        diskAppearFolder
           .add(params, "diskLuminanceCompression", 0.0, 0.5, 0.01)
-          .name("Lum. Compression")
+          .name("Luminance Comp.")
           .onChange((value: number) => {
             lensingPass?.updateParams({ diskLuminanceCompression: value });
           });
-
-        diskFolder
+        diskAppearFolder
           .add(params, "diskTextureContrast", 0.0, 2.0, 0.1)
           .name("Texture Contrast")
           .onChange((value: number) => {
             lensingPass?.updateParams({ diskTextureContrast: value });
           });
-
-        diskFolder
-          .add(params, "diskMaterialSpeed", 0.0, 50.0, 1.0)
-          .name("Material Speed")
-          .onChange((value: number) => {
-            lensingPass?.updateParams({ diskMaterialSpeed: value });
-          });
-
-        const diskOpacityControl = diskFolder
+        const diskOpacityControl = diskAppearFolder
           .add(params, "diskOpacity", 0.0, 1.0, 0.05)
           .name("Opacity")
           .onChange((value: number) => {
             lensingPass?.updateParams({ diskOpacity: value });
           });
-
         const diskActions = {
           hideDisk: () => {
             params.diskOpacity = 0;
@@ -677,130 +620,69 @@ export default function BlackHoleSimulation({
             diskOpacityControl.updateDisplay();
           },
         };
-        diskFolder.add(diskActions, "hideDisk").name("Hide Disk");
+        diskAppearFolder.add(diskActions, "hideDisk").name("Hide Disk");
 
-        // MHD Effects folder
-        const mhdFolder = gui.addFolder("MHD Turbulence");
-        mhdFolder.close();
-        mhdFolder
+        // Motion
+        const diskMotionFolder = diskFolder.addFolder("Motion");
+        diskMotionFolder
+          .add(params, "diskMaterialSpeed", 0.0, 50.0, 1.0)
+          .name("Orbital Speed")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ diskMaterialSpeed: value });
+          });
+
+        // ========== DISK TURBULENCE ==========
+        const turbFolder = gui.addFolder("Disk Turbulence");
+        turbFolder.close();
+        turbFolder
           .add(params, "mhdTurbulenceIntensity", 0.0, 1.0, 0.05)
-          .name("Turbulence")
+          .name("Intensity")
           .onChange((value: number) => {
             lensingPass?.updateParams({ mhdTurbulenceIntensity: value });
           });
-
-        mhdFolder
+        turbFolder
           .add(params, "mhdSpiralArms", 1, 4, 1)
           .name("Spiral Arms")
           .onChange((value: number) => {
             lensingPass?.updateParams({ mhdSpiralArms: value });
           });
-
-        mhdFolder
+        turbFolder
           .add(params, "mhdSpiralTightness", 1.0, 6.0, 0.5)
           .name("Spiral Tightness")
           .onChange((value: number) => {
             lensingPass?.updateParams({ mhdSpiralTightness: value });
           });
-
-        mhdFolder
+        turbFolder
           .add(params, "mhdHotspotIntensity", 0.0, 1.0, 0.05)
           .name("Hotspot Intensity")
           .onChange((value: number) => {
             lensingPass?.updateParams({ mhdHotspotIntensity: value });
           });
-
-        mhdFolder
+        turbFolder
           .add(params, "mhdHotspotCount", 0, 5, 1)
           .name("Hotspot Count")
           .onChange((value: number) => {
             lensingPass?.updateParams({ mhdHotspotCount: value });
           });
-
-        mhdFolder
+        turbFolder
           .add(params, "mhdPatternSpeed", 0.0, 150.0, 0.5)
           .name("Pattern Speed")
           .onChange((value: number) => {
             lensingPass?.updateParams({ mhdPatternSpeed: value });
           });
-
-        mhdFolder
+        turbFolder
           .add(params, "mhdMinDensity", 0.0, 1.0, 0.05)
           .name("Min Density")
           .onChange((value: number) => {
             lensingPass?.updateParams({ mhdMinDensity: value });
           });
 
-        // Bloom folder
-        const bloomFolder = gui.addFolder("Bloom");
-        bloomFolder.close();
-        bloomFolder
-          .add(params, "bloomThreshold", 0.0, 1.0, 0.05)
-          .name("Threshold")
-          .onChange((value: number) => {
-            if (bloomPass) bloomPass.threshold = value;
-          });
+        // ========== CORONA & JETS ==========
+        const coronaJetsFolder = gui.addFolder("Corona & Jets");
+        coronaJetsFolder.close();
 
-        bloomFolder
-          .add(params, "bloomStrength", 0.0, 3.0, 0.1)
-          .name("Strength")
-          .onChange((value: number) => {
-            if (bloomPass) bloomPass.strength = value;
-          });
-
-        bloomFolder
-          .add(params, "bloomRadius", 0.0, 1.0, 0.05)
-          .name("Radius")
-          .onChange((value: number) => {
-            if (bloomPass) bloomPass.radius = value;
-          });
-
-        // Anti-aliasing folder
-        const aaFolder = gui.addFolder("Anti-Aliasing");
-        aaFolder.close();
-
-        aaFolder
-          .add(params, "fxaaEnabled")
-          .name("FXAA Enabled")
-          .onChange((value: boolean) => {
-            if (fxaaPass) fxaaPass.enabled = value;
-          });
-
-        aaFolder
-          .add(params, "supersampleLevel", {
-            "Off (1x)": 1,
-            "2x2 (4 samples)": 2,
-            "4x4 (16 samples)": 4,
-          })
-          .name("Supersampling")
-          .onChange((value: number) => {
-            lensingPass?.updateParams({ supersampleLevel: value });
-          });
-
-        // EHT Mode folder
-        const ehtFolder = gui.addFolder("EHT Mode");
-        ehtFolder.close();
-
-        ehtFolder
-          .add(params, "ehtBlurEnabled")
-          .name("Enable EHT Blur")
-          .onChange((value: boolean) => {
-            setEhtBlurEnabled(value);
-          });
-
-        ehtFolder
-          .add(params, "ehtBlurStrength", 0.5, 5.0, 0.25)
-          .name("Blur Strength")
-          .onChange(() => {
-            updateBlurStrength(ehtBlurState.intensity);
-          });
-
-        // Layers folder (corona, jets, thick disk)
-        const layersFolder = gui.addFolder("Layers");
-        layersFolder.close();
-
-        // Corona subfolder
-        const coronaFolder = layersFolder.addFolder("Corona");
+        // Corona
+        const coronaFolder = coronaJetsFolder.addFolder("Corona");
         coronaFolder
           .add(params, "coronaEnabled", { Off: 0, On: 1 })
           .name("Enable")
@@ -820,8 +702,8 @@ export default function BlackHoleSimulation({
             lensingPass?.updateParams({ coronaDensity: value });
           });
 
-        // Jets subfolder
-        const jetsFolder = layersFolder.addFolder("Jets");
+        // Jets
+        const jetsFolder = coronaJetsFolder.addFolder("Relativistic Jets");
         jetsFolder
           .add(params, "jetsEnabled", { Off: 0, On: 1 })
           .name("Enable")
@@ -853,37 +735,72 @@ export default function BlackHoleSimulation({
             lensingPass?.updateParams({ jetsDensity: value });
           });
 
-        // Thick Disk subfolder
-        const thickDiskFolder = layersFolder.addFolder("Thick Disk");
-        thickDiskFolder
-          .add(params, "thickDiskEnabled", { Off: 0, On: 1 })
-          .name("Enable")
+        // ========== POST-PROCESSING ==========
+        const postFolder = gui.addFolder("Post-Processing");
+        postFolder.close();
+
+        // Bloom
+        const bloomFolder = postFolder.addFolder("Bloom");
+        bloomFolder
+          .add(params, "bloomThreshold", 0.0, 1.0, 0.05)
+          .name("Threshold")
           .onChange((value: number) => {
-            lensingPass?.updateParams({ thickDiskEnabled: value });
+            if (bloomPass) bloomPass.threshold = value;
           });
-        thickDiskFolder
-          .add(params, "thickDiskHalfThickness", 0.1, 1.0, 0.05)
-          .name("Thickness (rs)")
+        bloomFolder
+          .add(params, "bloomStrength", 0.0, 3.0, 0.1)
+          .name("Strength")
           .onChange((value: number) => {
-            lensingPass?.updateParams({ thickDiskHalfThickness: value });
+            if (bloomPass) bloomPass.strength = value;
           });
-        thickDiskFolder
-          .add(params, "thickDiskPuffiness", 0.1, 0.8, 0.05)
-          .name("Puffiness")
+        bloomFolder
+          .add(params, "bloomRadius", 0.0, 1.0, 0.05)
+          .name("Radius")
           .onChange((value: number) => {
-            lensingPass?.updateParams({ thickDiskPuffiness: value });
+            if (bloomPass) bloomPass.radius = value;
           });
 
-        // LOD subfolder
-        const lodFolder = layersFolder.addFolder("LOD");
-        lodFolder
-          .add(params, "lodEnabled", { Off: 0, On: 1 })
-          .name("Enable")
+        // Anti-Aliasing
+        const aaFolder = postFolder.addFolder("Anti-Aliasing");
+        aaFolder
+          .add(params, "fxaaEnabled")
+          .name("FXAA")
+          .onChange((value: boolean) => {
+            if (fxaaPass) fxaaPass.enabled = value;
+          });
+        aaFolder
+          .add(params, "supersampleLevel", {
+            "Off (1x)": 1,
+            "2x2 (4 samples)": 2,
+            "4x4 (16 samples)": 4,
+          })
+          .name("Supersampling")
           .onChange((value: number) => {
-            lensingPass?.updateParams({ lodEnabled: value });
+            lensingPass?.updateParams({ supersampleLevel: value });
+          });
+        aaFolder
+          .add(params, "bhEdgeSoftness", 0.0, 1.0, 0.05)
+          .name("Edge Softness")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ bhEdgeSoftness: value });
           });
 
-        // Overlays folder
+        // EHT Blur
+        const ehtFolder = postFolder.addFolder("EHT Telescope Blur");
+        ehtFolder
+          .add(params, "ehtBlurEnabled")
+          .name("Enable")
+          .onChange((value: boolean) => {
+            setEhtBlurEnabled(value);
+          });
+        ehtFolder
+          .add(params, "ehtBlurStrength", 0.5, 5.0, 0.25)
+          .name("Strength")
+          .onChange(() => {
+            updateBlurStrength(ehtBlurState.intensity);
+          });
+
+        // ========== OVERLAYS ==========
         const overlaysFolder = gui.addFolder("Overlays");
         overlaysFolder.close();
 
@@ -896,9 +813,11 @@ export default function BlackHoleSimulation({
         };
 
         const dispatchOverlayChange = (key: string, value: boolean) => {
-          window.dispatchEvent(new CustomEvent("dev-overlay-change", {
-            detail: { key, value }
-          }));
+          window.dispatchEvent(
+            new CustomEvent("dev-overlay-change", {
+              detail: { key, value },
+            })
+          );
         };
 
         overlaysFolder
@@ -933,13 +852,14 @@ export default function BlackHoleSimulation({
           .add(overlayParams, "showLabels")
           .name("Show Labels")
           .onChange((value: boolean) => {
-            const labelsContainer = document.getElementById("dev-overlay-labels");
+            const labelsContainer =
+              document.getElementById("dev-overlay-labels");
             if (labelsContainer) {
               labelsContainer.style.display = value ? "block" : "none";
             }
           });
 
-        // Camera Controls folder
+        // ========== CAMERA ==========
         const cameraFolder = gui.addFolder("Camera");
         cameraFolder.close();
 
@@ -958,6 +878,8 @@ export default function BlackHoleSimulation({
           .disable();
         cameraFolder.add(cameraInfo, "mode").name("Mode").listen().disable();
 
+        // Orbit controls
+        const orbitFolder = cameraFolder.addFolder("Orbit Mode");
         const orbitParams = {
           distance: 20,
           height: 1,
@@ -976,25 +898,17 @@ export default function BlackHoleSimulation({
             cameraController.returnToManual();
           },
         };
-
-        cameraFolder
+        orbitFolder
           .add(orbitParams, "distance", 10, 50, 1)
-          .name("Orbit Distance (rs)");
-        cameraFolder
-          .add(orbitParams, "height", -10, 20, 1)
-          .name("Orbit Height (rs)");
-        cameraFolder
-          .add(orbitParams, "speed", 1, 60, 1)
-          .name("Orbit Speed (°/s)");
-        cameraFolder.add(orbitParams, "startOrbit").name("▶ Start Orbit");
-        cameraFolder.add(orbitParams, "stopOrbit").name("⏸ Stop Orbit");
-        cameraFolder
-          .add(orbitParams, "returnToManual")
-          .name("✋ Manual Control");
+          .name("Distance (rs)");
+        orbitFolder.add(orbitParams, "height", -10, 20, 1).name("Height (rs)");
+        orbitFolder.add(orbitParams, "speed", 1, 60, 1).name("Speed (°/s)");
+        orbitFolder.add(orbitParams, "startOrbit").name("Start Orbit");
+        orbitFolder.add(orbitParams, "stopOrbit").name("Stop Orbit");
+        orbitFolder.add(orbitParams, "returnToManual").name("Manual Control");
 
-        // Preset camera movements
-        const presetFolder = gui.addFolder("Camera Presets");
-        presetFolder.close();
+        // Presets
+        const presetFolder = cameraFolder.addFolder("Presets");
         const presets = {
           accretionDisk: () => {
             cameraController.moveTo(
@@ -1023,15 +937,15 @@ export default function BlackHoleSimulation({
               { duration: CAMERA_PRESETS.edgeOn.duration }
             );
           },
-          dramatic: () => {
+          eht: () => {
             cameraController.moveTo(
               {
-                position: CAMERA_PRESETS.dramatic.position,
-                lookAt: CAMERA_PRESETS.dramatic.lookAt,
+                position: CAMERA_PRESETS.eht.position,
+                lookAt: CAMERA_PRESETS.eht.lookAt,
               },
               {
-                duration: CAMERA_PRESETS.dramatic.duration,
-                ease: CAMERA_PRESETS.dramatic.ease,
+                duration: CAMERA_PRESETS.eht.duration,
+                ease: CAMERA_PRESETS.eht.ease,
               }
             );
           },
@@ -1053,16 +967,14 @@ export default function BlackHoleSimulation({
               });
           },
         };
+        presetFolder.add(presets, "accretionDisk").name("Accretion Disk");
+        presetFolder.add(presets, "topDown").name("Top Down");
+        presetFolder.add(presets, "edgeOn").name("Edge On");
+        presetFolder.add(presets, "eht").name("EHT View");
+        presetFolder.add(presets, "resetDefault").name("Reset Default");
 
-        presetFolder.add(presets, "accretionDisk").name("🎬 Accretion Disk");
-        presetFolder.add(presets, "topDown").name("🎬 Top Down");
-        presetFolder.add(presets, "edgeOn").name("🎬 Edge On");
-        presetFolder.add(presets, "dramatic").name("🎬 Dramatic");
-        presetFolder.add(presets, "resetDefault").name("🔄 Reset & Manual");
-
-        // Camera Sequences folder
-        const sequenceFolder = gui.addFolder("Camera Sequences");
-        sequenceFolder.close();
+        // Sequences
+        const sequenceFolder = cameraFolder.addFolder("Sequences");
         const sequences = {
           fallIn: () => {
             cameraController.runSequence(CAMERA_SEQUENCES.fallIn);
@@ -1077,15 +989,70 @@ export default function BlackHoleSimulation({
             cameraController.cancelSequence();
           },
         };
+        sequenceFolder.add(sequences, "fallIn").name("Fall In");
+        sequenceFolder.add(sequences, "warpingTour").name("Warping Tour");
+        sequenceFolder.add(sequences, "shadowExplore").name("Shadow Explore");
+        sequenceFolder.add(sequences, "cancelSequence").name("Cancel");
 
-        sequenceFolder.add(sequences, "fallIn").name("🎥 Fall In");
-        sequenceFolder.add(sequences, "warpingTour").name("🎥 Warping Tour");
-        sequenceFolder
-          .add(sequences, "shadowExplore")
-          .name("🎥 Shadow Explore");
-        sequenceFolder
-          .add(sequences, "cancelSequence")
-          .name("⏹ Cancel Sequence");
+        // ========== RAY MARCHING (Advanced) ==========
+        const rayMarchFolder = gui.addFolder("Ray Marching (Advanced)");
+        rayMarchFolder.close();
+        rayMarchFolder
+          .add(params, "autoSteps")
+          .name("Auto Step Count")
+          .onChange(() => {
+            if (params.autoSteps) updateStepCount();
+          });
+        rayMarchFolder
+          .add(params, "autoStepsMin", 16, 500, 4)
+          .name("Auto Min")
+          .onChange(() => {
+            if (params.autoSteps) updateStepCount();
+          });
+        rayMarchFolder
+          .add(params, "autoStepsMax", 50, 1000, 4)
+          .name("Auto Max")
+          .onChange(() => {
+            if (params.autoSteps) updateStepCount();
+          });
+        rayMarchFolder
+          .add(params, "maxSteps", 16, 1000, 4)
+          .name("Manual Steps")
+          .listen()
+          .onChange((value: number) => {
+            params.autoSteps = false;
+            lensingPass?.updateParams({ maxSteps: value });
+          });
+        rayMarchFolder
+          .add(params, "baseStepSize", 0.01, 0.5, 0.005)
+          .name("Base Step Size")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ baseStepSize: value });
+          });
+        rayMarchFolder
+          .add(params, "stepJitter", { Off: 0, On: 1 })
+          .name("Step Jitter")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ stepJitter: value });
+          });
+        rayMarchFolder
+          .add(params, "curvatureAdaptation", 0.0, 1.0, 0.1)
+          .name("Curvature Adapt")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ curvatureAdaptation: value });
+          });
+        rayMarchFolder
+          .add(params, "coronaStepRefinement", 0.0, 1.0, 0.1)
+          .name("Corona Refinement")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ coronaStepRefinement: value });
+          });
+        rayMarchFolder
+          .add(params, "lodEnabled", { Off: 0, On: 1 })
+          .name("Distance LOD")
+          .onChange((value: number) => {
+            lensingPass?.updateParams({ lodEnabled: value });
+          });
       };
 
       // Setup stats (only if showStats is true)
