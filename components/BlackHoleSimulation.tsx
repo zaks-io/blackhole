@@ -105,11 +105,9 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
     name: "Fall In",
     steps: [
       {
-        type: "moveTo",
+        type: "snapTo",
         position: { x: 0, y: 10, z: 40 },
         lookAt: { x: 0, y: 0, z: 0 },
-        duration: 3,
-        ease: "power2.inOut",
       },
       {
         type: "moveTo",
@@ -131,13 +129,10 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
   warpingTour: {
     name: "Warping Tour",
     steps: [
-      // Close approach to shadow edge
       {
-        type: "moveTo",
+        type: "snapTo",
         position: { x: 4, y: 1, z: 3 },
         lookAt: { x: 0, y: 0, z: 0 },
-        duration: 4,
-        ease: "power2.inOut",
       },
       // Closer view of photon rings
       {
@@ -178,11 +173,9 @@ export const CAMERA_SEQUENCES: Record<string, CameraSequence> = {
     name: "Shadow Explore",
     steps: [
       {
-        type: "moveTo",
+        type: "snapTo",
         position: { x: 0, y: 0.3, z: 5 },
         lookAt: { x: 0, y: 0, z: 0 },
-        duration: 6,
-        ease: "power1.inOut",
       },
       {
         type: "moveTo",

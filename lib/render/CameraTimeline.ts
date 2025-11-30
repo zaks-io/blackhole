@@ -98,8 +98,16 @@ export class CameraTimeline {
 
   private buildTimeline(sequence: CameraSequence): void {
     let currentTime = 0;
-    let currentPosition = { x: 0, y: 10, z: 40 };
-    let currentLookAt = { x: 0, y: 0, z: 0 };
+
+    // Initialize from the first step's position if it's a snapTo or moveTo
+    const firstStep = sequence.steps[0];
+    const initFromFirst = (firstStep?.type === 'snapTo' || firstStep?.type === 'moveTo') && firstStep.position;
+    let currentPosition = initFromFirst && firstStep.position
+      ? { ...firstStep.position }
+      : { x: 0, y: 10, z: 40 };
+    let currentLookAt = initFromFirst && firstStep.lookAt
+      ? { ...firstStep.lookAt }
+      : { x: 0, y: 0, z: 0 };
 
     // Orbit state
     let orbitConfig: { distance: number; height: number; speed: number; lookAt: { x: number; y: number; z: number } } | null = null;
@@ -107,6 +115,14 @@ export class CameraTimeline {
 
     for (const step of sequence.steps) {
       switch (step.type) {
+        case 'snapTo': {
+          if (!step.position || !step.lookAt) break;
+          currentPosition = { ...step.position };
+          currentLookAt = { ...step.lookAt };
+          orbitConfig = null;
+          break;
+        }
+
         case 'moveTo': {
           if (!step.position || !step.lookAt) break;
 

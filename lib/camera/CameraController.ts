@@ -37,7 +37,7 @@ export interface OrbitConfig {
 // Sequence Types
 // ============================================================================
 
-export type SequenceStepType = 'moveTo' | 'transitionOrbit' | 'startOrbit' | 'stopOrbit' | 'delay';
+export type SequenceStepType = 'snapTo' | 'moveTo' | 'transitionOrbit' | 'startOrbit' | 'stopOrbit' | 'delay';
 
 export interface CameraSequenceStep {
   type: SequenceStepType;
@@ -92,6 +92,19 @@ export class CameraController {
   // ============================================================================
   // Public API
   // ============================================================================
+
+  /**
+   * Instantly set camera position and lookAt without animation
+   */
+  snapTo(state: CameraState): void {
+    this.killActiveTweens();
+    this.setMode('cinematic');
+
+    this.camera.position.set(state.position.x, state.position.y, state.position.z);
+    this.currentLookAt.set(state.lookAt.x, state.lookAt.y, state.lookAt.z);
+    this.targetLookAt.copy(this.currentLookAt);
+    this.camera.lookAt(this.currentLookAt);
+  }
 
   /**
    * Tween camera to a new position and lookAt target
@@ -289,11 +302,12 @@ export class CameraController {
       if (this.currentSequenceId !== sequenceId) return;
 
       switch (step.type) {
+        case 'snapTo':
         case 'moveTo':
           if (step.position && step.lookAt) {
             await this.moveTo(
               { position: step.position, lookAt: step.lookAt },
-              { duration: step.duration, ease: step.ease }
+              { duration: step.duration ?? 2, ease: step.ease }
             );
           }
           break;

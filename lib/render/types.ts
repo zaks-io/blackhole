@@ -16,6 +16,10 @@ export interface RenderQualityPreset {
   bloom: {
     resolutionScale: number;
   };
+  ehtBlur?: {
+    enabled: boolean;
+    amount: number;
+  };
 }
 
 export interface RenderProgress {
