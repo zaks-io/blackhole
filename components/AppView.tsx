@@ -2,11 +2,14 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { track } from '@vercel/analytics';
+import { useAuth0 } from '@auth0/auth0-react';
 import BlackHoleSimulation, { CAMERA_PRESETS, CAMERA_SEQUENCES, EhtBlurController } from './BlackHoleSimulation';
 import { CameraPresetBar } from './CameraPresetBar';
 import { OverlayControlBar } from './OverlayControlBar';
 import { InfoPanel } from './InfoPanel';
 import { VoiceAgentPopup } from './VoiceAgentPopup';
+import { VoiceLoginPrompt } from './VoiceLoginPrompt';
+import { UserMenu } from './UserMenu';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
 import { OverlayState, DEFAULT_OVERLAY_STATE } from '@/lib/types';
@@ -16,18 +19,15 @@ import { OverlayState, DEFAULT_OVERLAY_STATE } from '@/lib/types';
  * This is dynamically imported so everything is in the same module scope.
  */
 export default function AppView() {
+  const { isAuthenticated } = useAuth0();
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>('default');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
   const [ehtMode, setEhtMode] = useState(false);
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
   const [introComplete, setIntroComplete] = useState(false);
-  const [introState, setIntroState] = useState<'idle' | 'connecting' | 'error'>('idle');
-  const [introError, setIntroError] = useState<string | null>(null);
-  const [voiceConnecting, setVoiceConnecting] = useState(false);
-  const [startedWithVoice, setStartedWithVoice] = useState(false);
   const [overlayState, setOverlayState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
-  const [cameraDistance, setCameraDistance] = useState(20); // Default distance in rs
+  const [cameraDistance, setCameraDistance] = useState(20);
   const [isManualMode, setIsManualMode] = useState(false);
   const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -162,12 +162,10 @@ export default function AppView() {
     }
   }, [cameraController, isManualMode, ehtMode, ehtBlurController, sendContextualUpdate]);
 
-  const handleReveal = useCallback((withVoice: boolean) => {
+  const handleReveal = useCallback(() => {
     if (!ehtBlurController || !cameraController) return;
 
     setIntroComplete(true);
-    setIntroState('idle');
-    setIntroError(null);
 
     // Unblur
     ehtBlurController.setEnabled(false);
@@ -188,32 +186,11 @@ export default function AppView() {
         });
       });
     }, 200);
-
-    // Track if user started with voice tour
-    setStartedWithVoice(withVoice);
   }, [ehtBlurController, cameraController]);
 
-  const handleVoiceConnect = useCallback(() => {
-    track('begin_voice_tour_click');
-    setVoiceConnecting(true);
-    setIntroState('connecting');
-    setIntroError(null);
-  }, []);
-
-  const handleVoiceConnected = useCallback(() => {
-    setVoiceConnecting(false);
-    handleReveal(true);
-  }, [handleReveal]);
-
-  const handleVoiceError = useCallback((error: string) => {
-    setVoiceConnecting(false);
-    setIntroState('error');
-    setIntroError(error);
-  }, []);
-
-  const handleSkip = useCallback(() => {
-    track('skip_voice_tour_click');
-    handleReveal(false);
+  const handleStart = useCallback(() => {
+    track('simulation_start_click');
+    handleReveal();
   }, [handleReveal]);
 
   const handleEhtBlurSet = useCallback((enabled: boolean) => {
@@ -291,43 +268,14 @@ export default function AppView() {
       {/* Intro Overlay */}
       <div className={`intro-overlay ${introComplete ? 'hidden' : ''}`}>
         <div className="intro-card">
-          <div className="headphone-icon">🎧</div>
-          <p className="headphone-text">Best experienced with headphones</p>
-
-          {introState === 'error' && introError && (
-            <p className="error-text">{introError}</p>
-          )}
-
           <button
-            onClick={handleVoiceConnect}
-            className="voice-tour-btn"
-            disabled={!ehtBlurController || voiceConnecting}
+            onClick={handleStart}
+            className="start-btn"
+            disabled={!ehtBlurController}
           >
-            {voiceConnecting ? 'Connecting...' : 'Begin Voice Tour'}
-          </button>
-
-          <button onClick={handleSkip} className="skip-btn" disabled={!ehtBlurController}>
-            Skip and explore manually
+            Start
           </button>
         </div>
-
-        {/* Hidden VoiceAgentPopup for connection during intro */}
-        {voiceConnecting && (
-          <div className="voice-popup-hidden">
-            <VoiceAgentPopup
-              onClose={() => {
-                setVoiceConnecting(false);
-                setIntroState('idle');
-              }}
-              onPresetSelect={handlePresetSelect}
-              onEhtBlurToggle={handleEhtBlurSet}
-              onOverlayToggle={handleOverlayToggle}
-              onContextualUpdateReady={handleContextualUpdateReady}
-              onConnected={handleVoiceConnected}
-              autoConnect
-            />
-          </div>
-        )}
       </div>
 
       {cameraController && (
@@ -355,14 +303,19 @@ export default function AppView() {
         show={introComplete}
       />
 
-      {introComplete && (
+      <UserMenu show={introComplete} />
+
+      {introComplete && isAuthenticated && (
         <VoiceAgentPopup
           onPresetSelect={handlePresetSelect}
           onEhtBlurToggle={handleEhtBlurSet}
           onOverlayToggle={handleOverlayToggle}
           onContextualUpdateReady={handleContextualUpdateReady}
-          autoConnect={startedWithVoice}
         />
+      )}
+
+      {introComplete && !isAuthenticated && (
+        <VoiceLoginPrompt />
       )}
 
       <style jsx>{`
@@ -390,43 +343,19 @@ export default function AppView() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 20px;
           padding: 40px 48px;
           background: rgba(10, 10, 10, 0.85);
           backdrop-filter: blur(24px);
           -webkit-backdrop-filter: blur(24px);
           border: 1px solid rgba(255, 140, 66, 0.2);
           border-radius: 20px;
-          max-width: 400px;
-          width: 90%;
           box-shadow:
             0 4px 60px rgba(0, 0, 0, 0.6),
             0 0 80px rgba(255, 140, 66, 0.08),
             inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
-        .headphone-icon {
-          font-size: 48px;
-          line-height: 1;
-        }
-
-        .headphone-text {
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-          font-size: 14px;
-          color: rgba(255, 255, 255, 0.7);
-          text-align: center;
-          margin: 0;
-        }
-
-        .error-text {
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-          font-size: 12px;
-          color: #ef4444;
-          text-align: center;
-          margin: 0;
-        }
-
-        .voice-tour-btn {
+        .start-btn {
           padding: 16px 48px;
           background: rgba(255, 140, 66, 0.15);
           border: 1px solid rgba(255, 140, 66, 0.4);
@@ -439,89 +368,22 @@ export default function AppView() {
           text-transform: uppercase;
           cursor: pointer;
           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-          min-width: 220px;
+          min-width: 180px;
         }
 
-        .voice-tour-btn:hover:not(:disabled) {
+        .start-btn:hover:not(:disabled) {
           background: rgba(255, 140, 66, 0.25);
           border-color: rgba(255, 140, 66, 0.6);
           box-shadow: 0 0 30px rgba(255, 140, 66, 0.2);
         }
 
-        .voice-tour-btn:active:not(:disabled) {
+        .start-btn:active:not(:disabled) {
           transform: scale(0.98);
         }
 
-        .voice-tour-btn:disabled {
+        .start-btn:disabled {
           opacity: 0.6;
           cursor: default;
-        }
-
-        .skip-btn {
-          background: none;
-          border: none;
-          color: rgba(255, 255, 255, 0.4);
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-          font-size: 12px;
-          cursor: pointer;
-          padding: 8px 16px;
-          transition: color 0.2s ease;
-        }
-
-        .skip-btn:hover:not(:disabled) {
-          color: rgba(255, 255, 255, 0.7);
-        }
-
-        .skip-btn:disabled {
-          opacity: 0.5;
-          cursor: default;
-        }
-
-        .voice-popup-hidden {
-          position: fixed;
-          top: -9999px;
-          left: -9999px;
-          opacity: 0;
-          pointer-events: none;
-        }
-
-        .voice-toggle {
-          position: fixed;
-          bottom: 32px;
-          right: 32px;
-          width: 48px;
-          height: 48px;
-          background: rgba(10, 10, 10, 0.7);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 140, 66, 0.15);
-          border-radius: 50%;
-          color: rgba(255, 255, 255, 0.7);
-          font-size: 20px;
-          cursor: pointer;
-          z-index: 100;
-          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow:
-            0 4px 30px rgba(0, 0, 0, 0.5),
-            0 0 40px rgba(255, 140, 66, 0.05),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05);
-        }
-
-        .voice-toggle:hover {
-          background: rgba(255, 140, 66, 0.15);
-          border-color: rgba(255, 140, 66, 0.3);
-          color: #ff8c42;
-        }
-
-        .voice-toggle:active {
-          transform: scale(0.95);
-        }
-
-        .voice-icon {
-          line-height: 1;
         }
 
         @media (max-width: 600px) {
@@ -529,22 +391,9 @@ export default function AppView() {
             padding: 32px 24px;
           }
 
-          .headphone-icon {
-            font-size: 40px;
-          }
-
-          .voice-tour-btn {
-            width: 100%;
+          .start-btn {
             min-width: auto;
-            padding: 14px 24px;
-          }
-
-          .voice-toggle {
-            right: 16px;
-            bottom: 24px;
-            width: 44px;
-            height: 44px;
-            font-size: 18px;
+            padding: 14px 32px;
           }
         }
       `}</style>
