@@ -17,7 +17,7 @@ import { OverlayState, DEFAULT_OVERLAY_STATE } from '@/lib/types';
  */
 export default function AppView() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
-  const [activePreset, setActivePreset] = useState<string>('default');
+  const [activePreset, setActivePreset] = useState<string | null>('default');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
   const [ehtMode, setEhtMode] = useState(false);
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
@@ -28,6 +28,7 @@ export default function AppView() {
   const [startedWithVoice, setStartedWithVoice] = useState(false);
   const [overlayState, setOverlayState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
   const [cameraDistance, setCameraDistance] = useState(20); // Default distance in rs
+  const [isManualMode, setIsManualMode] = useState(false);
   const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -57,16 +58,17 @@ export default function AppView() {
     setCameraDistance(controller.getDistance());
   }, []);
 
-  // Update camera distance on each frame
+  // Update camera distance and manual mode state on each frame
   useEffect(() => {
     if (!cameraController) return;
 
-    const updateDistance = () => {
+    const updateState = () => {
       setCameraDistance(cameraController.getDistance());
-      animationFrameRef.current = requestAnimationFrame(updateDistance);
+      setIsManualMode(cameraController.getMode() === 'manual');
+      animationFrameRef.current = requestAnimationFrame(updateState);
     };
 
-    animationFrameRef.current = requestAnimationFrame(updateDistance);
+    animationFrameRef.current = requestAnimationFrame(updateState);
 
     return () => {
       if (animationFrameRef.current) {
@@ -125,6 +127,40 @@ export default function AppView() {
     ehtBlurController.setEnabled(newState);
     sendContextualUpdate(`User ${newState ? 'enabled' : 'disabled'} EHT blur effect`);
   }, [ehtBlurController, ehtBlurEnabled, sendContextualUpdate]);
+
+  const handleManualModeToggle = useCallback(() => {
+    if (!cameraController) return;
+
+    if (isManualMode) {
+      // Exit manual mode - return to default orbit
+      setActivePreset('default');
+      sendContextualUpdate('User returned to auto camera mode');
+
+      const defaultPreset = CAMERA_PRESETS.default;
+      cameraController.moveTo(
+        { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
+        { duration: 1.5, ease: 'power2.inOut' }
+      ).then(() => {
+        cameraController.startOrbit({
+          distance: 20 * CONFIG.rs,
+          height: 1 * CONFIG.rs,
+          speed: 1,
+        });
+      });
+    } else {
+      // Enter manual mode
+      cameraController.returnToManual();
+      setActivePreset(null);
+      sendContextualUpdate('User enabled manual camera control');
+
+      // Exit EHT mode if active
+      if (ehtMode) {
+        setEhtMode(false);
+        setEhtBlurEnabled(false);
+        ehtBlurController?.setEnabled(false);
+      }
+    }
+  }, [cameraController, isManualMode, ehtMode, ehtBlurController, sendContextualUpdate]);
 
   const handleReveal = useCallback((withVoice: boolean) => {
     if (!ehtBlurController || !cameraController) return;
@@ -198,6 +234,9 @@ export default function AppView() {
   const handlePresetSelect = useCallback((presetName: string) => {
     if (!cameraController) return;
 
+    // Cancel any running sequence first
+    cameraController.cancelSequence();
+
     // Exit EHT mode when selecting other presets
     if (ehtMode && presetName !== 'eht') {
       setEhtMode(false);
@@ -224,16 +263,18 @@ export default function AppView() {
     const distance = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
     const height = pos.y;
 
-    // Use transitionOrbit to smoothly change distance/height while preserving orbit angle
-    cameraController.transitionOrbit(
-      {
+    // Use moveTo for smooth transition to exact preset position, then start orbit
+    cameraController.moveTo(
+      { position: preset.position, lookAt: preset.lookAt },
+      { duration: preset.duration, ease: preset.ease }
+    ).then(() => {
+      cameraController.startOrbit({
         distance,
         height,
         speed: 1,
         lookAt: preset.lookAt,
-      },
-      { duration: preset.duration, ease: preset.ease }
-    );
+      });
+    });
   }, [cameraController, ehtMode, ehtBlurController, sendContextualUpdate]);
 
   return (
@@ -298,6 +339,8 @@ export default function AppView() {
           onEhtToggle={handleEhtToggle}
           onEhtBlurToggle={handleEhtBlurToggle}
           show={introComplete}
+          isManualMode={isManualMode}
+          onManualModeToggle={handleManualModeToggle}
         />
       )}
 

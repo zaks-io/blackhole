@@ -11,6 +11,8 @@ interface CameraPresetBarProps {
   onEhtToggle?: () => void;
   onEhtBlurToggle?: () => void;
   show?: boolean;
+  isManualMode?: boolean;
+  onManualModeToggle?: () => void;
 }
 
 const PRESET_ICONS: Record<string, string> = {
@@ -24,6 +26,8 @@ const PRESET_ICONS: Record<string, string> = {
   fallIn: '↓',
   warpingTour: '◎',
   shadowExplore: '●',
+  // Manual
+  manual: '✋',
 };
 
 const PRESET_LABELS: Record<string, string> = {
@@ -37,9 +41,11 @@ const PRESET_LABELS: Record<string, string> = {
   fallIn: 'Fall',
   warpingTour: 'Tour',
   shadowExplore: 'Shadow',
+  // Manual
+  manual: 'Manual',
 };
 
-export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlurEnabled, onEhtToggle, onEhtBlurToggle, show = true }: CameraPresetBarProps) {
+export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlurEnabled, onEhtToggle, onEhtBlurToggle, show = true, isManualMode, onManualModeToggle }: CameraPresetBarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const presetKeys = Object.keys(CAMERA_PRESETS).filter(key => key !== 'eht');
@@ -71,6 +77,19 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
             <span className="preset-label">{PRESET_LABELS[key]}</span>
           </button>
         ))}
+        {onManualModeToggle && (
+          <>
+            <div className="separator" />
+            <button
+              className={`preset-btn manual-btn ${isManualMode ? 'active' : ''}`}
+              onClick={onManualModeToggle}
+              title="Manual Control - Drag to rotate camera"
+            >
+              <span className="preset-icon">{PRESET_ICONS.manual}</span>
+              <span className="preset-label">{PRESET_LABELS.manual}</span>
+            </button>
+          </>
+        )}
         {onEhtToggle && (
           <>
             <div className="separator" />
@@ -275,6 +294,15 @@ export function CameraPresetBar({ onPresetSelect, activePreset, ehtMode, ehtBlur
           box-shadow:
             0 0 20px rgba(167, 139, 250, 0.15),
             inset 0 0 10px rgba(167, 139, 250, 0.1);
+        }
+
+        .preset-btn.manual-btn.active {
+          color: #4ade80;
+          background: rgba(74, 222, 128, 0.15);
+          border-color: rgba(74, 222, 128, 0.4);
+          box-shadow:
+            0 0 20px rgba(74, 222, 128, 0.15),
+            inset 0 0 10px rgba(74, 222, 128, 0.1);
         }
 
         .preset-icon {
