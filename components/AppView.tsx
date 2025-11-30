@@ -259,7 +259,7 @@ export default function AppView() {
       <BlackHoleSimulation
         showDevControls={false}
         showStats={false}
-        initialEhtBlurEnabled={true}
+        initialEhtBlurEnabled={false}
         overlayState={overlayState}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}

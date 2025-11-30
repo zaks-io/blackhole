@@ -841,7 +841,7 @@ vec4 traceRay(vec2 uv) {
   
   // Track disk plane crossings for higher-order photon ring images
   int diskCrossings = 0;
-  
+
   float h = 0.2;
   
   // Precompute loop invariants for performance
@@ -928,6 +928,7 @@ vec4 traceRay(vec2 uv) {
         // Pass minRadius for proper gravitational redshift of photon ring light
         // The crossingIndex and minRadius together handle the dimming physics
         vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, minRadius);
+
         float remaining = 1.0 - diskAccum.a;
         diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
         diskAccum.a += newDisk.a * remaining;
