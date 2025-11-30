@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 const AppView = dynamic(
   () => import('@/components/AppView'),
@@ -32,10 +31,6 @@ const AppView = dynamic(
   }
 );
 
-function AppContent() {
-  return <AppView />;
-}
-
 export default function AppPage() {
-  return <ProtectedRoute component={AppContent} />;
+  return <AppView />;
 }
