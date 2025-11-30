@@ -4,21 +4,21 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { track } from '@vercel/analytics';
 import { useConversation } from '@elevenlabs/react';
 import { useAuth0 } from '@auth0/auth0-react';
-import { OverlayState } from '@/lib/types';
+import { ToggleState } from '@/lib/types';
 import { AudioVisualizer } from './AudioVisualizer';
 
 export interface VoiceAgentPopupProps {
   onClose?: () => void;
   onPresetSelect: (preset: string) => void;
   onEhtBlurToggle: (enabled: boolean) => void;
-  onOverlayToggle: (toggles: Partial<OverlayState>) => void;
+  onOverlayToggle: (toggles: Partial<ToggleState>) => void;
   onContextualUpdateReady?: (sendUpdate: (text: string) => void) => void;
   onConnected?: () => void;
   autoConnect?: boolean;
 }
 
 const VALID_PRESETS = ['far', 'default', 'accretionDisk', 'topDown', 'edgeOn', 'eht', 'photonSphere', 'doppler', 'fallingIn'];
-const VALID_OVERLAY_KEYS: (keyof OverlayState)[] = ['isco', 'eventHorizon', 'doppler', 'scale'];
+const VALID_TOGGLE_KEYS: (keyof ToggleState)[] = ['isco', 'eventHorizon', 'doppler', 'scale', 'disk', 'jets'];
 
 export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOverlayToggle, onContextualUpdateReady, onConnected, autoConnect = false }: VoiceAgentPopupProps) {
   const [error, setError] = useState<string | null>(null);
@@ -40,33 +40,33 @@ export function VoiceAgentPopup({ onClose, onPresetSelect, onEhtBlurToggle, onOv
         return enabled ? 'EHT blur enabled' : 'EHT blur disabled';
       },
       setOverlays: ({ show, hide }: { show?: string[]; hide?: string[] }) => {
-        const updates: Partial<OverlayState> = {};
+        const updates: Partial<ToggleState> = {};
 
         if (show) {
           for (const key of show) {
-            if (VALID_OVERLAY_KEYS.includes(key as keyof OverlayState)) {
-              updates[key as keyof OverlayState] = true;
+            if (VALID_TOGGLE_KEYS.includes(key as keyof ToggleState)) {
+              updates[key as keyof ToggleState] = true;
             }
           }
         }
         if (hide) {
           for (const key of hide) {
-            if (VALID_OVERLAY_KEYS.includes(key as keyof OverlayState)) {
-              updates[key as keyof OverlayState] = false;
+            if (VALID_TOGGLE_KEYS.includes(key as keyof ToggleState)) {
+              updates[key as keyof ToggleState] = false;
             }
           }
         }
 
         if (Object.keys(updates).length > 0) {
           onOverlayToggle(updates);
-          const enabled = show?.filter(k => VALID_OVERLAY_KEYS.includes(k as keyof OverlayState)) || [];
-          const disabled = hide?.filter(k => VALID_OVERLAY_KEYS.includes(k as keyof OverlayState)) || [];
+          const enabled = show?.filter(k => VALID_TOGGLE_KEYS.includes(k as keyof ToggleState)) || [];
+          const disabled = hide?.filter(k => VALID_TOGGLE_KEYS.includes(k as keyof ToggleState)) || [];
           let msg = '';
           if (enabled.length) msg += `Enabled: ${enabled.join(', ')}. `;
           if (disabled.length) msg += `Disabled: ${disabled.join(', ')}.`;
           return msg || 'No changes made.';
         }
-        return `Invalid overlay keys. Valid: ${VALID_OVERLAY_KEYS.join(', ')}`;
+        return `Invalid toggle keys. Valid: ${VALID_TOGGLE_KEYS.join(', ')}`;
       },
     },
     onError: (err) => {

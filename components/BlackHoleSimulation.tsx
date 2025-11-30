@@ -21,7 +21,7 @@ import {
 } from "@/lib/passes/LensingPass";
 import { CONFIG } from "@/lib/config";
 import { CameraController, CameraSequence } from "@/lib/camera";
-import { OverlayState } from "@/lib/types";
+import { ToggleState } from "@/lib/types";
 
 export interface CameraPreset {
   name: string;
@@ -45,8 +45,8 @@ export interface BlackHoleSimulationProps {
   initialCameraPreset?: keyof typeof CAMERA_PRESETS;
   /** Initial EHT blur enabled state (default: CONFIG.ehtBlur.enabled) */
   initialEhtBlurEnabled?: boolean;
-  /** Overlay visibility state */
-  overlayState?: OverlayState;
+  /** Toggle visibility state */
+  toggleState?: ToggleState;
   /** Callback with camera controller when ready */
   onCameraReady?: (controller: CameraController) => void;
   /** Callback with EHT blur controller when ready */
@@ -206,7 +206,7 @@ export default function BlackHoleSimulation({
   showStats = false,
   initialCameraPreset = "far",
   initialEhtBlurEnabled = CONFIG.ehtBlur.enabled,
-  overlayState,
+  toggleState,
   onCameraReady,
   onEhtBlurReady,
 }: BlackHoleSimulationProps) {
@@ -1213,17 +1213,19 @@ export default function BlackHoleSimulation({
     };
   }, [init]);
 
-  // Sync overlay state to shader
+  // Sync toggle state to shader
   useEffect(() => {
-    if (cleanupRef.current.lensingPass && overlayState) {
+    if (cleanupRef.current.lensingPass && toggleState) {
       cleanupRef.current.lensingPass.updateParams({
-        overlayIsco: overlayState.isco ? 1.0 : 0.0,
-        overlayEventHorizon: overlayState.eventHorizon ? 1.0 : 0.0,
-        overlayDoppler: overlayState.doppler ? 1.0 : 0.0,
-        overlayScale: overlayState.scale ? 1.0 : 0.0,
+        overlayIsco: toggleState.isco ? 1.0 : 0.0,
+        overlayEventHorizon: toggleState.eventHorizon ? 1.0 : 0.0,
+        overlayDoppler: toggleState.doppler ? 1.0 : 0.0,
+        overlayScale: toggleState.scale ? 1.0 : 0.0,
+        diskOpacity: toggleState.disk ? CONFIG.disk.opacity : 0.0,
+        jetsEnabled: toggleState.jets ? 1.0 : 0.0,
       });
     }
-  }, [overlayState]);
+  }, [toggleState]);
 
   return (
     <>
