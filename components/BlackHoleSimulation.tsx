@@ -530,6 +530,7 @@ export default function BlackHoleSimulation({
 
         // Simulation folder
         const simFolder = gui.addFolder("Simulation");
+        simFolder.close();
         simFolder
           .add(params, "rs", 0.5, 2.0, 0.1)
           .name("Schwarzschild Radius")
@@ -574,6 +575,7 @@ export default function BlackHoleSimulation({
 
         // Disk folder
         const diskFolder = gui.addFolder("Accretion Disk");
+        diskFolder.close();
         diskFolder
           .add(params, "diskInnerRadius", 1.5, 6.0, 0.1)
           .name("Inner Radius (rs)")
@@ -632,6 +634,7 @@ export default function BlackHoleSimulation({
 
         // MHD Effects folder
         const mhdFolder = gui.addFolder("MHD Turbulence");
+        mhdFolder.close();
         mhdFolder
           .add(params, "mhdTurbulenceIntensity", 0.0, 1.0, 0.05)
           .name("Turbulence")
@@ -683,6 +686,7 @@ export default function BlackHoleSimulation({
 
         // Bloom folder
         const bloomFolder = gui.addFolder("Bloom");
+        bloomFolder.close();
         bloomFolder
           .add(params, "bloomThreshold", 0.0, 1.0, 0.05)
           .name("Threshold")
@@ -706,6 +710,7 @@ export default function BlackHoleSimulation({
 
         // Anti-aliasing folder
         const aaFolder = gui.addFolder("Anti-Aliasing");
+        aaFolder.close();
 
         aaFolder
           .add(params, "fxaaEnabled")
@@ -727,6 +732,7 @@ export default function BlackHoleSimulation({
 
         // EHT Mode folder
         const ehtFolder = gui.addFolder("EHT Mode");
+        ehtFolder.close();
 
         ehtFolder
           .add(params, "ehtBlurEnabled")
@@ -744,6 +750,7 @@ export default function BlackHoleSimulation({
 
         // Layers folder (corona, jets, thick disk)
         const layersFolder = gui.addFolder("Layers");
+        layersFolder.close();
 
         // Corona subfolder
         const coronaFolder = layersFolder.addFolder("Corona");
@@ -831,6 +838,7 @@ export default function BlackHoleSimulation({
 
         // Camera Controls folder
         const cameraFolder = gui.addFolder("Camera");
+        cameraFolder.close();
 
         const cameraInfo = {
           get distance() {
@@ -883,6 +891,7 @@ export default function BlackHoleSimulation({
 
         // Preset camera movements
         const presetFolder = gui.addFolder("Camera Presets");
+        presetFolder.close();
         const presets = {
           accretionDisk: () => {
             cameraController.moveTo(
@@ -950,6 +959,7 @@ export default function BlackHoleSimulation({
 
         // Camera Sequences folder
         const sequenceFolder = gui.addFolder("Camera Sequences");
+        sequenceFolder.close();
         const sequences = {
           fallIn: () => {
             cameraController.runSequence(CAMERA_SEQUENCES.fallIn);
