@@ -5,6 +5,7 @@ export interface ToggleState {
   scale: boolean;
   disk: boolean;
   jets: boolean;
+  audio: boolean;
 }
 
 export const DEFAULT_TOGGLE_STATE: ToggleState = {
@@ -14,4 +15,5 @@ export const DEFAULT_TOGGLE_STATE: ToggleState = {
   scale: false,
   disk: true,
   jets: false,
+  audio: false,
 };

@@ -4,8 +4,9 @@ import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { OverlayLabels } from '@/components/OverlayLabels';
+import { SoundToggleButton } from '@/components/SoundToggleButton';
 import { CameraController } from '@/lib/camera';
-import { ToggleState } from '@/lib/types';
+import { ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
 
 const BlackHoleSimulation = dynamic(() => import('@/components/BlackHoleSimulation'), {
   ssr: false,
@@ -35,17 +36,14 @@ const BlackHoleSimulation = dynamic(() => import('@/components/BlackHoleSimulati
 
 function DevContent() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
-  const [toggleState, setToggleState] = useState<ToggleState>({
-    isco: false,
-    eventHorizon: false,
-    doppler: false,
-    scale: false,
-    disk: true,
-    jets: false,
-  });
+  const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
+  }, []);
+
+  const handleSoundToggle = useCallback((enabled: boolean) => {
+    setToggleState((prev) => ({ ...prev, audio: enabled }));
   }, []);
 
   // Listen for overlay changes from the GUI
@@ -67,11 +65,13 @@ function DevContent() {
         showStats={true}
         initialCameraPreset="default"
         initialEhtBlurEnabled={false}
+        toggleState={toggleState}
         onCameraReady={handleCameraReady}
       />
       <div id="dev-overlay-labels" style={{ display: 'none' }}>
         <OverlayLabels cameraController={cameraController} toggleState={toggleState} show={true} />
       </div>
+      <SoundToggleButton onToggle={handleSoundToggle} />
     </>
   );
 }

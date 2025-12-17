@@ -7,6 +7,7 @@ import { CONFIG } from '@/lib/config';
 import { ToggleState } from '@/lib/types';
 import { detectHDRSupport, HDRSupport } from '@/lib/display';
 import { CAMERA_PRESETS } from '@/lib/presets';
+import { BinaryAudioController } from '@/lib/audio';
 import { StarfieldManager } from './StarfieldManager';
 import { PostProcessingPipeline } from './PostProcessingPipeline';
 import { SimulationConfig, SimulationCallbacks, SimulationParams } from './types';
@@ -25,6 +26,7 @@ export class SimulationController {
   private _cameraController!: CameraController;
   private pipeline!: PostProcessingPipeline;
   private starfieldManager!: StarfieldManager;
+  private audioController: BinaryAudioController;
   private stats: Stats | null = null;
 
   // State
@@ -38,6 +40,7 @@ export class SimulationController {
   constructor(config: SimulationConfig, callbacks: SimulationCallbacks) {
     this.config = config;
     this.callbacks = callbacks;
+    this.audioController = new BinaryAudioController();
   }
 
   async initialize(): Promise<void> {
@@ -96,6 +99,7 @@ export class SimulationController {
     // Notify callbacks
     this.callbacks.onCameraReady?.(this._cameraController);
     this.callbacks.onEhtBlurReady?.(this.pipeline.ehtBlurController);
+    this.callbacks.onAudioControllerReady?.(this.audioController);
 
     // Start animation loop
     this.animate();
@@ -234,6 +238,49 @@ export class SimulationController {
       this.camera.updateMatrixWorld();
       this.pipeline.lensingPass.updateCamera(this.camera);
 
+      // Update audio with full simulation state
+      const binaryState = this.pipeline.lensingPass.getBinaryState();
+      const camPos = this._cameraController.getPosition();
+      const cameraDistance = this._cameraController.getDistance();
+
+      // Calculate camera angle to orbital plane (XZ)
+      // 0 = edge-on (camera at Y=0), π/2 = face-on (camera above)
+      const cameraAngle = Math.atan2(Math.abs(camPos.y), Math.sqrt(camPos.x ** 2 + camPos.z ** 2));
+
+      if (binaryState) {
+        // Binary mode - pass full binary state
+        this.audioController.update({
+          isBinaryMode: true,
+          orbitalPhase: binaryState.orbitalPhase,
+          separation: binaryState.separation,
+          cameraDistance,
+          cameraPosition: { x: camPos.x, y: camPos.y, z: camPos.z },
+          cameraAngle,
+          diskOpacity: this.params.diskOpacity,
+          diskOuterRadius: this.params.diskOuterRadius ?? 30,
+          mass1: binaryState.mass1,
+          bh1Pos: binaryState.bh1Pos,
+          bh2Pos: binaryState.bh2Pos,
+          deltaTime,
+        });
+      } else {
+        // Single BH mode - synthesize state with BH at origin
+        this.audioController.update({
+          isBinaryMode: false,
+          orbitalPhase: this.scaledTime * 0.5, // Slow rotation for arpeggio variety
+          separation: this.params.diskOuterRadius ?? 30, // Use disk radius for pulse rate
+          cameraDistance,
+          cameraPosition: { x: camPos.x, y: camPos.y, z: camPos.z },
+          cameraAngle,
+          diskOpacity: this.params.diskOpacity,
+          diskOuterRadius: this.params.diskOuterRadius ?? 30,
+          mass1: 1.0, // Single BH has all mass
+          bh1Pos: { x: 0, z: 0 }, // At origin
+          bh2Pos: { x: 0, z: 0 }, // Unused but required
+          deltaTime,
+        });
+      }
+
       this.pipeline.render();
 
       this.stats?.end();
@@ -290,6 +337,17 @@ export class SimulationController {
     });
   }
 
+  async enableAudio(enabled: boolean): Promise<void> {
+    if (enabled && !this.audioController.isInitialized()) {
+      await this.audioController.initialize();
+    }
+    this.audioController.setEnabled(enabled);
+  }
+
+  getAudioController(): BinaryAudioController {
+    return this.audioController;
+  }
+
   private cleanup(): void {
     this.renderer?.dispose();
     this.controls?.dispose();
@@ -315,6 +373,7 @@ export class SimulationController {
 
     this.pipeline?.dispose();
     this.starfieldManager?.dispose();
+    this.audioController?.dispose();
     this.renderer?.dispose();
     this.controls?.dispose();
 

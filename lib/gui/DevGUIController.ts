@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CameraController } from '@/lib/camera';
 import { LensingPass } from '@/lib/passes';
 import { HDRSupport } from '@/lib/display';
+import { BinaryAudioController } from '@/lib/audio';
 import { PostProcessingPipeline, StarfieldManager, SimulationParams } from '@/lib/simulation';
 import { createEnvironmentFolder } from './folders/environmentFolder';
 import { createPhysicsFolder } from './folders/physicsFolder';
@@ -24,6 +25,7 @@ export interface DevGUIConfig {
   lensingPass: LensingPass;
   pipeline: PostProcessingPipeline;
   starfieldManager: StarfieldManager;
+  audioController: BinaryAudioController;
   hdrSupport: HDRSupport;
   params: SimulationParams;
   onAutoStepsChange: () => void;
@@ -51,6 +53,7 @@ export class DevGUIController {
     createBinaryFolder(this.gui, {
       lensingPass: config.lensingPass,
       params: config.params,
+      audioController: config.audioController,
     });
 
     createDiskFolder(this.gui, {

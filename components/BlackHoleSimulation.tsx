@@ -6,6 +6,7 @@ import { CONFIG } from '@/lib/config';
 import { ToggleState } from '@/lib/types';
 import { SimulationController, EhtBlurController } from '@/lib/simulation';
 import { DevGUIController } from '@/lib/gui';
+import { BinaryAudioController } from '@/lib/audio';
 import {
   CAMERA_PRESETS,
   STARFIELD_BACKGROUNDS,
@@ -26,6 +27,7 @@ export interface BlackHoleSimulationProps {
   toggleState?: ToggleState;
   onCameraReady?: (controller: CameraController) => void;
   onEhtBlurReady?: (controller: EhtBlurController) => void;
+  onAudioControllerReady?: (controller: BinaryAudioController) => void;
 }
 
 export default function BlackHoleSimulation({
@@ -36,6 +38,7 @@ export default function BlackHoleSimulation({
   toggleState,
   onCameraReady,
   onEhtBlurReady,
+  onAudioControllerReady,
 }: BlackHoleSimulationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initRef = useRef(false);
@@ -62,6 +65,7 @@ export default function BlackHoleSimulation({
       {
         onCameraReady,
         onEhtBlurReady,
+        onAudioControllerReady,
       }
     );
 
@@ -84,6 +88,7 @@ export default function BlackHoleSimulation({
           lensingPass: controller.lensingPass!,
           pipeline: controller.getPipeline(),
           starfieldManager: controller.getStarfieldManager(),
+          audioController: controller.getAudioController(),
           hdrSupport: controller.getHdrSupport(),
           params: controller.getParams(),
           onAutoStepsChange: () => {
@@ -123,12 +128,14 @@ export default function BlackHoleSimulation({
     initialEhtBlurEnabled,
     onCameraReady,
     onEhtBlurReady,
+    onAudioControllerReady,
   ]);
 
-  // Sync toggle state to shader
+  // Sync toggle state to shader and audio
   useEffect(() => {
     if (controllerRef.current && toggleState) {
       controllerRef.current.updateToggleState(toggleState);
+      controllerRef.current.enableAudio(toggleState.audio);
     }
   }, [toggleState]);
 

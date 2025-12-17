@@ -118,7 +118,7 @@ export const CONFIG = {
 
   // Binary black hole system
   binary: {
-    enabled: true, // Enable binary mode
+    enabled: false, // Enable binary mode
     mass1: 0.75, // Mass fraction of BH1 (0.1 to 0.9, BH2 = 1 - mass1)
     separation: 8.0, // Distance between BHs in rs units
     circumbinaryOuterRadius: 30.0, // Outer edge of circumbinary disk

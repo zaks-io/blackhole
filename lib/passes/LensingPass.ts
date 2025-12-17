@@ -192,6 +192,9 @@ export class LensingPass extends ShaderPass {
   private lastCameraPosition = new THREE.Vector3();
   private lastCameraMatrixWorld = new THREE.Matrix4();
 
+  // Binary orbital phase for audio sync
+  private currentOrbitalPhase = 0;
+
   constructor(starfieldTexture: THREE.Texture, noiseTextureSize: number = 128) {
     super(LensingShader);
 
@@ -437,8 +440,9 @@ export class LensingPass extends ShaderPass {
     // Using rs = 2GM/c², so GM = rs*c²/2, and in our units c=1
     const orbitalPeriod = 2 * Math.PI * Math.sqrt((separation * separation * separation) / rs);
 
-    // Orbital phase
-    const phase = (time * 2 * Math.PI) / orbitalPeriod;
+    // Orbital phase (normalized to 0-2π)
+    const phase = ((time * 2 * Math.PI) / orbitalPeriod) % (2 * Math.PI);
+    this.currentOrbitalPhase = phase;
 
     // Distance from center of mass (COM at origin)
     const a1 = separation * m2; // BH1 distance from COM
@@ -518,6 +522,29 @@ export class LensingPass extends ShaderPass {
     // Set to 1.0 if any overlay is enabled, 0.0 otherwise
     this.uniforms['anyOverlayEnabled'].value =
       overlayIsco + overlayEventHorizon + overlayDoppler + overlayScale > 0 ? 1.0 : 0.0;
+  }
+
+  getBinaryState(): {
+    bh1Pos: { x: number; z: number };
+    bh2Pos: { x: number; z: number };
+    mass1: number;
+    mass2: number;
+    orbitalPhase: number;
+    separation: number;
+  } | null {
+    if (this.uniforms['binaryEnabled'].value < 0.5) return null;
+
+    const bh1 = this.uniforms['bh1Pos'].value as THREE.Vector2;
+    const bh2 = this.uniforms['bh2Pos'].value as THREE.Vector2;
+
+    return {
+      bh1Pos: { x: bh1.x, z: bh1.y },
+      bh2Pos: { x: bh2.x, z: bh2.y },
+      mass1: this.uniforms['binaryMass1'].value as number,
+      mass2: this.uniforms['binaryMass2'].value as number,
+      orbitalPhase: this.currentOrbitalPhase,
+      separation: this.uniforms['binarySeparation'].value as number,
+    };
   }
 
   dispose(): void {
