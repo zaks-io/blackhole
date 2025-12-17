@@ -58,6 +58,13 @@ const TOGGLE_CONFIG: {
     description: 'Scale Rings - reference circles at 5, 10, 15 rs',
     color: '#b3b3bf',
   },
+  {
+    key: 'audio',
+    icon: '♫',
+    label: 'Audio',
+    description: 'Binary Audio - 3D spatial sound of orbiting black holes',
+    color: '#9966ff',
+  },
 ];
 
 export function ToggleControlBar({ toggleState, onToggle, show = true }: ToggleControlBarProps) {

@@ -32,5 +32,5 @@ export function createPhysicsFolder(gui: GUI, config: PhysicsFolderConfig): void
       lensingPass.updateParams({ photonSphereIntensity: value });
     });
 
-  folder.add(params, 'simulationSpeed', 0.0, 3.0, 0.1).name('Time Scale');
+  folder.add(params, 'simulationSpeed', 0.0, 100.0, 1.0).name('Time Scale');
 }

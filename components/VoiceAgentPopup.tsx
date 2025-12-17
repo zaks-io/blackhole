@@ -6,6 +6,7 @@ import { useConversation } from '@elevenlabs/react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { ToggleState } from '@/lib/types';
 import { AudioVisualizer } from './AudioVisualizer';
+import type { BinaryAudioController } from '@/lib/audio';
 
 export interface VoiceAgentPopupProps {
   onClose?: () => void;
@@ -15,6 +16,8 @@ export interface VoiceAgentPopupProps {
   onContextualUpdateReady?: (sendUpdate: (text: string) => void) => void;
   onConnected?: () => void;
   autoConnect?: boolean;
+  audioController?: BinaryAudioController | null;
+  onSoundToggle?: (enabled: boolean) => void;
 }
 
 const VALID_PRESETS = [
@@ -45,10 +48,15 @@ export function VoiceAgentPopup({
   onContextualUpdateReady,
   onConnected,
   autoConnect = false,
+  audioController,
+  onSoundToggle,
 }: VoiceAgentPopupProps) {
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   const hasAutoConnected = useRef(false);
+  const audioRafRef = useRef<number | null>(null);
   const { getIdTokenClaims } = useAuth0();
 
   const conversation = useConversation({
@@ -160,6 +168,34 @@ export function VoiceAgentPopup({
     }
   }, [autoConnect, handleToggle]);
 
+  // Poll audio level for visualization
+  useEffect(() => {
+    if (!soundEnabled || !audioController) {
+      return;
+    }
+
+    const updateLevel = () => {
+      const level = audioController.getAudioLevel();
+      setAudioLevel(level);
+      audioRafRef.current = requestAnimationFrame(updateLevel);
+    };
+
+    audioRafRef.current = requestAnimationFrame(updateLevel);
+
+    return () => {
+      if (audioRafRef.current) {
+        cancelAnimationFrame(audioRafRef.current);
+        setAudioLevel(0);
+      }
+    };
+  }, [soundEnabled, audioController]);
+
+  const handleSoundToggle = useCallback(() => {
+    const newState = !soundEnabled;
+    setSoundEnabled(newState);
+    onSoundToggle?.(newState);
+  }, [soundEnabled, onSoundToggle]);
+
   const getStatusText = () => {
     if (isConnecting) return 'Connecting...';
     if (!isConnected) return 'Disconnected';
@@ -171,11 +207,56 @@ export function VoiceAgentPopup({
     <div className="voice-popup">
       <div className="voice-header">
         <span className="voice-title">Voice Agent</span>
-        {onClose && (
-          <button className="close-btn" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        )}
+        <div className="header-actions">
+          {onSoundToggle && (
+            <button
+              className={`sound-btn ${soundEnabled ? 'active' : ''}`}
+              onClick={handleSoundToggle}
+              aria-label={soundEnabled ? 'Mute background music' : 'Enable background music'}
+              title="Background"
+              style={
+                soundEnabled
+                  ? {
+                      boxShadow: `0 0 ${8 + audioLevel * 24}px rgba(100, 200, 255, ${Math.min(audioLevel * 3, 1) * 0.6})`,
+                    }
+                  : undefined
+              }
+            >
+              {soundEnabled ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              )}
+            </button>
+          )}
+          {onClose && (
+            <button className="close-btn" onClick={onClose} aria-label="Close">
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="voice-content">
@@ -236,6 +317,41 @@ export function VoiceAgentPopup({
           letter-spacing: 0.1em;
           text-transform: uppercase;
           color: rgba(255, 255, 255, 0.7);
+        }
+
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .sound-btn {
+          background: none;
+          border: none;
+          color: rgba(255, 255, 255, 0.5);
+          cursor: pointer;
+          padding: 4px;
+          line-height: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+          transition:
+            color 0.2s ease,
+            background 0.2s ease;
+        }
+
+        .sound-btn:hover {
+          color: rgba(255, 255, 255, 0.8);
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .sound-btn.active {
+          color: rgba(100, 200, 255, 0.9);
+        }
+
+        .sound-btn.active:hover {
+          color: rgba(100, 200, 255, 1);
         }
 
         .close-btn {
