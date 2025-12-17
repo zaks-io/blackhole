@@ -8,6 +8,7 @@ import lod from './chunks/lod.glsl';
 import corona from './chunks/corona.glsl';
 import jets from './chunks/jets.glsl';
 import overlays from './chunks/overlays.glsl';
+import binary from './chunks/binary.glsl';
 import disk from './chunks/disk.glsl';
 import raymarcher from './chunks/raymarcher.glsl';
 
@@ -26,6 +27,7 @@ export function registerLensingChunks() {
   chunks.lensing_corona = corona;
   chunks.lensing_jets = jets;
   chunks.lensing_overlays = overlays;
+  chunks.lensing_binary = binary;
   chunks.lensing_disk = disk;
   chunks.lensing_raymarcher = raymarcher;
 

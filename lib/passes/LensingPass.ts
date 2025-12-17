@@ -73,6 +73,14 @@ export interface LensingParams {
   baseStepSize: number;
   // Noise LUT animation
   noiseTimeScale: number;
+  // Binary black hole system
+  binaryEnabled: number;
+  binaryMass1: number;
+  binarySeparation: number;
+  circumbinaryOuterRadius: number;
+  binaryBlendWidth: number;
+  streamWidth: number;
+  streamDensity: number;
 }
 
 // Default params built from centralized config
@@ -159,6 +167,18 @@ const LensingShader = {
     photonRingLogOuter: { value: 0.0 },
     diskRadiusRange: { value: 9.0 },
     anyOverlayEnabled: { value: 0.0 },
+    // Binary black hole system
+    binaryEnabled: { value: 0.0 },
+    binaryMass1: { value: 0.5 },
+    binaryMass2: { value: 0.5 },
+    binarySeparation: { value: 8.0 },
+    bh1Pos: { value: new THREE.Vector2(-4.0, 0.0) },
+    bh2Pos: { value: new THREE.Vector2(4.0, 0.0) },
+    circumbinaryInnerRadius: { value: 20.0 },
+    circumbinaryOuterRadius: { value: 30.0 },
+    binaryBlendWidth: { value: 2.0 },
+    streamWidth: { value: 1.0 },
+    streamDensity: { value: 1.0 },
   },
   vertexShader,
   fragmentShader,
@@ -371,10 +391,82 @@ export class LensingPass extends ShaderPass {
     if (params.noiseTimeScale !== undefined) {
       this.uniforms['noiseTimeScale'].value = params.noiseTimeScale;
     }
+    // Binary black hole system
+    if (params.binaryEnabled !== undefined) {
+      this.uniforms['binaryEnabled'].value = params.binaryEnabled;
+    }
+    if (params.binaryMass1 !== undefined) {
+      this.uniforms['binaryMass1'].value = params.binaryMass1;
+      this.uniforms['binaryMass2'].value = 1.0 - params.binaryMass1;
+      this.updateBinaryDerivedUniforms();
+    }
+    if (params.binarySeparation !== undefined) {
+      this.uniforms['binarySeparation'].value = params.binarySeparation;
+      this.updateBinaryDerivedUniforms();
+    }
+    if (params.circumbinaryOuterRadius !== undefined) {
+      this.uniforms['circumbinaryOuterRadius'].value = params.circumbinaryOuterRadius;
+    }
+    if (params.binaryBlendWidth !== undefined) {
+      this.uniforms['binaryBlendWidth'].value = params.binaryBlendWidth;
+    }
+    if (params.streamWidth !== undefined) {
+      this.uniforms['streamWidth'].value = params.streamWidth;
+    }
+    if (params.streamDensity !== undefined) {
+      this.uniforms['streamDensity'].value = params.streamDensity;
+    }
   }
 
   updateTime(time: number): void {
     this.uniforms['time'].value = time;
+
+    // Update binary BH positions if binary mode is enabled
+    if (this.uniforms['binaryEnabled'].value > 0.5) {
+      this.updateBinaryPositions(time);
+    }
+  }
+
+  private updateBinaryPositions(time: number): void {
+    const m1 = this.uniforms['binaryMass1'].value as number;
+    const m2 = this.uniforms['binaryMass2'].value as number;
+    const separation = this.uniforms['binarySeparation'].value as number;
+    const rs = this.uniforms['rs'].value as number;
+
+    // Orbital period from Kepler's third law: P = 2π√(a³/GM)
+    // Using rs = 2GM/c², so GM = rs*c²/2, and in our units c=1
+    const orbitalPeriod = 2 * Math.PI * Math.sqrt((separation * separation * separation) / rs);
+
+    // Orbital phase
+    const phase = (time * 2 * Math.PI) / orbitalPeriod;
+
+    // Distance from center of mass (COM at origin)
+    const a1 = separation * m2; // BH1 distance from COM
+    const a2 = separation * m1; // BH2 distance from COM
+
+    // Update positions (orbiting in XZ plane, stored as XY in vec2)
+    (this.uniforms['bh1Pos'].value as THREE.Vector2).set(
+      -a1 * Math.cos(phase),
+      -a1 * Math.sin(phase)
+    );
+    (this.uniforms['bh2Pos'].value as THREE.Vector2).set(
+      a2 * Math.cos(phase),
+      a2 * Math.sin(phase)
+    );
+  }
+
+  private updateBinaryDerivedUniforms(): void {
+    const m1 = this.uniforms['binaryMass1'].value as number;
+    const separation = this.uniforms['binarySeparation'].value as number;
+
+    // Circumbinary cavity inner edge (~2.5 * separation)
+    this.uniforms['circumbinaryInnerRadius'].value = 2.5 * separation;
+
+    // If outer radius wasn't explicitly set, default to reasonable value
+    const currentOuter = this.uniforms['circumbinaryOuterRadius'].value as number;
+    if (currentOuter < this.uniforms['circumbinaryInnerRadius'].value) {
+      this.uniforms['circumbinaryOuterRadius'].value = 4.0 * separation;
+    }
   }
 
   setStarfield(texture: THREE.Texture): void {

@@ -14,6 +14,7 @@ import { createPostProcessingFolder } from './folders/postProcessingFolder';
 import { createOverlaysFolder } from './folders/overlaysFolder';
 import { createCameraFolder } from './folders/cameraFolder';
 import { createRayMarchingFolder } from './folders/rayMarchingFolder';
+import { createBinaryFolder } from './folders/binaryFolder';
 
 export interface DevGUIConfig {
   renderer: THREE.WebGLRenderer;
@@ -44,6 +45,11 @@ export class DevGUIController {
     createPhysicsFolder(this.gui, {
       lensingPass: config.lensingPass,
       controls: config.controls,
+      params: config.params,
+    });
+
+    createBinaryFolder(this.gui, {
+      lensingPass: config.lensingPass,
       params: config.params,
     });
 
