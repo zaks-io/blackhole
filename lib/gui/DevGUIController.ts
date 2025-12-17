@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CameraController } from '@/lib/camera';
 import { LensingPass } from '@/lib/passes';
 import { HDRSupport } from '@/lib/display';
+import { BinaryAudioController } from '@/lib/audio';
 import { PostProcessingPipeline, StarfieldManager, SimulationParams } from '@/lib/simulation';
 import { createEnvironmentFolder } from './folders/environmentFolder';
 import { createPhysicsFolder } from './folders/physicsFolder';
@@ -14,6 +15,7 @@ import { createPostProcessingFolder } from './folders/postProcessingFolder';
 import { createOverlaysFolder } from './folders/overlaysFolder';
 import { createCameraFolder } from './folders/cameraFolder';
 import { createRayMarchingFolder } from './folders/rayMarchingFolder';
+import { createBinaryFolder } from './folders/binaryFolder';
 
 export interface DevGUIConfig {
   renderer: THREE.WebGLRenderer;
@@ -23,6 +25,7 @@ export interface DevGUIConfig {
   lensingPass: LensingPass;
   pipeline: PostProcessingPipeline;
   starfieldManager: StarfieldManager;
+  audioController: BinaryAudioController;
   hdrSupport: HDRSupport;
   params: SimulationParams;
   onAutoStepsChange: () => void;
@@ -45,6 +48,12 @@ export class DevGUIController {
       lensingPass: config.lensingPass,
       controls: config.controls,
       params: config.params,
+    });
+
+    createBinaryFolder(this.gui, {
+      lensingPass: config.lensingPass,
+      params: config.params,
+      audioController: config.audioController,
     });
 
     createDiskFolder(this.gui, {

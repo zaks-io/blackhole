@@ -18,6 +18,7 @@ import { UserMenu } from './UserMenu';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
 import { ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
+import { BinaryAudioController } from '@/lib/audio';
 
 /**
  * Wrapper component that contains both the simulation and camera controls.
@@ -28,6 +29,7 @@ export default function AppView() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>('default');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
+  const [audioController, setAudioController] = useState<BinaryAudioController | null>(null);
   const [ehtMode, setEhtMode] = useState(false);
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
   const [introComplete, setIntroComplete] = useState(false);
@@ -86,6 +88,10 @@ export default function AppView() {
 
   const handleEhtBlurReady = useCallback((controller: EhtBlurController) => {
     setEhtBlurController(controller);
+  }, []);
+
+  const handleAudioControllerReady = useCallback((controller: BinaryAudioController) => {
+    setAudioController(controller);
   }, []);
 
   const handleEhtToggle = useCallback(() => {
@@ -231,6 +237,10 @@ export default function AppView() {
     [sendContextualUpdate]
   );
 
+  const handleSoundToggle = useCallback((enabled: boolean) => {
+    setToggleState((prev) => ({ ...prev, audio: enabled }));
+  }, []);
+
   const handlePresetSelect = useCallback(
     (presetName: string) => {
       if (!cameraController) return;
@@ -291,6 +301,7 @@ export default function AppView() {
         toggleState={toggleState}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
+        onAudioControllerReady={handleAudioControllerReady}
       />
 
       {/* Intro Overlay */}
@@ -338,6 +349,8 @@ export default function AppView() {
           onEhtBlurToggle={handleEhtBlurSet}
           onOverlayToggle={handleToggleChange}
           onContextualUpdateReady={handleContextualUpdateReady}
+          audioController={audioController}
+          onSoundToggle={handleSoundToggle}
         />
       )}
 

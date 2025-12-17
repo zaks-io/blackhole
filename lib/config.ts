@@ -61,15 +61,15 @@ export const CONFIG = {
 
   // Ray marching settings
   rayMarching: {
-    maxSteps: 100,
+    maxSteps: 150,
     autoSteps: true,
     autoStepsMin: 64,
-    autoStepsMax: 160,
+    autoStepsMax: 200,
     // Anti-banding step refinement
     stepJitter: false,
-    curvatureAdaptation: 1.0,
+    curvatureAdaptation: 1.5, // Higher = more samples near photon sphere
     coronaStepRefinement: 1.0,
-    baseStepSize: 0.2, // Controls band width - smaller = finer bands = more steps needed
+    baseStepSize: 0.15, // Controls band width - smaller = finer bands = more steps needed
   },
 
   // Anti-aliasing settings
@@ -114,6 +114,17 @@ export const CONFIG = {
   noise: {
     textureSize: 64, // 64-256, controls quality/memory tradeoff
     timeScale: 0.02, // Animation speed through Z slices
+  },
+
+  // Binary black hole system
+  binary: {
+    enabled: false, // Enable binary mode
+    mass1: 0.75, // Mass fraction of BH1 (0.1 to 0.9, BH2 = 1 - mass1)
+    separation: 8.0, // Distance between BHs in rs units
+    circumbinaryOuterRadius: 30.0, // Outer edge of circumbinary disk
+    blendWidth: 2.0, // Transition smoothness between disk components
+    streamWidth: 1.0, // Width of accretion streams
+    streamDensity: 1.0, // Brightness of streams
   },
 
   // Multi-layer disk system
@@ -206,6 +217,14 @@ export function buildLensingParams(): LensingParams {
     baseStepSize: CONFIG.rayMarching.baseStepSize,
     // Noise LUT animation
     noiseTimeScale: CONFIG.noise.timeScale,
+    // Binary black hole system
+    binaryEnabled: CONFIG.binary.enabled ? 1 : 0,
+    binaryMass1: CONFIG.binary.mass1,
+    binarySeparation: CONFIG.binary.separation,
+    circumbinaryOuterRadius: CONFIG.binary.circumbinaryOuterRadius,
+    binaryBlendWidth: CONFIG.binary.blendWidth,
+    streamWidth: CONFIG.binary.streamWidth,
+    streamDensity: CONFIG.binary.streamDensity,
   };
 }
 

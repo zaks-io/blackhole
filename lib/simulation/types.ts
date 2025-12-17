@@ -6,6 +6,7 @@ import GUI from 'lil-gui';
 import Stats from 'stats.js';
 import { CameraController } from '@/lib/camera';
 import { LensingPass, LensingParams } from '@/lib/passes/LensingPass';
+import { BinaryAudioController } from '@/lib/audio';
 import { ToggleState } from '@/lib/types';
 
 export interface EhtBlurController {
@@ -36,6 +37,7 @@ export interface SimulationConfig {
 export interface SimulationCallbacks {
   onCameraReady?: (controller: CameraController) => void;
   onEhtBlurReady?: (controller: EhtBlurController) => void;
+  onAudioControllerReady?: (controller: BinaryAudioController) => void;
 }
 
 export interface SimulationParams extends LensingParams {

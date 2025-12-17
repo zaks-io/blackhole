@@ -134,3 +134,223 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
 float computeImpactParameter(vec3 pos, vec3 dir) {
   return length(cross(pos, dir));
 }
+
+// ============================================================================
+// Mini-Disk Sampling for Binary System
+// Uses the SAME high-quality pipeline as sampleDisk() but in BH-local coords
+// ============================================================================
+
+vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
+                    int crossingIndex, float lod, float rayMinRadius) {
+  // Transform to BH-local coordinates
+  vec2 localPos = hitPos.xz - bhPos;
+  float r = length(localPos);
+  float phi = atan(localPos.y, localPos.x);
+
+  // Per-BH Schwarzschild radius
+  float bhRs = rs * bhMass * 2.0;
+
+  // Outer radius: from Roche lobe / separation constraint
+  float outerR = getRocheRadius(bhMass);
+
+  // Inner radius: ISCO at 3 * bhRs, but ensure disk has reasonable width
+  // Must stay outside photon sphere (1.5*bhRs) to avoid horizon clipping
+  float nominalISCO = 3.0 * bhRs;
+  float minInner = 2.0 * bhRs; // Stay well outside event horizon
+  float innerR = max(minInner, min(nominalISCO, outerR * 0.35));
+
+  // Check disk bounds - use tighter inner check to avoid horizon clipping
+  if (r < innerR * 0.95 || r > outerR * 1.1) {
+    return vec4(0.0);
+  }
+
+  // Keplerian velocity around this BH (in local frame)
+  float v = sqrt(0.5 * bhRs / max(r, innerR));
+  vec2 tangent2D = normalize(vec2(-localPos.y, localPos.x));
+  vec3 vel = vec3(tangent2D.x * v, 0.0, tangent2D.y * v);
+
+  // Doppler shift
+  float vr = dot(vel, -rayDir);
+  float doppler = sqrt((1.0 + vr) / (1.0 - vr));
+
+  // Gravitational redshift from this BH
+  float effectiveR = min(r, rayMinRadius);
+  float gravRedshift = sqrt(max(0.01, 1.0 - bhRs / effectiveR));
+
+  // Get MHD modulations - scale radius to get proper texture frequency
+  // Mini-disks are smaller, so we scale up to get comparable feature sizes
+  float scaledR = r * (diskOuterRadius / outerR);
+  MHDResult mhd = getMHDCombined(scaledR, phi, time, lod);
+  float mhdDensity = mhd.density;
+  float mhdTemp = mhd.temperature;
+
+  // Temperature: radial profile within mini-disk
+  float frac = clamp((r - innerR) / (outerR - innerR), 0.0, 1.0);
+  // Mini-disks are hotter (more compact, closer to BH)
+  float tempInner = diskTemperatureInner * 1.2;
+  float tempOuter = diskTemperatureOuter * 1.1;
+  float baseTemp = mix(tempInner, tempOuter, frac);
+  float temp = baseTemp * doppler * gravRedshift * mhdTemp;
+
+  vec3 color = sampleBlackbody(temp);
+
+  // Doppler indicator overlay (same as single disk)
+  if (overlayDoppler > 0.0) {
+    float brightness = dot(color, vec3(0.299, 0.587, 0.114));
+    if (doppler > 1.0) {
+      float shift = clamp((doppler - 1.0) * 3.0, 0.0, 1.0);
+      float blendStrength = shift * overlayDoppler;
+      vec3 blueColor = vec3(0.3, 0.6, 1.0) * brightness * 1.5;
+      color = mix(color, blueColor, blendStrength * 0.8);
+    } else {
+      float shift = clamp((1.0 - doppler) * 3.0, 0.0, 1.0);
+      float blendStrength = shift * overlayDoppler;
+      vec3 redColor = vec3(1.0, 0.4, 0.2) * brightness * 1.2;
+      color = mix(color, redColor, blendStrength * 0.7);
+    }
+  }
+
+  // Intensity with Doppler beaming
+  float dopplerBoost = pow(doppler, 3.0);
+  if (overlayDoppler > 0.0) {
+    dopplerBoost = mix(dopplerBoost, doppler, overlayDoppler * 0.7);
+  }
+
+  float baseIntensity = dopplerBoost * gravRedshift / (1.0 + frac * 2.0);
+
+  // Reinhard tonemapping (same as single disk)
+  float compressedIntensity = baseIntensity / (1.0 + baseIntensity * diskLuminanceCompression);
+
+  // Contrast boosting (same as single disk)
+  float contrastMult = 1.0 + diskTextureContrast * sqrt(compressedIntensity);
+  float boostedDensity = 1.0 + (mhdDensity - 1.0) * contrastMult;
+  float intensity = compressedIntensity * boostedDensity;
+
+  // Higher-order image decay
+  int orbits = crossingIndex / 2;
+  float higherOrderDecay = pow(0.25, float(orbits));
+  intensity *= higherOrderDecay;
+
+  // Edge fading
+  float diskRange = outerR - innerR;
+  float innerEdgeWidth = diskRange * 0.08;
+  float innerFade = smoothstep(innerR * 0.9, innerR + innerEdgeWidth, r);
+  float outerEdgeWidth = diskRange * 0.2;
+  float outerFade = smoothstep(outerR * 1.1, outerR - outerEdgeWidth, r);
+
+  // Inner rim brightening at ISCO
+  float innerRim = exp(-pow((r - innerR) / (0.4 * bhRs), 2.0)) * 0.4;
+
+  float alpha = innerFade * outerFade * diskOpacity;
+
+  // Emissive boost for bloom
+  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8 + innerRim;
+  emissiveBoost = clamp(emissiveBoost, 0.3, 2.0);
+
+  return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
+}
+
+// ============================================================================
+// Circumbinary Disk Sampling (outer disk around both BHs)
+// ============================================================================
+
+vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float lod, float rayMinRadius) {
+  vec2 pos2D = hitPos.xz;
+  float r = length(pos2D);
+  float phi = atan(pos2D.y, pos2D.x);
+
+  // Circumbinary disk bounds
+  float innerR = circumbinaryInnerRadius;
+  float outerR = circumbinaryOuterRadius;
+
+  // Warp coordinates for oblong cavity shape
+  // Binary axis direction
+  vec2 binaryAxis = normalize(bh2Pos - bh1Pos);
+  vec2 perpAxis = vec2(-binaryAxis.y, binaryAxis.x);
+
+  // Project position onto binary coordinate system
+  float alongBinary = dot(pos2D, binaryAxis);
+  float perpBinary = dot(pos2D, perpAxis);
+
+  // Compress along binary axis - stretches cavity along binary axis
+  float compressFactor = 0.75;
+  vec2 warpedPos = binaryAxis * alongBinary * compressFactor + perpAxis * perpBinary;
+  float warpedR = length(warpedPos);
+  float warpedPhi = atan(warpedPos.y, warpedPos.x);
+
+  // Bounds check uses warpedR so cavity shape is oblong
+  if (warpedR < innerR * 0.4) {
+    return vec4(0.0);
+  }
+
+  // Keplerian velocity around the binary center of mass
+  float v = sqrt(0.5 * rs / r);
+  vec3 tangent = normalize(vec3(-hitPos.z, 0.0, hitPos.x));
+  vec3 vel = tangent * v;
+
+  // Doppler shift
+  float vr = dot(vel, -rayDir);
+  float doppler = sqrt((1.0 + vr) / (1.0 - vr));
+
+  // Gravitational redshift - simplified, use global rs at this distance
+  float effectiveR = max(r, rayMinRadius);
+  float gravRedshift = sqrt(max(0.1, 1.0 - rs / effectiveR));
+
+  // MHD turbulence - use warped coordinates so texture deforms with cavity
+  MHDResult mhd = getMHDCombined(warpedR, warpedPhi, time, lod);
+  float mhdDensity = mhd.density;
+  float mhdTemp = mhd.temperature;
+
+  // Temperature profile - use real radius
+  float frac = clamp((r - innerR) / (outerR - innerR), 0.0, 1.0);
+  float baseTemp = mix(diskTemperatureOuter * 0.95, diskTemperatureOuter * 0.7, frac);
+  float temp = baseTemp * doppler * gravRedshift * mhdTemp;
+
+  vec3 color = sampleBlackbody(temp);
+
+  // Doppler overlay
+  if (overlayDoppler > 0.0) {
+    float brightness = dot(color, vec3(0.299, 0.587, 0.114));
+    if (doppler > 1.0) {
+      float shift = clamp((doppler - 1.0) * 3.0, 0.0, 1.0);
+      vec3 blueColor = vec3(0.3, 0.6, 1.0) * brightness * 1.5;
+      color = mix(color, blueColor, shift * overlayDoppler * 0.8);
+    } else {
+      float shift = clamp((1.0 - doppler) * 3.0, 0.0, 1.0);
+      vec3 redColor = vec3(1.0, 0.4, 0.2) * brightness * 1.2;
+      color = mix(color, redColor, shift * overlayDoppler * 0.7);
+    }
+  }
+
+  // Intensity
+  float dopplerBoost = pow(doppler, 3.0);
+  if (overlayDoppler > 0.0) {
+    dopplerBoost = mix(dopplerBoost, doppler, overlayDoppler * 0.7);
+  }
+
+  float baseIntensity = dopplerBoost * gravRedshift * 0.8 / (1.0 + frac * 2.0);
+
+  // Tonemapping and contrast
+  float compressedIntensity = baseIntensity / (1.0 + baseIntensity * diskLuminanceCompression);
+  float contrastMult = 1.0 + diskTextureContrast * sqrt(compressedIntensity);
+  float boostedDensity = 1.0 + (mhdDensity - 1.0) * contrastMult;
+  float intensity = compressedIntensity * boostedDensity;
+
+  // Higher-order decay
+  int orbits = crossingIndex / 2;
+  float higherOrderDecay = pow(0.25, float(orbits));
+  intensity *= higherOrderDecay;
+
+  // Smooth edge fading - both use warpedR for consistent oblong shape
+  float diskRange = outerR - innerR;
+  float innerFade = smoothstep(innerR * 0.4, innerR + diskRange * 0.2, warpedR);
+  float outerFade = 1.0 - smoothstep(outerR - diskRange * 0.3, outerR, warpedR);
+
+  float alpha = innerFade * outerFade * diskOpacity;
+
+  // Emissive boost
+  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.5 + (mhdTemp - 1.0) * 0.6;
+  emissiveBoost = clamp(emissiveBoost, 0.4, 1.8);
+
+  return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
+}
