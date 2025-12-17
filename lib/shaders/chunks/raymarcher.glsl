@@ -25,7 +25,8 @@ vec4 traceRay(vec2 uv) {
   // Ray classification based on impact parameter (b = perpendicular distance to BH)
   // Rays with b > diskOuterRadius cannot hit the disk - use faster path
   float impactParam = computeImpactParameter(rayPos, rayDir);
-  bool canHitDisk = impactParam < diskOuterRadius * 1.2;
+  float effectiveDiskOuter = binaryEnabled > 0.5 ? circumbinaryOuterRadius : diskOuterRadius;
+  bool canHitDisk = impactParam < effectiveDiskOuter * 1.2;
   float stepMultiplier = canHitDisk ? 1.0 : 1.5;
   int effectiveMaxSteps = canHitDisk ? maxSteps : (maxSteps * 2) / 3;
 
@@ -56,15 +57,29 @@ vec4 traceRay(vec2 uv) {
     float rSq = dot(rayPos, rayPos);
     float r = sqrt(rSq);
 
-    // Track closest approach to black hole
-    minRadius = min(minRadius, r);
+    // Track closest approach to black hole (use nearest BH in binary mode)
+    if (binaryEnabled > 0.5) {
+      float r1 = length(rayPos - getBH1World());
+      float r2 = length(rayPos - getBH2World());
+      minRadius = min(minRadius, min(r1, r2));
+    } else {
+      minRadius = min(minRadius, r);
+    }
 
     // Early opacity exit - stop if disk is fully opaque
     if (diskAccum.a > 0.98) break;
 
-    if (rSq < rsSq) {
-      hitHorizon = true;
-      break;
+    // Event horizon check (single or binary)
+    if (binaryEnabled > 0.5) {
+      if (checkBinaryHorizon(rayPos)) {
+        hitHorizon = true;
+        break;
+      }
+    } else {
+      if (rSq < rsSq) {
+        hitHorizon = true;
+        break;
+      }
     }
 
     vec3 rHat = rayPos / r;
@@ -75,11 +90,19 @@ vec4 traceRay(vec2 uv) {
       break;
     }
 
-    float vDotR = radialVel; // Already computed above
-    float vPerpSq = 1.0 - vDotR * vDotR;
-    float accel = -1.5 * rs * vPerpSq / rSq;
-
-    vec3 dv = accel * rHat * h;
+    // Gravitational acceleration (single or binary)
+    float accel;
+    vec3 dv;
+    if (binaryEnabled > 0.5) {
+      vec3 accelVec = computeBinaryAcceleration(rayPos, rayDir);
+      dv = accelVec * h;
+      accel = length(accelVec); // Scalar magnitude for curvature adaptation
+    } else {
+      float vDotR = radialVel;
+      float vPerpSq = 1.0 - vDotR * vDotR;
+      accel = -1.5 * rs * vPerpSq / rSq;
+      dv = accel * rHat * h;
+    }
     rayDir = normalize(rayDir + dv);
 
     float prevY = rayPos.y;
@@ -92,7 +115,10 @@ vec4 traceRay(vec2 uv) {
     if (curvatureAdaptation > 0.0) {
       float photonSphereCurvature = 1.5 * rs / (2.25 * rs * rs);
       float normalizedCurvature = clamp(abs(accel) / photonSphereCurvature, 0.0, 1.0);
-      curvatureMultiplier = mix(1.0, 0.3, normalizedCurvature * normalizedCurvature * curvatureAdaptation);
+      // More aggressive adaptation: 0.15 minimum multiplier (was 0.3)
+      // Higher curvatureAdaptation values push the multiplier lower
+      float minMultiplier = max(0.15, 0.4 - curvatureAdaptation * 0.1);
+      curvatureMultiplier = mix(1.0, minMultiplier, normalizedCurvature * normalizedCurvature * curvatureAdaptation);
     }
 
     // Optional jitter to break up banding patterns
@@ -105,7 +131,8 @@ vec4 traceRay(vec2 uv) {
 
     // Combined step (stepMultiplier allows larger steps for rays that won't hit disk)
     float stepSize = baseStep * curvatureMultiplier * jitterMultiplier * stepMultiplier;
-    stepSize = clamp(stepSize, 0.02, 0.75);
+    // Minimum 0.01 (was 0.02) allows finer sampling in high-distortion regions
+    stepSize = clamp(stepSize, 0.01, 0.75);
 
     vec3 newPos = rayPos + rayDir * stepSize;
     float currY = newPos.y;
@@ -117,37 +144,64 @@ vec4 traceRay(vec2 uv) {
       vec3 hitPos = mix(rayPos, newPos, t);
       float hitR = length(hitPos.xz);
 
-      // For direct disk hits (first crossing or within disk bounds)
-      if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-        vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, minRadius);
-        float remaining = 1.0 - diskAccum.a;
-        diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
-        diskAccum.a += newDisk.a * remaining;
+      // Binary mode: sample three independent disks and blend additively
+      if (binaryEnabled > 0.5) {
+        // Sample mini-disk around BH1
+        vec4 disk1 = sampleMiniDisk(hitPos, rayDir, bh1Pos, binaryMass1, diskCrossings, lod, minRadius);
 
-        if (diskAccum.a > 0.99 && diskCrossings >= 2) break;
+        // Sample mini-disk around BH2
+        vec4 disk2 = sampleMiniDisk(hitPos, rayDir, bh2Pos, binaryMass2, diskCrossings, lod, minRadius);
+
+        // Sample circumbinary disk (outer disk)
+        vec4 diskCB = sampleCircumbinaryDisk(hitPos, rayDir, diskCrossings, lod, minRadius);
+
+        // Additive blend - all are light emitters
+        vec4 combined;
+        combined.rgb = disk1.rgb * disk1.a + disk2.rgb * disk2.a + diskCB.rgb * diskCB.a;
+        combined.a = min(disk1.a + disk2.a + diskCB.a, 0.98);
+
+        if (combined.a > 0.01) {
+          float remaining = 1.0 - diskAccum.a;
+          diskAccum.rgb += combined.rgb * remaining;
+          diskAccum.a += combined.a * remaining;
+
+          if (diskAccum.a > 0.99 && diskCrossings >= 2) break;
+        }
       }
-      // For photon rings: rays that cross near the photon sphere (1.5rs to 3rs)
-      // are lensed images of the disk - sample the disk at a mapped radius
-      else if (hitR > rs * 1.5 && hitR < diskInnerRadius && diskCrossings > 0) {
-        // Use logarithmic mapping to prevent excessive compression near photon sphere
-        // This spreads the disk content more evenly across the photon ring
-        // Using precomputed log bounds (photonRingLogInner/Outer) for performance
-        float logHit = log(hitR);
-        float photonRingFrac = (logHit - photonRingLogInner) / (photonRingLogOuter - photonRingLogInner);
+      // Single BH mode: original behavior
+      else {
+        // For direct disk hits (first crossing or within disk bounds)
+        if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
+          vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, minRadius);
+          float remaining = 1.0 - diskAccum.a;
+          diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
+          diskAccum.a += newDisk.a * remaining;
 
-        // Map across the full disk range (using precomputed diskRadiusRange)
-        float mappedR = diskInnerRadius + photonRingFrac * diskRadiusRange;
+          if (diskAccum.a > 0.99 && diskCrossings >= 2) break;
+        }
+        // For photon rings: rays that cross near the photon sphere (1.5rs to 3rs)
+        // are lensed images of the disk - sample the disk at a mapped radius
+        else if (hitR > rs * 1.5 && hitR < diskInnerRadius && diskCrossings > 0) {
+          // Use logarithmic mapping to prevent excessive compression near photon sphere
+          // This spreads the disk content more evenly across the photon ring
+          // Using precomputed log bounds (photonRingLogInner/Outer) for performance
+          float logHit = log(hitR);
+          float photonRingFrac = (logHit - photonRingLogInner) / (photonRingLogOuter - photonRingLogInner);
 
-        // Create a virtual hit position at the mapped radius
-        vec3 virtualHitPos = vec3(hitPos.x, 0.0, hitPos.z) * (mappedR / hitR);
+          // Map across the full disk range (using precomputed diskRadiusRange)
+          float mappedR = diskInnerRadius + photonRingFrac * diskRadiusRange;
 
-        // Pass minRadius for proper gravitational redshift of photon ring light
-        // The crossingIndex and minRadius together handle the dimming physics
-        vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, minRadius);
+          // Create a virtual hit position at the mapped radius
+          vec3 virtualHitPos = vec3(hitPos.x, 0.0, hitPos.z) * (mappedR / hitR);
 
-        float remaining = 1.0 - diskAccum.a;
-        diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
-        diskAccum.a += newDisk.a * remaining;
+          // Pass minRadius for proper gravitational redshift of photon ring light
+          // The crossingIndex and minRadius together handle the dimming physics
+          vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, minRadius);
+
+          float remaining = 1.0 - diskAccum.a;
+          diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
+          diskAccum.a += newDisk.a * remaining;
+        }
       }
 
       // Check disk-plane overlay rings at this crossing (skip if no overlays enabled)
@@ -213,49 +267,86 @@ vec4 traceRay(vec2 uv) {
       float absY = abs(rayPos.y);
       if (absY < effectiveThickness) {
         float hitR = length(rayPos.xz);
-        if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-        float normalizedY = absY / effectiveThickness;
+        vec2 hitPos2D = rayPos.xz;
 
-        // Vertical density profile
-        float verticalDensity;
-        if (thickDiskEnabled > 0.5) {
-          // Gaussian profile for thick disk (more realistic puffy appearance)
-          float sigma = thickDiskPuffiness;
-          verticalDensity = exp(-normalizedY * normalizedY / (2.0 * sigma * sigma));
+        // Check if within disk bounds (single or binary)
+        bool inDiskBounds = false;
+        if (binaryEnabled > 0.5) {
+          // For binary, check against circumbinary outer radius
+          inDiskBounds = hitR < circumbinaryOuterRadius;
         } else {
-          // Original quadratic falloff for thin disk
-          verticalDensity = pow(1.0 - normalizedY, 2.0);
+          inDiskBounds = hitR > diskInnerRadius && hitR < diskOuterRadius;
         }
 
-        // LOD-based sample skipping for thick disk
-        bool shouldSample = true;
-        if (thickDiskEnabled > 0.5 && lod < 0.7) {
-          int skipRate = lod < 0.3 ? 3 : 2;
-          shouldSample = (i % skipRate == 0);
-        }
+        if (inDiskBounds) {
+          float normalizedY = absY / effectiveThickness;
 
-        if (shouldSample) {
-          vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
-          vec4 volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, minRadius);
-
-          // Adjust alpha for sample skipping
-          float skipMultiplier = 1.0;
-          if (thickDiskEnabled > 0.5 && lod < 0.7) {
-            skipMultiplier = lod < 0.3 ? 3.0 : 2.0;
+          // Vertical density profile
+          float verticalDensity;
+          if (thickDiskEnabled > 0.5) {
+            // Gaussian profile for thick disk (more realistic puffy appearance)
+            float sigma = thickDiskPuffiness;
+            verticalDensity = exp(-normalizedY * normalizedY / (2.0 * sigma * sigma));
+          } else {
+            // Original quadratic falloff for thin disk
+            verticalDensity = pow(1.0 - normalizedY, 2.0);
           }
 
-          float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier;
-          float remaining = 1.0 - diskAccum.a;
-          diskAccum.rgb += volColor.rgb * volAlpha * remaining;
-          diskAccum.a += volAlpha * remaining;
+          // LOD-based sample skipping for thick disk
+          bool shouldSample = true;
+          if (thickDiskEnabled > 0.5 && lod < 0.7) {
+            int skipRate = lod < 0.3 ? 3 : 2;
+            shouldSample = (i % skipRate == 0);
+          }
+
+          if (shouldSample) {
+            vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
+            vec4 volColor;
+
+            if (binaryEnabled > 0.5) {
+              // Sample all three disks for volumetric
+              vec4 vol1 = sampleMiniDisk(projectedPos, rayDir, bh1Pos, binaryMass1, diskCrossings, lod, minRadius);
+              vec4 vol2 = sampleMiniDisk(projectedPos, rayDir, bh2Pos, binaryMass2, diskCrossings, lod, minRadius);
+              vec4 volCB = sampleCircumbinaryDisk(projectedPos, rayDir, diskCrossings, lod, minRadius);
+
+              // Additive blend
+              volColor.rgb = vol1.rgb * vol1.a + vol2.rgb * vol2.a + volCB.rgb * volCB.a;
+              volColor.a = min(vol1.a + vol2.a + volCB.a, 0.95);
+            } else {
+              volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, minRadius);
+            }
+
+            // Adjust alpha for sample skipping
+            float skipMultiplier = 1.0;
+            if (thickDiskEnabled > 0.5 && lod < 0.7) {
+              skipMultiplier = lod < 0.3 ? 3.0 : 2.0;
+            }
+
+            float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier;
+            float remaining = 1.0 - diskAccum.a;
+            diskAccum.rgb += volColor.rgb * volAlpha * remaining;
+            diskAccum.a += volAlpha * remaining;
+          }
         }
-      }
       }
     }
 
-    // Corona sampling (branchless inner alpha check)
-    if (coronaEnabled > 0.5 && r < coronaRadius * 2.0) {
-      vec4 coronaSample = sampleCorona(rayPos, rayDir, r, lod);
+    // Corona sampling
+    if (coronaEnabled > 0.5) {
+      vec4 coronaSample = vec4(0.0);
+      if (binaryEnabled > 0.5) {
+        // In binary mode, check distance to either BH
+        float r1 = length(rayPos - getBH1World());
+        float r2 = length(rayPos - getBH2World());
+        float minBHDist = min(r1, r2);
+        if (minBHDist < coronaRadius * 2.0) {
+          coronaSample = sampleBinaryCorona(rayPos, rayDir, lod);
+        }
+      } else {
+        if (r < coronaRadius * 2.0) {
+          coronaSample = sampleCorona(rayPos, rayDir, r, lod);
+        }
+      }
       float coronaContrib = step(0.001, coronaSample.a);
       float remaining = 1.0 - diskAccum.a;
       diskAccum.rgb += coronaSample.rgb * coronaSample.a * remaining * coronaContrib;
@@ -293,7 +384,8 @@ vec4 traceRay(vec2 uv) {
 
   // Photon sphere glow: rays passing near r = 1.5rs (photon sphere)
   // create the bright ring visible in EHT images
-  if (!hitHorizon && minRadius < 2.5 * rs && minRadius > rs && photonSphereIntensity > 0.0) {
+  // Skip in binary mode - each BH has natural photon rings from ray tracing
+  if (!hitHorizon && minRadius < 2.5 * rs && minRadius > rs && photonSphereIntensity > 0.0 && binaryEnabled < 0.5) {
     float photonSphereRadius = 1.5 * rs;
     float psDistance = abs(minRadius - photonSphereRadius);
 

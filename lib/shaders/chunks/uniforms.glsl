@@ -86,6 +86,19 @@ uniform float photonRingLogOuter;   // log(diskInnerRadius) - precomputed for ph
 uniform float diskRadiusRange;      // diskOuterRadius - diskInnerRadius
 uniform float anyOverlayEnabled;    // 1.0 if any overlay is on, 0.0 otherwise
 
+// Binary black hole system
+uniform float binaryEnabled;        // 0.0 = single BH, 1.0 = binary system
+uniform float binaryMass1;          // Mass fraction of BH1 (0.1 to 0.9)
+uniform float binaryMass2;          // Mass fraction of BH2 (1 - mass1)
+uniform float binarySeparation;     // Distance between BHs in rs units
+uniform vec2 bh1Pos;                // BH1 position in disk plane (precomputed)
+uniform vec2 bh2Pos;                // BH2 position in disk plane (precomputed)
+uniform float circumbinaryInnerRadius;  // Cavity inner edge (~2.5 * separation)
+uniform float circumbinaryOuterRadius;  // Outer disk boundary
+uniform float binaryBlendWidth;     // Blending smoothness between components
+uniform float streamWidth;          // Width of accretion streams
+uniform float streamDensity;        // Density/brightness of streams
+
 varying vec2 vUv;
 
 #define PI 3.14159265359
