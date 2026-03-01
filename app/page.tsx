@@ -12,9 +12,9 @@ const features = [
       'Schwarzschild geodesic ray-marching simulates how light bends around the event horizon in real-time.',
   },
   {
-    title: 'AI Voice Guide',
+    title: 'Cinematic Camera',
     description:
-      'An AI companion explains the physics as you explore different viewpoints around the black hole.',
+      'Cinematic camera presets and sequences guide you through key viewpoints around the black hole.',
   },
   {
     title: 'Interactive Controls',
@@ -125,7 +125,7 @@ export default function Home() {
               ref={subtitleRef}
               className="text-[clamp(0.9rem,2vw,1.2rem)] font-light tracking-[0.2em] uppercase text-neutral-400 mb-12 leading-relaxed"
             >
-              A Voice-Guided Journey Through Spacetime
+              A Journey Through Spacetime
             </p>
             <Link
               ref={ctaRef}
@@ -218,7 +218,7 @@ export default function Home() {
               Ready to Begin?
             </h2>
             <p className="text-neutral-500 mb-10">
-              Step into the simulation and let your AI guide show you around
+              Step into the simulation and explore the cosmos
             </p>
             <Link
               href="/app"

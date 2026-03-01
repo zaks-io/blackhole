@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { track } from '@vercel/analytics';
-import { useAuth0 } from '@auth0/auth0-react';
 import BlackHoleSimulation, {
   CAMERA_PRESETS,
   CAMERA_SEQUENCES,
@@ -12,54 +11,26 @@ import { CameraPresetBar } from './CameraPresetBar';
 import { ToggleControlBar } from './ToggleControlBar';
 import { InfoPanel } from './InfoPanel';
 import { OverlayLabels } from './OverlayLabels';
-import { VoiceAgentPopup } from './VoiceAgentPopup';
-import { VoiceLoginPrompt } from './VoiceLoginPrompt';
 import { UserMenu } from './UserMenu';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
 import { ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
-import { BinaryAudioController } from '@/lib/audio';
 
 /**
  * Wrapper component that contains both the simulation and camera controls.
  * This is dynamically imported so everything is in the same module scope.
  */
 export default function AppView() {
-  const { isAuthenticated } = useAuth0();
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>('default');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
-  const [audioController, setAudioController] = useState<BinaryAudioController | null>(null);
   const [ehtMode, setEhtMode] = useState(false);
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
   const [introComplete, setIntroComplete] = useState(false);
   const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
   const [cameraDistance, setCameraDistance] = useState(20);
   const [isManualMode, setIsManualMode] = useState(false);
-  const sendContextualUpdateRef = useRef<((text: string) => void) | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-
-  const handleContextualUpdateReady = useCallback(
-    (sendUpdate: (text: string) => void) => {
-      sendContextualUpdateRef.current = sendUpdate;
-
-      const activeToggles = Object.entries(toggleState)
-        .filter(([, v]) => v)
-        .map(([k]) => k);
-      const toggleInfo =
-        activeToggles.length > 0
-          ? `Active toggles: ${activeToggles.join(', ')}.`
-          : 'No toggles active.';
-      const ehtInfo = ehtMode ? `EHT mode is on${ehtBlurEnabled ? ' with blur enabled' : ''}.` : '';
-
-      sendUpdate(`Current view: ${activePreset}. ${toggleInfo} ${ehtInfo}`.trim());
-    },
-    [activePreset, toggleState, ehtMode, ehtBlurEnabled]
-  );
-
-  const sendContextualUpdate = useCallback((message: string) => {
-    sendContextualUpdateRef.current?.(message);
-  }, []);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
@@ -90,10 +61,6 @@ export default function AppView() {
     setEhtBlurController(controller);
   }, []);
 
-  const handleAudioControllerReady = useCallback((controller: BinaryAudioController) => {
-    setAudioController(controller);
-  }, []);
-
   const handleEhtToggle = useCallback(() => {
     if (!cameraController || !ehtBlurController) return;
 
@@ -103,7 +70,6 @@ export default function AppView() {
       setEhtBlurEnabled(false);
       ehtBlurController.setEnabled(false);
       setActivePreset('default');
-      sendContextualUpdate('User disabled EHT mode, returning to default view');
 
       const defaultPreset = CAMERA_PRESETS.default;
       cameraController
@@ -122,9 +88,6 @@ export default function AppView() {
       // Enter EHT mode - move camera to EHT position then enable blur
       setEhtMode(true);
       setActivePreset('eht');
-      sendContextualUpdate(
-        'User enabled EHT mode to view the black hole as seen by the Event Horizon Telescope'
-      );
 
       const ehtPreset = CAMERA_PRESETS.eht;
       cameraController
@@ -137,15 +100,14 @@ export default function AppView() {
           ehtBlurController.setEnabled(true);
         });
     }
-  }, [cameraController, ehtBlurController, ehtMode, sendContextualUpdate]);
+  }, [cameraController, ehtBlurController, ehtMode]);
 
   const handleEhtBlurToggle = useCallback(() => {
     if (!ehtBlurController) return;
     const newState = !ehtBlurEnabled;
     setEhtBlurEnabled(newState);
     ehtBlurController.setEnabled(newState);
-    sendContextualUpdate(`User ${newState ? 'enabled' : 'disabled'} EHT blur effect`);
-  }, [ehtBlurController, ehtBlurEnabled, sendContextualUpdate]);
+  }, [ehtBlurController, ehtBlurEnabled]);
 
   const handleManualModeToggle = useCallback(() => {
     if (!cameraController) return;
@@ -153,7 +115,6 @@ export default function AppView() {
     if (isManualMode) {
       // Exit manual mode - return to default orbit
       setActivePreset('default');
-      sendContextualUpdate('User returned to auto camera mode');
 
       const defaultPreset = CAMERA_PRESETS.default;
       cameraController
@@ -172,7 +133,6 @@ export default function AppView() {
       // Enter manual mode
       cameraController.returnToManual();
       setActivePreset(null);
-      sendContextualUpdate('User enabled manual camera control');
 
       // Exit EHT mode if active
       if (ehtMode) {
@@ -181,7 +141,7 @@ export default function AppView() {
         ehtBlurController?.setEnabled(false);
       }
     }
-  }, [cameraController, isManualMode, ehtMode, ehtBlurController, sendContextualUpdate]);
+  }, [cameraController, isManualMode, ehtMode, ehtBlurController]);
 
   const handleReveal = useCallback(() => {
     if (!ehtBlurController || !cameraController) return;
@@ -216,29 +176,8 @@ export default function AppView() {
     handleReveal();
   }, [handleReveal]);
 
-  const handleEhtBlurSet = useCallback(
-    (enabled: boolean) => {
-      if (!ehtBlurController) return;
-      setEhtBlurEnabled(enabled);
-      ehtBlurController.setEnabled(enabled);
-      sendContextualUpdate(`User ${enabled ? 'enabled' : 'disabled'} EHT blur effect`);
-    },
-    [ehtBlurController, sendContextualUpdate]
-  );
-
-  const handleToggleChange = useCallback(
-    (toggles: Partial<ToggleState>) => {
-      setToggleState((prev) => ({ ...prev, ...toggles }));
-      const changes = Object.entries(toggles)
-        .map(([key, val]) => `${key}: ${val ? 'on' : 'off'}`)
-        .join(', ');
-      sendContextualUpdate(`User toggled: ${changes}`);
-    },
-    [sendContextualUpdate]
-  );
-
-  const handleSoundToggle = useCallback((enabled: boolean) => {
-    setToggleState((prev) => ({ ...prev, audio: enabled }));
+  const handleToggleChange = useCallback((toggles: Partial<ToggleState>) => {
+    setToggleState((prev) => ({ ...prev, ...toggles }));
   }, []);
 
   const handlePresetSelect = useCallback(
@@ -256,7 +195,6 @@ export default function AppView() {
       }
 
       setActivePreset(presetName);
-      sendContextualUpdate(`User changed camera to ${presetName} view`);
 
       // Check if it's a sequence first
       const sequence = CAMERA_SEQUENCES[presetName];
@@ -289,7 +227,7 @@ export default function AppView() {
           });
         });
     },
-    [cameraController, ehtMode, ehtBlurController, sendContextualUpdate]
+    [cameraController, ehtMode, ehtBlurController]
   );
 
   return (
@@ -301,7 +239,6 @@ export default function AppView() {
         toggleState={toggleState}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
-        onAudioControllerReady={handleAudioControllerReady}
       />
 
       {/* Intro Overlay */}
@@ -343,18 +280,7 @@ export default function AppView() {
 
       <UserMenu show={introComplete} />
 
-      {introComplete && isAuthenticated && (
-        <VoiceAgentPopup
-          onPresetSelect={handlePresetSelect}
-          onEhtBlurToggle={handleEhtBlurSet}
-          onOverlayToggle={handleToggleChange}
-          onContextualUpdateReady={handleContextualUpdateReady}
-          audioController={audioController}
-          onSoundToggle={handleSoundToggle}
-        />
-      )}
-
-      {introComplete && !isAuthenticated && <VoiceLoginPrompt />}
+      {/* TODO: Voice agent UI temporarily removed — will be re-integrated */}
 
       <style jsx>{`
         .intro-overlay {
