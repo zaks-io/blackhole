@@ -31,14 +31,7 @@ const VALID_PRESETS = [
   'doppler',
   'fallingIn',
 ];
-const VALID_TOGGLE_KEYS: (keyof ToggleState)[] = [
-  'isco',
-  'eventHorizon',
-  'doppler',
-  'scale',
-  'disk',
-  'jets',
-];
+const VALID_TOGGLE_KEYS: (keyof ToggleState)[] = ['eventHorizon', 'disk', 'audio', 'binary'];
 
 export function VoiceAgentPopup({
   onClose,

@@ -23,35 +23,6 @@ const LABELS: LabelConfig[] = [
     description: '1 rs',
     angleOffset: 0,
   },
-  {
-    key: 'isco',
-    label: 'ISCO',
-    radius: 3 * CONFIG.rs,
-    color: '#00d9d9',
-    description: '3 rs',
-    angleOffset: Math.PI * 0.15, // ~27 degrees
-  },
-  {
-    key: 'scale',
-    label: '5 rs',
-    radius: 5 * CONFIG.rs,
-    color: '#b3b3bf',
-    angleOffset: -Math.PI * 0.12, // ~-22 degrees
-  },
-  {
-    key: 'scale',
-    label: '10 rs',
-    radius: 10 * CONFIG.rs,
-    color: '#b3b3bf',
-    angleOffset: Math.PI * 0.08, // ~14 degrees
-  },
-  {
-    key: 'scale',
-    label: '15 rs',
-    radius: 15 * CONFIG.rs,
-    color: '#b3b3bf',
-    angleOffset: -Math.PI * 0.05, // ~-9 degrees
-  },
 ];
 
 interface OverlayLabelsProps {

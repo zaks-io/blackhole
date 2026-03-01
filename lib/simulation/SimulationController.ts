@@ -328,12 +328,9 @@ export class SimulationController {
 
   updateToggleState(state: ToggleState): void {
     this.pipeline?.lensingPass.updateParams({
-      overlayIsco: state.isco ? 1.0 : 0.0,
       overlayEventHorizon: state.eventHorizon ? 1.0 : 0.0,
-      overlayDoppler: state.doppler ? 1.0 : 0.0,
-      overlayScale: state.scale ? 1.0 : 0.0,
       diskOpacity: state.disk ? CONFIG.disk.opacity : 0.0,
-      jetsEnabled: state.jets ? 1.0 : 0.0,
+      binaryEnabled: state.binary ? 1.0 : 0.0,
     });
   }
 

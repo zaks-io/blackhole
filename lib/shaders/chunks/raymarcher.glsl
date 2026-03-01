@@ -217,9 +217,23 @@ vec4 traceRay(vec2 uv) {
 
         // Event horizon ring - Red - placed at 1.1rs to ensure rays detect it before terminating at horizon
         if (overlayEventHorizon > 0.0) {
-          vec4 ring = renderDiskPlaneRing(newPos, rayPos, rs * 1.1, ringThickness, vec3(1.0, 0.15, 0.15), overlayEventHorizon);
-          overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
-          overlayAccum.a = max(overlayAccum.a, ring.a);
+          if (binaryEnabled > 0.5) {
+            // BH1 horizon ring
+            vec3 bh1 = getBH1World();
+            vec4 ring1 = renderDiskPlaneRing(newPos - bh1, rayPos - bh1, getBH1Rs() * 1.1, ringThickness, vec3(1.0, 0.15, 0.15), overlayEventHorizon);
+            overlayAccum.rgb += ring1.rgb * (1.0 - overlayAccum.a);
+            overlayAccum.a = max(overlayAccum.a, ring1.a);
+
+            // BH2 horizon ring
+            vec3 bh2 = getBH2World();
+            vec4 ring2 = renderDiskPlaneRing(newPos - bh2, rayPos - bh2, getBH2Rs() * 1.1, ringThickness, vec3(1.0, 0.15, 0.15), overlayEventHorizon);
+            overlayAccum.rgb += ring2.rgb * (1.0 - overlayAccum.a);
+            overlayAccum.a = max(overlayAccum.a, ring2.a);
+          } else {
+            vec4 ring = renderDiskPlaneRing(newPos, rayPos, rs * 1.1, ringThickness, vec3(1.0, 0.15, 0.15), overlayEventHorizon);
+            overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
+            overlayAccum.a = max(overlayAccum.a, ring.a);
+          }
         }
       }
 
