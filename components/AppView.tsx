@@ -7,8 +7,7 @@ import BlackHoleSimulation, {
   CAMERA_SEQUENCES,
   EhtBlurController,
 } from './BlackHoleSimulation';
-import { CameraPresetBar } from './CameraPresetBar';
-import { ToggleControlBar } from './ToggleControlBar';
+import { ControlDock } from './ControlDock';
 import { InfoPanel } from './InfoPanel';
 import { OverlayLabels } from './OverlayLabels';
 import { UserMenu } from './UserMenu';
@@ -250,23 +249,17 @@ export default function AppView() {
         </div>
       </div>
 
-      {cameraController && (
-        <CameraPresetBar
-          onPresetSelect={handlePresetSelect}
-          activePreset={activePreset}
-          ehtMode={ehtMode}
-          ehtBlurEnabled={ehtBlurEnabled}
-          onEhtToggle={handleEhtToggle}
-          onEhtBlurToggle={handleEhtBlurToggle}
-          show={introComplete}
-          isManualMode={isManualMode}
-          onManualModeToggle={handleManualModeToggle}
-        />
-      )}
-
-      <ToggleControlBar
+      <ControlDock
         toggleState={toggleState}
         onToggle={handleToggleChange}
+        onPresetSelect={handlePresetSelect}
+        activePreset={activePreset}
+        ehtMode={ehtMode}
+        ehtBlurEnabled={ehtBlurEnabled}
+        onEhtToggle={handleEhtToggle}
+        onEhtBlurToggle={handleEhtBlurToggle}
+        isManualMode={isManualMode}
+        onManualModeToggle={handleManualModeToggle}
         show={introComplete}
       />
 

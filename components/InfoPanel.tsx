@@ -131,8 +131,8 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
       <style jsx>{`
         .info-panel {
           position: fixed;
-          bottom: 32px;
-          left: 32px;
+          top: 28px;
+          left: 28px;
           z-index: 100;
           display: flex;
           flex-direction: column;
@@ -144,7 +144,7 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
         }
 
         .info-panel.hidden {
-          transform: translateY(100px);
+          transform: translateY(-40px);
           opacity: 0;
           pointer-events: none;
         }
@@ -154,17 +154,17 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
           align-items: center;
           gap: 8px;
           padding: 8px 14px;
-          background: rgba(10, 10, 10, 0.7);
+          background: rgba(10, 10, 10, 0.75);
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 12px;
           color: rgba(255, 255, 255, 0.8);
           cursor: pointer;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           box-shadow:
-            0 4px 30px rgba(0, 0, 0, 0.5),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            0 4px 40px rgba(0, 0, 0, 0.6),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
 
         .panel-header:hover {
@@ -202,15 +202,15 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
         .panel-content {
           max-height: 0;
           overflow: hidden;
-          background: rgba(10, 10, 10, 0.85);
+          background: rgba(10, 10, 10, 0.8);
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           border-top: none;
           border-radius: 0 0 12px 12px;
           box-shadow:
-            0 4px 30px rgba(0, 0, 0, 0.5),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            0 4px 40px rgba(0, 0, 0, 0.6),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           opacity: 0;
           min-width: 280px;
@@ -304,8 +304,8 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
 
         @media (max-width: 600px) {
           .info-panel {
-            left: 16px;
-            bottom: 24px;
+            top: 16px;
+            left: 12px;
           }
 
           .panel-content {
