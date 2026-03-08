@@ -20,6 +20,7 @@ import {
   EhtIcon,
   BlurIcon,
   SharpIcon,
+  HelpIcon,
 } from './icons';
 
 interface ControlDockProps {
@@ -33,6 +34,7 @@ interface ControlDockProps {
   onEhtBlurToggle: () => void;
   isManualMode: boolean;
   onManualModeToggle: () => void;
+  onHelpOpen: () => void;
   show: boolean;
 }
 
@@ -89,6 +91,7 @@ export function ControlDock({
   onEhtBlurToggle,
   isManualMode,
   onManualModeToggle,
+  onHelpOpen,
   show,
 }: ControlDockProps) {
   return (
@@ -177,6 +180,15 @@ export function ControlDock({
               <span className="label">{ehtBlurEnabled ? 'Blur' : 'Sharp'}</span>
             </button>
           )}
+        </div>
+
+        <div className="divider" />
+
+        <div className="group">
+          <button className="dock-btn help-btn" onClick={onHelpOpen} title="Help">
+            <HelpIcon size={20} />
+            <span className="label">Help</span>
+          </button>
         </div>
       </div>
 
@@ -299,6 +311,11 @@ export function ControlDock({
           background: rgba(135, 206, 235, 0.12);
           border-color: rgba(135, 206, 235, 0.3);
           box-shadow: 0 0 12px rgba(135, 206, 235, 0.15);
+        }
+
+        /* Help — white */
+        .help-btn:hover {
+          color: rgba(255, 255, 255, 0.9);
         }
 
         .label {

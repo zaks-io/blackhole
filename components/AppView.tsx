@@ -8,6 +8,7 @@ import BlackHoleSimulation, {
   EhtBlurController,
 } from './BlackHoleSimulation';
 import { ControlDock } from './ControlDock';
+import { HelpModal } from './HelpModal';
 import { InfoPanel } from './InfoPanel';
 import { OverlayLabels } from './OverlayLabels';
 import { UserMenu } from './UserMenu';
@@ -29,6 +30,7 @@ export default function AppView() {
   const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
   const [cameraDistance, setCameraDistance] = useState(20);
   const [isManualMode, setIsManualMode] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const animationFrameRef = useRef<number | null>(null);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
@@ -262,6 +264,7 @@ export default function AppView() {
         onEhtBlurToggle={handleEhtBlurToggle}
         isManualMode={isManualMode}
         onManualModeToggle={handleManualModeToggle}
+        onHelpOpen={() => setHelpOpen(true)}
         show={introComplete}
       />
 
@@ -274,6 +277,8 @@ export default function AppView() {
       <InfoPanel cameraDistance={cameraDistance} show={introComplete} />
 
       <UserMenu show={introComplete} />
+
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {/* TODO: Voice agent UI temporarily removed — will be re-integrated */}
 
