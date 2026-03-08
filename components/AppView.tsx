@@ -242,9 +242,11 @@ export default function AppView() {
 
       {/* Intro Overlay */}
       <div className={`intro-overlay ${introComplete ? 'hidden' : ''}`}>
-        <div className="intro-card">
-          <button onClick={handleStart} className="start-btn" disabled={!ehtBlurController}>
-            Start
+        <div className="intro-content">
+          <h1 className="intro-title">Schwarzschild Black Hole</h1>
+          <p className="intro-subtitle">Interactive gravitational lensing simulation</p>
+          <button onClick={handleStart} className="intro-btn" disabled={!ehtBlurController}>
+            {ehtBlurController ? 'Enter' : 'Loading\u2026'}
           </button>
         </div>
       </div>
@@ -278,17 +280,14 @@ export default function AppView() {
       <style jsx>{`
         .intro-overlay {
           position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+          inset: 0;
           z-index: 200;
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(0, 0, 0, 0.5);
+          background: rgba(0, 0, 0, 0.6);
           opacity: 1;
-          transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .intro-overlay.hidden {
@@ -296,62 +295,63 @@ export default function AppView() {
           pointer-events: none;
         }
 
-        .intro-card {
+        .intro-content {
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding: 40px 48px;
-          background: rgba(10, 10, 10, 0.85);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
-          border: 1px solid rgba(255, 140, 66, 0.2);
-          border-radius: 20px;
-          box-shadow:
-            0 4px 60px rgba(0, 0, 0, 0.6),
-            0 0 80px rgba(255, 140, 66, 0.08),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+          gap: 0;
+          text-align: center;
+          padding: 0 24px;
         }
 
-        .start-btn {
-          padding: 16px 48px;
-          background: rgba(255, 140, 66, 0.15);
-          border: 1px solid rgba(255, 140, 66, 0.4);
-          border-radius: 12px;
-          color: #ff8c42;
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-          font-size: 13px;
-          font-weight: 500;
+        .intro-title {
+          font-family: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+          font-size: clamp(18px, 3vw, 28px);
+          font-weight: 300;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: rgba(255, 255, 255, 0.9);
+          margin: 0 0 12px;
+        }
+
+        .intro-subtitle {
+          font-family: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+          font-size: clamp(11px, 1.5vw, 14px);
+          font-weight: 400;
           letter-spacing: 0.15em;
+          color: rgba(255, 255, 255, 0.4);
+          margin: 0 0 40px;
+        }
+
+        .intro-btn {
+          padding: 14px 48px;
+          background: transparent;
+          border: 1px solid rgba(255, 140, 66, 0.35);
+          border-radius: 4px;
+          color: #ff8c42;
+          font-family: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+          font-size: 12px;
+          font-weight: 500;
+          letter-spacing: 0.2em;
           text-transform: uppercase;
           cursor: pointer;
           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-          min-width: 180px;
         }
 
-        .start-btn:hover:not(:disabled) {
-          background: rgba(255, 140, 66, 0.25);
+        .intro-btn:hover:not(:disabled) {
+          background: rgba(255, 140, 66, 0.1);
           border-color: rgba(255, 140, 66, 0.6);
-          box-shadow: 0 0 30px rgba(255, 140, 66, 0.2);
+          box-shadow: 0 0 30px rgba(255, 140, 66, 0.15);
         }
 
-        .start-btn:active:not(:disabled) {
+        .intro-btn:active:not(:disabled) {
           transform: scale(0.98);
         }
 
-        .start-btn:disabled {
-          opacity: 0.6;
+        .intro-btn:disabled {
+          color: rgba(255, 255, 255, 0.3);
+          border-color: rgba(255, 255, 255, 0.1);
           cursor: default;
-        }
-
-        @media (max-width: 600px) {
-          .intro-card {
-            padding: 32px 24px;
-          }
-
-          .start-btn {
-            min-width: auto;
-            padding: 14px 32px;
-          }
         }
       `}</style>
     </>
