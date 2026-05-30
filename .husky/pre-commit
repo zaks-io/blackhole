@@ -1,1 +1,7 @@
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --verbose
+else
+  echo "gitleaks not installed; skipping secret scan. Install: brew install gitleaks" >&2
+fi
+
 bunx lint-staged
