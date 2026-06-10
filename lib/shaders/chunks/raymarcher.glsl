@@ -134,8 +134,18 @@ vec4 traceRay(vec2 uv) {
 
     float prevY = rayPos.y;
 
-    // Base step size (original distance-based)
-    float baseStep = h * max(1.0, (r - rs) / rs);
+    // Base step in units of the governing rs: max(rs', r' - rs') is a
+    // near-field floor of one rs' plus linear growth with distance. In binary
+    // mode use the nearest BH's own scale so a small companion's photon ring
+    // is resolved as finely, relative to its rs, as the single-BH case.
+    float baseStep;
+    if (binaryEnabled > 0.5) {
+      float scale1 = max(getBH1Rs(), r1 - getBH1Rs());
+      float scale2 = max(getBH2Rs(), r2 - getBH2Rs());
+      baseStep = h * min(scale1, scale2) / rs;
+    } else {
+      baseStep = h * max(1.0, (r - rs) / rs);
+    }
 
     // Curvature adaptation - smaller steps in high-curvature regions
     float curvatureMultiplier = 1.0;
@@ -197,13 +207,13 @@ vec4 traceRay(vec2 uv) {
       // Binary mode: sample three independent disks and blend additively
       if (binaryEnabled > 0.5) {
         // Sample mini-disk around BH1
-        vec4 disk1 = sampleMiniDisk(hitPos, rayDir, bh1Pos, binaryMass1, diskCrossings, lod, minRadius);
+        vec4 disk1 = sampleMiniDisk(hitPos, rayDir, bh1Pos, binaryMass1, diskCrossings, lod);
 
         // Sample mini-disk around BH2
-        vec4 disk2 = sampleMiniDisk(hitPos, rayDir, bh2Pos, binaryMass2, diskCrossings, lod, minRadius);
+        vec4 disk2 = sampleMiniDisk(hitPos, rayDir, bh2Pos, binaryMass2, diskCrossings, lod);
 
         // Sample circumbinary disk (outer disk)
-        vec4 diskCB = sampleCircumbinaryDisk(hitPos, rayDir, diskCrossings, lod, minRadius);
+        vec4 diskCB = sampleCircumbinaryDisk(hitPos, rayDir, diskCrossings, lod);
 
         // Additive blend - all are light emitters
         vec4 combined;
@@ -384,9 +394,9 @@ vec4 traceRay(vec2 uv) {
 
             if (binaryEnabled > 0.5) {
               // Sample all three disks for volumetric
-              vec4 vol1 = sampleMiniDisk(projectedPos, rayDir, bh1Pos, binaryMass1, diskCrossings, lod, minRadius);
-              vec4 vol2 = sampleMiniDisk(projectedPos, rayDir, bh2Pos, binaryMass2, diskCrossings, lod, minRadius);
-              vec4 volCB = sampleCircumbinaryDisk(projectedPos, rayDir, diskCrossings, lod, minRadius);
+              vec4 vol1 = sampleMiniDisk(projectedPos, rayDir, bh1Pos, binaryMass1, diskCrossings, lod);
+              vec4 vol2 = sampleMiniDisk(projectedPos, rayDir, bh2Pos, binaryMass2, diskCrossings, lod);
+              vec4 volCB = sampleCircumbinaryDisk(projectedPos, rayDir, diskCrossings, lod);
 
               // Additive blend
               volColor.rgb = vol1.rgb * vol1.a + vol2.rgb * vol2.a + volCB.rgb * volCB.a;
@@ -494,13 +504,23 @@ vec2 hash2(vec2 p) {
   );
 }
 
-// Analytic closest-approach estimate for edge supersampling (returns minRadius)
-// The impact parameter b = |r x v| is conserved along the geodesic. For
-// Schwarzschild null geodesics the closest approach r0 is the largest root of
+// Analytic closest-approach estimate for edge supersampling, returned in
+// units of the relevant BH's rs. The impact parameter b = |r x v| is
+// conserved along the geodesic. For Schwarzschild null geodesics the closest
+// approach r0 is the largest root of
 //   r0^3 - b^2 * r0 + b^2 * rs = 0
 // which has a closed-form trigonometric solution. Rays with b below the
 // critical impact parameter b_crit = (3*sqrt(3)/2) * rs are captured.
 // This replaces an 80-step ray march per pixel with a few ALU ops.
+float closestApproachNorm(vec3 relPos, vec3 rayDir, float rsBH) {
+  float b = length(cross(relPos, rayDir));
+  float bCrit = 2.598076211 * rsBH; // 3*sqrt(3)/2
+  if (b <= bCrit) return 0.9; // Captured: always inside the supersample band
+
+  // r0 = (2b/sqrt(3)) * cos(acos(-bCrit/b) / 3), in [1.5*rsBH, b]
+  return 1.154700538 * (b / rsBH) * cos(acos(-bCrit / b) / 3.0);
+}
+
 float traceEdgeDetect(vec2 uv) {
   vec2 ndc = uv * 2.0 - 1.0;
   vec4 clip = vec4(ndc, -1.0, 1.0);
@@ -508,12 +528,14 @@ float traceEdgeDetect(vec2 uv) {
   viewPos = vec4(viewPos.xy, -1.0, 0.0);
   vec3 rayDir = normalize((inverseView * viewPos).xyz);
 
-  float b = length(cross(cameraPos, rayDir));
-  float bCrit = 2.598076211 * rs; // 3*sqrt(3)/2
-  if (b <= bCrit) return 0.9 * rs; // Captured: always inside the supersample band
-
-  // r0 = (2b/sqrt(3)) * cos(acos(-bCrit/b) / 3), in [1.5*rs, b]
-  return 1.154700538 * b * cos(acos(-bCrit / b) / 3.0);
+  // Binary mode has a shadow around each BH; supersample whichever edge the
+  // ray passes closest to (in units of that BH's own rs).
+  if (binaryEnabled > 0.5) {
+    float n1 = closestApproachNorm(cameraPos - getBH1World(), rayDir, getBH1Rs());
+    float n2 = closestApproachNorm(cameraPos - getBH2World(), rayDir, getBH2Rs());
+    return min(n1, n2);
+  }
+  return closestApproachNorm(cameraPos, rayDir, rs);
 }
 
 void main() {
@@ -524,12 +546,12 @@ void main() {
     // No supersampling requested, but check if we're near the BH edge
     // If bhEdgeSoftness > 0, do adaptive edge supersampling
     if (bhEdgeSoftness > 0.0) {
-      float minR = traceEdgeDetect(vUv);
-      float photonSphere = rs * 1.5;
-      float edgeThreshold = rs * (2.0 + bhEdgeSoftness * 2.0); // 2-4 rs range
+      // Closest approach in units of the nearest BH's rs
+      float minRn = traceEdgeDetect(vUv);
+      float edgeThreshold = 2.0 + bhEdgeSoftness * 2.0; // 2-4 rs range
 
       // Near the photon sphere = potential edge aliasing
-      if (minR < edgeThreshold && minR > rs * 0.5) {
+      if (minRn < edgeThreshold && minRn > 0.5) {
         // Adaptive 2x2 supersampling for edge pixels
         vec4 accum = vec4(0.0);
         vec2 pixelCoord = vUv * resolution;
@@ -538,7 +560,9 @@ void main() {
           for (int sx = 0; sx < 2; sx++) {
             vec2 cellIndex = vec2(float(sx), float(sy));
             vec2 jitter = hash2(pixelCoord + cellIndex * 17.31) - 0.5;
-            vec2 offset = (cellIndex + 0.5 + jitter * 0.6) / 2.0 - 0.5;
+            // 1.5x footprint: the 2x2 average doubles as a ~half-pixel blur
+            // that softens texture shimmer where lensing compresses the sky
+            vec2 offset = ((cellIndex + 0.5 + jitter * 0.6) / 2.0 - 0.5) * 1.5;
             accum += traceRay(vUv + offset * pixelSize);
           }
         }

@@ -436,9 +436,10 @@ export class LensingPass extends ShaderPass {
     const separation = this.uniforms['binarySeparation'].value as number;
     const rs = this.uniforms['rs'].value as number;
 
-    // Orbital period from Kepler's third law: P = 2π√(a³/GM)
-    // Using rs = 2GM/c², so GM = rs*c²/2, and in our units c=1
-    const orbitalPeriod = 2 * Math.PI * Math.sqrt((separation * separation * separation) / rs);
+    // Orbital period from Kepler's third law: P = 2π√(a³/GM_tot)
+    // Total mass is conserved across the split (rs1 + rs2 = rs), and
+    // rs = 2GM/c² with c=1 gives GM_tot = rs/2, hence the factor of 2.
+    const orbitalPeriod = 2 * Math.PI * Math.sqrt((2 * separation * separation * separation) / rs);
 
     // Orbital phase (normalized to 0-2π)
     const phase = ((time * 2 * Math.PI) / orbitalPeriod) % (2 * Math.PI);

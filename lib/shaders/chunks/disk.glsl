@@ -140,14 +140,14 @@ float computeImpactParameter(vec3 pos, vec3 dir) {
 // ============================================================================
 
 vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
-                    int crossingIndex, float lod, float rayMinRadius) {
+                    int crossingIndex, float lod) {
   // Transform to BH-local coordinates
   vec2 localPos = hitPos.xz - bhPos;
   float r = length(localPos);
   float phi = atan(localPos.y, localPos.x);
 
-  // Per-BH Schwarzschild radius
-  float bhRs = rs * bhMass * 2.0;
+  // Per-BH Schwarzschild radius (total system rs conserved across the split)
+  float bhRs = rs * bhMass;
 
   // Outer radius: from Roche lobe / separation constraint
   float outerR = getRocheRadius(bhMass);
@@ -163,18 +163,33 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
     return vec4(0.0);
   }
 
-  // Keplerian velocity around this BH (in local frame)
-  float v = sqrt(0.5 * bhRs / max(r, innerR));
+  // Local circular-orbit speed (static-observer frame) about this BH, plus
+  // the BH's own orbital velocity around the COM. The orbital term is what
+  // makes each mini-disk brighten and dim over the orbit (Doppler boost
+  // modulation, the classic binary signature).
+  float vKep = sqrt(0.5 * bhRs / max(r - bhRs, 0.5 * bhRs));
   vec2 tangent2D = normalize(vec2(-localPos.y, localPos.x));
-  vec3 vel = vec3(tangent2D.x * v, 0.0, tangent2D.y * v);
+  vec2 orbVel = getBHOrbitalVelocity(bhPos);
+  vec3 vel = vec3(tangent2D.x * vKep + orbVel.x, 0.0, tangent2D.y * vKep + orbVel.y);
+  float speed = length(vel);
+  if (speed > 0.99) {
+    vel *= 0.99 / speed;
+    speed = 0.99;
+  }
 
-  // Doppler shift
-  float vr = dot(vel, -rayDir);
-  float doppler = sqrt((1.0 + vr) / (1.0 - vr));
+  // Full special-relativistic Doppler (longitudinal + transverse)
+  float gamma = inversesqrt(1.0 - speed * speed);
+  float doppler = 1.0 / (gamma * (1.0 - dot(vel, -rayDir)));
 
-  // Gravitational redshift from this BH
-  float effectiveR = min(r, rayMinRadius);
-  float gravRedshift = sqrt(max(0.01, 1.0 - bhRs / effectiveR));
+  // Gravitational redshift at the emission radius, including the companion's
+  // potential (companion position follows from the COM balance m1*p1 = -m2*p2)
+  vec2 compPos = -bhPos * (bhMass / (1.0 - bhMass));
+  float compRs = rs * (1.0 - bhMass);
+  float rComp = max(length(hitPos.xz - compPos), 1.5 * compRs);
+  float gravRedshift = sqrt(max(0.01, 1.0 - bhRs / r - compRs / rComp));
+
+  // Combined relativistic g-factor: T_obs = g * T_emit, I_obs = g^4 * I_emit
+  float g = doppler * gravRedshift;
 
   // Get MHD modulations - scale radius to get proper texture frequency
   // Mini-disks are smaller, so we scale up to get comparable feature sizes
@@ -183,13 +198,12 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
-  // Temperature: radial profile within mini-disk
-  float frac = clamp((r - innerR) / (outerR - innerR), 0.0, 1.0);
-  // Mini-disks are hotter (more compact, closer to BH)
-  float tempInner = diskTemperatureInner * 1.2;
-  float tempOuter = diskTemperatureOuter * 1.1;
-  float baseTemp = mix(tempInner, tempOuter, frac);
-  float temp = baseTemp * doppler * gravRedshift * mhdTemp;
+  // Novikov-Thorne profile in BH-local coordinates. Peak temp scales as
+  // M^(-1/4): a lighter BH runs a hotter disk at the same Eddington ratio.
+  float x = r / innerR;
+  float thermal = 2.0487 * pow(x, -0.75) * pow(max(0.0, 1.0 - inversesqrt(x)), 0.25);
+  float peakTemp = diskTemperatureInner * pow(bhMass, -0.25);
+  float temp = peakTemp * thermal * g * mhdTemp;
 
   vec3 color = sampleBlackbody(temp);
 
@@ -209,13 +223,14 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
     }
   }
 
-  // Intensity with Doppler beaming
-  float dopplerBoost = pow(doppler, 3.0);
+  // Boosted blackbody: bolometric intensity scales as g^4, and the local
+  // emission follows the thermal profile to the 4th power (sigma T^4)
+  float dopplerBoost = pow(g, 4.0);
   if (overlayDoppler > 0.0) {
-    dopplerBoost = mix(dopplerBoost, doppler, overlayDoppler * 0.7);
+    dopplerBoost = mix(dopplerBoost, g, overlayDoppler * 0.7);
   }
 
-  float baseIntensity = dopplerBoost * gravRedshift / (1.0 + frac * 2.0);
+  float baseIntensity = dopplerBoost * pow(thermal, 4.0);
 
   // Reinhard tonemapping (same as single disk)
   float compressedIntensity = baseIntensity / (1.0 + baseIntensity * diskLuminanceCompression);
@@ -237,13 +252,10 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
   float outerEdgeWidth = diskRange * 0.2;
   float outerFade = smoothstep(outerR * 1.1, outerR - outerEdgeWidth, r);
 
-  // Inner rim brightening at ISCO
-  float innerRim = exp(-pow((r - innerR) / (0.4 * bhRs), 2.0)) * 0.4;
-
   float alpha = innerFade * outerFade * diskOpacity;
 
   // Emissive boost for bloom
-  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8 + innerRim;
+  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8;
   emissiveBoost = clamp(emissiveBoost, 0.3, 2.0);
 
   return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
@@ -253,7 +265,7 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
 // Circumbinary Disk Sampling (outer disk around both BHs)
 // ============================================================================
 
-vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float lod, float rayMinRadius) {
+vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float lod) {
   vec2 pos2D = hitPos.xz;
   float r = length(pos2D);
   float phi = atan(pos2D.y, pos2D.x);
@@ -282,28 +294,33 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
     return vec4(0.0);
   }
 
-  // Keplerian velocity around the binary center of mass
-  float v = sqrt(0.5 * rs / r);
+  // Circular-orbit speed about the binary COM. Total mass is conserved
+  // across the split, so the combined potential at this distance is the
+  // same Schwarzschild rs as single mode.
+  float v = sqrt(0.5 * rs / max(r - rs, rs));
   vec3 tangent = normalize(vec3(-hitPos.z, 0.0, hitPos.x));
   vec3 vel = tangent * v;
 
-  // Doppler shift
-  float vr = dot(vel, -rayDir);
-  float doppler = sqrt((1.0 + vr) / (1.0 - vr));
+  // Full special-relativistic Doppler (longitudinal + transverse)
+  float gamma = inversesqrt(1.0 - dot(vel, vel));
+  float doppler = 1.0 / (gamma * (1.0 - dot(vel, -rayDir)));
 
-  // Gravitational redshift - simplified, use global rs at this distance
-  float effectiveR = max(r, rayMinRadius);
-  float gravRedshift = sqrt(max(0.1, 1.0 - rs / effectiveR));
+  // Gravitational redshift at the emission radius (combined potential)
+  float gravRedshift = sqrt(max(0.1, 1.0 - rs / r));
+
+  // Combined relativistic g-factor
+  float g = doppler * gravRedshift;
 
   // MHD turbulence - use warped coordinates so texture deforms with cavity
   MHDResult mhd = getMHDCombined(warpedR, warpedPhi, time, lod);
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
-  // Temperature profile - use real radius
-  float frac = clamp((r - innerR) / (outerR - innerR), 0.0, 1.0);
-  float baseTemp = mix(diskTemperatureOuter * 0.95, diskTemperatureOuter * 0.7, frac);
-  float temp = baseTemp * doppler * gravRedshift * mhdTemp;
+  // Thin-disk radial slope T ~ r^(-3/4), anchored at the cavity edge.
+  // No zero-torque cutoff here: the cavity truncates the disk, not an ISCO.
+  float thermalFrac = pow(max(r / innerR, 1.0), -0.75);
+  float baseTemp = diskTemperatureOuter * thermalFrac;
+  float temp = baseTemp * g * mhdTemp;
 
   vec3 color = sampleBlackbody(temp);
 
@@ -321,13 +338,13 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
     }
   }
 
-  // Intensity
-  float dopplerBoost = pow(doppler, 3.0);
+  // Boosted blackbody: g^4 beaming, thermal^4 local emission
+  float dopplerBoost = pow(g, 4.0);
   if (overlayDoppler > 0.0) {
-    dopplerBoost = mix(dopplerBoost, doppler, overlayDoppler * 0.7);
+    dopplerBoost = mix(dopplerBoost, g, overlayDoppler * 0.7);
   }
 
-  float baseIntensity = dopplerBoost * gravRedshift * 0.8 / (1.0 + frac * 2.0);
+  float baseIntensity = dopplerBoost * pow(thermalFrac, 4.0) * 0.8;
 
   // Tonemapping and contrast
   float compressedIntensity = baseIntensity / (1.0 + baseIntensity * diskLuminanceCompression);
