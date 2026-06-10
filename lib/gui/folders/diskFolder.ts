@@ -56,14 +56,14 @@ export function createDiskFolder(gui: GUI, config: DiskFolderConfig): void {
 
   appearFolder
     .add(params, 'diskTemperatureInner', 5000, 20000, 500)
-    .name('Inner Temp (K)')
+    .name('Peak Temp (K)')
     .onChange((value: number) => {
       lensingPass.updateParams({ diskTemperatureInner: value });
     });
 
   appearFolder
     .add(params, 'diskTemperatureOuter', 1000, 8000, 200)
-    .name('Outer Temp (K)')
+    .name('Outer Temp (K, binary)')
     .onChange((value: number) => {
       lensingPass.updateParams({ diskTemperatureOuter: value });
     });

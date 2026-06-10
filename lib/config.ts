@@ -38,8 +38,8 @@ export const CONFIG = {
   disk: {
     innerRadius: 3.0, // ISCO
     outerRadius: 12.0,
-    temperatureInner: 10000,
-    temperatureOuter: 3000,
+    temperatureInner: 10000, // Peak temp of the Novikov-Thorne profile (single BH)
+    temperatureOuter: 3000, // Binary-mode disks only; single BH uses the NT profile
     halfThickness: 0.1,
     volumeDensity: 0.15,
     luminanceCompression: 0.2,

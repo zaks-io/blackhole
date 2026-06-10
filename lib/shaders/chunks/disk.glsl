@@ -21,36 +21,36 @@ vec3 sampleBlackbody(float temp) {
   return texture2D(blackbodyLUT, vec2(t, 0.5)).rgb;
 }
 
-vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod, float rayMinRadius) {
+vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod, float bz) {
   // Get azimuthal angle for MHD effects
   float phi = atan(hitPos.z, hitPos.x);
 
-  // Keplerian velocity
-  float v = sqrt(0.5 * rs / r);
-  vec3 tangent = normalize(vec3(-hitPos.z, 0.0, hitPos.x));
-  vec3 vel = tangent * v;
-
-  // Doppler shift
-  float vr = dot(vel, -rayDir);
-  float doppler = sqrt((1.0 + vr) / (1.0 - vr));
-
-  // Gravitational redshift: photons lose energy climbing out of gravity well
-  // Use the ray's closest approach radius, not the disk hit point
-  // This correctly accounts for photon ring rays that dove deep near the photon sphere
-  float effectiveR = min(r, rayMinRadius);
-  float gravRedshift = sqrt(max(0.01, 1.0 - rs / effectiveR));
+  // Exact frequency ratio for a circular geodesic orbit in Schwarzschild:
+  //   g = sqrt(1 - 1.5*rs/r) / (1 - Omega * bz)
+  // The numerator is 1/u^t and bundles gravitational redshift with orbital
+  // time dilation; the denominator is the exact Doppler term built from the
+  // photon's conserved angular momentum bz about the disk axis. Because bz
+  // is a constant of the lensed path, this holds for every image order.
+  float omega = sqrt(0.5 * rs / (r * r * r));
+  float dopplerTerm = max(0.15, 1.0 - omega * bz);
+  float g = sqrt(max(0.0, 1.0 - 1.5 * rs / r)) / dopplerTerm;
 
   // Get MHD modulations using optimized combined function
   MHDResult mhd = getMHDCombined(r, phi, time, lod);
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
-  // Temperature with Doppler, gravitational redshift, and MHD modulation
-  float frac = (r - diskInnerRadius) / diskRadiusRange;
-  float baseTemp = mix(diskTemperatureInner, diskTemperatureOuter, frac);
-  float temp = baseTemp * doppler * gravRedshift * mhdTemp;
+  // Novikov-Thorne thin-disk profile: T ~ r^(-3/4) * (1 - sqrt(r_in/r))^(1/4).
+  // Zero torque at the ISCO pulls T to zero at the inner edge; the peak sits
+  // at r = (49/36)*r_in and is normalized to diskTemperatureInner (2.0487 = 1/peak).
+  float x = r / diskInnerRadius;
+  float thermal = 2.0487 * pow(x, -0.75) * pow(max(0.0, 1.0 - inversesqrt(x)), 0.25);
+  float temp = diskTemperatureInner * thermal * g * mhdTemp;
 
   vec3 color = sampleBlackbody(temp);
+
+  // Pure Doppler part of g, used by the indicator overlay
+  float doppler = 1.0 / dopplerTerm;
 
   // Doppler indicator overlay: use direct color replacement for clarity
   if (overlayDoppler > 0.0) {
@@ -76,17 +76,18 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
     }
   }
 
-  // Intensity: Include gravitational redshift (photon energy loss)
-  // Disk stays bright right to the edge
-  float dopplerBoost = pow(doppler, 3.0);
+  // A boosted blackbody is a blackbody at T_obs = g * T_emit, so bolometric
+  // intensity scales as (g * thermal)^4 relative to the profile peak. The
+  // thermal^4 term replaces the old artistic radial falloff.
+  float dopplerBoost = pow(g, 4.0);
 
   // Reduce intensity boost when Doppler overlay is active to preserve colors
   if (overlayDoppler > 0.0) {
-    // Mix from cubic to linear Doppler for clearer color visualization
-    dopplerBoost = mix(dopplerBoost, doppler, overlayDoppler * 0.7);
+    // Mix from quartic to linear g for clearer color visualization
+    dopplerBoost = mix(dopplerBoost, g, overlayDoppler * 0.7);
   }
 
-  float baseIntensity = dopplerBoost * gravRedshift / (1.0 + frac * 2.0);
+  float baseIntensity = dopplerBoost * pow(thermal, 4.0);
 
   // Apply Reinhard tonemapping to compress dynamic range while preserving local contrast
   // This prevents the bright Doppler-boosted side from washing out texture detail
@@ -116,14 +117,12 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   float outerEdgeWidth = diskRadiusRange * 0.25;
   float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - outerEdgeWidth, r);
 
-  // Bright rim at ISCO - material piles up at innermost stable orbit
-  float innerRim = exp(-pow((r - diskInnerRadius) / (0.5 * rs), 2.0)) * 0.3;
-
   float alpha = innerFade * outerFade * diskOpacity;
 
   // Emissive boost for bloom - preserve texture/contrast on bright Doppler side
   // Use softer multipliers and clamp to prevent washout
-  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8 + innerRim;
+  // (No ISCO rim brightening: the zero-torque profile dims the inner edge)
+  float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8;
   emissiveBoost = clamp(emissiveBoost, 0.3, 2.0);
 
   return vec4(color * intensity * 2.0 * emissiveBoost, alpha);

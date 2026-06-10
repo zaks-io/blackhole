@@ -12,6 +12,10 @@ vec4 traceRay(vec2 uv) {
   vec3 rayDir = normalize((inverseView * viewPos).xyz);
   vec3 rayPos = cameraPos;
 
+  // Photon angular momentum about the disk axis (y), conserved along the
+  // geodesic. Drives the exact relativistic g-factor in disk sampling.
+  float bz = cross(rayPos, rayDir).y;
+
   float camDist = length(cameraPos);
   float lod = calculateLOD(camDist);
 
@@ -111,7 +115,7 @@ vec4 traceRay(vec2 uv) {
 
     // Gravitational acceleration (single or binary)
     float accel;
-    vec3 dv;
+    vec3 accelVec;
     if (binaryEnabled > 0.5) {
       vec3 rHat1 = toB1 / r1;
       float vDotR1 = dot(rayDir, rHat1);
@@ -119,16 +123,14 @@ vec4 traceRay(vec2 uv) {
       vec3 rHat2 = toB2 / r2;
       float vDotR2 = dot(rayDir, rHat2);
       float accel2 = -1.5 * getBH2Rs() * (1.0 - vDotR2 * vDotR2) / (r2 * r2);
-      vec3 accelVec = accel1 * rHat1 + accel2 * rHat2;
-      dv = accelVec * h;
+      accelVec = accel1 * rHat1 + accel2 * rHat2;
       accel = length(accelVec); // Scalar magnitude for curvature adaptation
     } else {
       float vDotR = radialVel;
       float vPerpSq = 1.0 - vDotR * vDotR;
       accel = -1.5 * rs * vPerpSq / rSq;
-      dv = accel * rHat * h;
+      accelVec = accel * rHat;
     }
-    rayDir = normalize(rayDir + dv);
 
     float prevY = rayPos.y;
 
@@ -143,7 +145,10 @@ vec4 traceRay(vec2 uv) {
       // More aggressive adaptation: 0.15 minimum multiplier (was 0.3)
       // Higher curvatureAdaptation values push the multiplier lower
       float minMultiplier = max(0.15, 0.4 - curvatureAdaptation * 0.1);
-      curvatureMultiplier = mix(1.0, minMultiplier, normalizedCurvature * normalizedCurvature * curvatureAdaptation);
+      // Clamp the blend weight: curvatureAdaptation > 1 would extrapolate
+      // mix() past minMultiplier into negative step sizes
+      float adaptWeight = clamp(normalizedCurvature * normalizedCurvature * curvatureAdaptation, 0.0, 1.0);
+      curvatureMultiplier = mix(1.0, minMultiplier, adaptWeight);
     }
 
     // Optional jitter to break up banding patterns
@@ -173,6 +178,11 @@ vec4 traceRay(vec2 uv) {
       farDist = min(farDist, dJet);
     }
     stepSize = max(stepSize, farDist * 0.25);
+
+    // Deflect by the same path length the ray advances. A mismatched kick
+    // (fixed h vs variable stepSize) scales the bending per unit length and
+    // distorts the lensing field wherever the step deviates from h.
+    rayDir = normalize(rayDir + accelVec * stepSize);
 
     vec3 newPos = rayPos + rayDir * stepSize;
     float currY = newPos.y;
@@ -216,7 +226,7 @@ vec4 traceRay(vec2 uv) {
           // Skip the MHD/blackbody stack once the accumulator is saturated;
           // a sample scaled by remaining < 0.002 is below quantization.
           if (remaining > 0.002) {
-            vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, minRadius);
+            vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, bz);
             diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
             diskAccum.a += newDisk.a * remaining;
           }
@@ -240,9 +250,9 @@ vec4 traceRay(vec2 uv) {
 
           float remaining = 1.0 - diskAccum.a;
           if (remaining > 0.002) {
-            // Pass minRadius for proper gravitational redshift of photon ring light
-            // The crossingIndex and minRadius together handle the dimming physics
-            vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, minRadius);
+            // bz is conserved through the lensed path, so the g-factor stays
+            // exact for photon-ring light; crossingIndex handles demagnification
+            vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, bz);
 
             diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
             diskAccum.a += newDisk.a * remaining;
@@ -382,7 +392,7 @@ vec4 traceRay(vec2 uv) {
               volColor.rgb = vol1.rgb * vol1.a + vol2.rgb * vol2.a + volCB.rgb * volCB.a;
               volColor.a = min(vol1.a + vol2.a + volCB.a, 0.95);
             } else {
-              volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, minRadius);
+              volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, bz);
             }
 
             float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier;
