@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth0 } from '@auth0/auth0-react';
-import { ComponentType } from 'react';
+import { ComponentType, useEffect, useRef } from 'react';
 
 const ROLES_CLAIM = 'neuron/roles';
 
@@ -178,15 +178,25 @@ function AccessDenied() {
 
 export function ProtectedRoute({ component: Component, requiredRole = 'Blackhole' }: Props) {
   const { isAuthenticated, isLoading, loginWithRedirect, user } = useAuth0();
+  // Redirect from an effect, exactly once. Calling loginWithRedirect during
+  // render fires on every re-render, creating racing transactions with
+  // mismatched state nonces that break the callback.
+  const redirecting = useRef(false);
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !redirecting.current) {
+      redirecting.current = true;
+      loginWithRedirect({
+        appState: { returnTo: window.location.pathname },
+      });
+    }
+  }, [isLoading, isAuthenticated, loginWithRedirect]);
 
   if (isLoading) {
     return <LoadingScreen message="Loading..." />;
   }
 
   if (!isAuthenticated) {
-    loginWithRedirect({
-      appState: { returnTo: typeof window !== 'undefined' ? window.location.pathname : '/' },
-    });
     return <LoadingScreen message="Redirecting to login..." />;
   }
 

@@ -12,7 +12,9 @@ export function Auth0ProviderWrapper({ children }: { children: React.ReactNode }
       clientId={process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID!}
       cacheLocation="memory"
       authorizationParams={{
-        redirect_uri: typeof window !== 'undefined' ? `${window.location.origin}/app` : '',
+        // Must be a route that renders the Auth0Provider without dropping the
+        // ?code&state query. /app is a server redirect('/') that strips it.
+        redirect_uri: typeof window !== 'undefined' ? window.location.origin : '',
       }}
       onRedirectCallback={(appState) => {
         router.replace(appState?.returnTo || '/');
