@@ -50,6 +50,16 @@ vec4 traceRay(vec2 uv) {
   float diskInnerSq = diskInnerRadius * diskInnerRadius;
   float diskOuterSq = diskOuterRadius * diskOuterRadius;
 
+  // Radius beyond which nothing renderable exists. Outside this sphere rays
+  // only integrate weak-field gravity, so steps can safely grow with distance.
+  // Jets are excluded here (a narrow cone would blow the sphere up to
+  // jetsLength) and handled with a distance-to-cone bound in the loop.
+  float contentRadius = effectiveDiskOuter * 1.2;
+  if (coronaEnabled > 0.5) contentRadius = max(contentRadius, coronaRadius * 2.0);
+  if (anyOverlayEnabled > 0.5) contentRadius = max(contentRadius, 15.5 * rs);
+  float jetTan = tan(radians(jetsHalfOpeningAngle));
+  float jetBaseR = diskInnerRadius * rs; // matches launchRadius in sampleJet
+
   for (int i = 0; i < 300; i++) {
     if (i >= effectiveMaxSteps) break;
 
@@ -57,10 +67,19 @@ vec4 traceRay(vec2 uv) {
     float rSq = dot(rayPos, rayPos);
     float r = sqrt(rSq);
 
+    // Binary mode: compute per-BH offsets and distances once per step and
+    // reuse them for min-radius tracking, horizon check, and acceleration
+    vec3 toB1 = vec3(0.0);
+    vec3 toB2 = vec3(0.0);
+    float r1 = 0.0;
+    float r2 = 0.0;
+
     // Track closest approach to black hole (use nearest BH in binary mode)
     if (binaryEnabled > 0.5) {
-      float r1 = length(rayPos - getBH1World());
-      float r2 = length(rayPos - getBH2World());
+      toB1 = rayPos - getBH1World();
+      toB2 = rayPos - getBH2World();
+      r1 = length(toB1);
+      r2 = length(toB2);
       minRadius = min(minRadius, min(r1, r2));
     } else {
       minRadius = min(minRadius, r);
@@ -71,7 +90,7 @@ vec4 traceRay(vec2 uv) {
 
     // Event horizon check (single or binary)
     if (binaryEnabled > 0.5) {
-      if (checkBinaryHorizon(rayPos)) {
+      if (r1 < getBH1Rs() || r2 < getBH2Rs()) {
         hitHorizon = true;
         break;
       }
@@ -94,7 +113,13 @@ vec4 traceRay(vec2 uv) {
     float accel;
     vec3 dv;
     if (binaryEnabled > 0.5) {
-      vec3 accelVec = computeBinaryAcceleration(rayPos, rayDir);
+      vec3 rHat1 = toB1 / r1;
+      float vDotR1 = dot(rayDir, rHat1);
+      float accel1 = -1.5 * getBH1Rs() * (1.0 - vDotR1 * vDotR1) / (r1 * r1);
+      vec3 rHat2 = toB2 / r2;
+      float vDotR2 = dot(rayDir, rHat2);
+      float accel2 = -1.5 * getBH2Rs() * (1.0 - vDotR2 * vDotR2) / (r2 * r2);
+      vec3 accelVec = accel1 * rHat1 + accel2 * rHat2;
       dv = accelVec * h;
       accel = length(accelVec); // Scalar magnitude for curvature adaptation
     } else {
@@ -133,6 +158,21 @@ vec4 traceRay(vec2 uv) {
     float stepSize = baseStep * curvatureMultiplier * jitterMultiplier * stepMultiplier;
     // Minimum 0.01 (was 0.02) allows finer sampling in high-distortion regions
     stepSize = clamp(stepSize, 0.01, 0.75);
+    // Far-field acceleration: outside all renderable content grow steps with
+    // distance so escaping rays exit in O(log r) steps instead of O(r).
+    // farDist is a conservative lower bound on the distance to any content,
+    // so a step of farDist * 0.25 can never skip over it, and the residual
+    // weak-field deflection error stays sub-pixel.
+    float farDist = r - contentRadius;
+    if (jetsEnabled > 0.5 && farDist > 0.0) {
+      // Lower bound on distance to the jet cone volume
+      float absYJ = abs(rayPos.y);
+      float cylRJ = length(rayPos.xz);
+      float jetOuter = jetBaseR + min(absYJ, jetsLength) * jetTan;
+      float dJet = max((cylRJ - jetOuter) * 0.7, absYJ - jetsLength);
+      farDist = min(farDist, dJet);
+    }
+    stepSize = max(stepSize, farDist * 0.25);
 
     vec3 newPos = rayPos + rayDir * stepSize;
     float currY = newPos.y;
@@ -172,10 +212,14 @@ vec4 traceRay(vec2 uv) {
       else {
         // For direct disk hits (first crossing or within disk bounds)
         if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
-          vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, minRadius);
           float remaining = 1.0 - diskAccum.a;
-          diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
-          diskAccum.a += newDisk.a * remaining;
+          // Skip the MHD/blackbody stack once the accumulator is saturated;
+          // a sample scaled by remaining < 0.002 is below quantization.
+          if (remaining > 0.002) {
+            vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, minRadius);
+            diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
+            diskAccum.a += newDisk.a * remaining;
+          }
 
           if (diskAccum.a > 0.99 && diskCrossings >= 2) break;
         }
@@ -194,13 +238,15 @@ vec4 traceRay(vec2 uv) {
           // Create a virtual hit position at the mapped radius
           vec3 virtualHitPos = vec3(hitPos.x, 0.0, hitPos.z) * (mappedR / hitR);
 
-          // Pass minRadius for proper gravitational redshift of photon ring light
-          // The crossingIndex and minRadius together handle the dimming physics
-          vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, minRadius);
-
           float remaining = 1.0 - diskAccum.a;
-          diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
-          diskAccum.a += newDisk.a * remaining;
+          if (remaining > 0.002) {
+            // Pass minRadius for proper gravitational redshift of photon ring light
+            // The crossingIndex and minRadius together handle the dimming physics
+            vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, minRadius);
+
+            diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
+            diskAccum.a += newDisk.a * remaining;
+          }
         }
       }
 
@@ -308,12 +354,21 @@ vec4 traceRay(vec2 uv) {
 
           // LOD-based sample skipping for thick disk
           bool shouldSample = true;
+          float skipMultiplier = 1.0;
           if (thickDiskEnabled > 0.5 && lod < 0.7) {
             int skipRate = lod < 0.3 ? 3 : 2;
             shouldSample = (i % skipRate == 0);
+            skipMultiplier = float(skipRate);
           }
 
-          if (shouldSample) {
+          // Skip the expensive MHD/blackbody stack when this sample cannot
+          // contribute visibly: volColor.a <= 1, so weightEst bounds the
+          // blended alpha. Covers the Gaussian fringe of the thick disk and
+          // saturated accumulators.
+          float remaining = 1.0 - diskAccum.a;
+          float weightEst = verticalDensity * diskVolumeDensity * stepSize * skipMultiplier * remaining;
+
+          if (shouldSample && weightEst > 2e-4) {
             vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
             vec4 volColor;
 
@@ -330,14 +385,7 @@ vec4 traceRay(vec2 uv) {
               volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, minRadius);
             }
 
-            // Adjust alpha for sample skipping
-            float skipMultiplier = 1.0;
-            if (thickDiskEnabled > 0.5 && lod < 0.7) {
-              skipMultiplier = lod < 0.3 ? 3.0 : 2.0;
-            }
-
             float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier;
-            float remaining = 1.0 - diskAccum.a;
             diskAccum.rgb += volColor.rgb * volAlpha * remaining;
             diskAccum.a += volAlpha * remaining;
           }
@@ -357,7 +405,8 @@ vec4 traceRay(vec2 uv) {
           coronaSample = sampleBinaryCorona(rayPos, rayDir, lod);
         }
       } else {
-        if (r < coronaRadius * 2.0) {
+        // sampleCoronaAt returns 0 beyond coronaRadius, so don't call past it
+        if (r < coronaRadius) {
           coronaSample = sampleCorona(rayPos, rayDir, r, lod);
         }
       }
@@ -435,36 +484,26 @@ vec2 hash2(vec2 p) {
   );
 }
 
-// Quick trace to detect if near black hole edge (returns minRadius)
+// Analytic closest-approach estimate for edge supersampling (returns minRadius)
+// The impact parameter b = |r x v| is conserved along the geodesic. For
+// Schwarzschild null geodesics the closest approach r0 is the largest root of
+//   r0^3 - b^2 * r0 + b^2 * rs = 0
+// which has a closed-form trigonometric solution. Rays with b below the
+// critical impact parameter b_crit = (3*sqrt(3)/2) * rs are captured.
+// This replaces an 80-step ray march per pixel with a few ALU ops.
 float traceEdgeDetect(vec2 uv) {
   vec2 ndc = uv * 2.0 - 1.0;
   vec4 clip = vec4(ndc, -1.0, 1.0);
   vec4 viewPos = inverseProjection * clip;
   viewPos = vec4(viewPos.xy, -1.0, 0.0);
   vec3 rayDir = normalize((inverseView * viewPos).xyz);
-  vec3 rayPos = cameraPos;
 
-  float camDist = length(cameraPos);
-  float minR = 1000.0;
-  float h = 0.3; // Larger step for speed
+  float b = length(cross(cameraPos, rayDir));
+  float bCrit = 2.598076211 * rs; // 3*sqrt(3)/2
+  if (b <= bCrit) return 0.9 * rs; // Captured: always inside the supersample band
 
-  // Quick march with fewer steps
-  for (int i = 0; i < 80; i++) {
-    float r = length(rayPos);
-    minR = min(minR, r);
-
-    if (r < rs) return minR; // Hit horizon
-    if (r > max(camDist * 2.0, 100.0)) return minR; // Escaped
-
-    vec3 rHat = rayPos / r;
-    float vDotR = dot(rayDir, rHat);
-    float vPerpSq = 1.0 - vDotR * vDotR;
-    float accel = -1.5 * rs * vPerpSq / (r * r);
-
-    rayDir = normalize(rayDir + accel * rHat * h);
-    rayPos += rayDir * h;
-  }
-  return minR;
+  // r0 = (2b/sqrt(3)) * cos(acos(-bCrit/b) / 3), in [1.5*rs, b]
+  return 1.154700538 * b * cos(acos(-bCrit / b) / 3.0);
 }
 
 void main() {

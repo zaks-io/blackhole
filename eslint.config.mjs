@@ -5,7 +5,7 @@ const eslintConfig = [
   ...eslintConfigNext,
   eslintConfigPrettier,
   {
-    ignores: ['.next/', 'node_modules/', 'public/'],
+    ignores: ['.next/', 'node_modules/', 'public/', 'bench/dist/', 'bench/results/'],
   },
 ];
 
