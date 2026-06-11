@@ -1,45 +1,102 @@
 // ============================================================================
 // MHD Effects
 // ============================================================================
+// Streak fields live in log-polar space (u = ln r, v = phi) so they wrap
+// seamlessly around the disk and shear with the local Keplerian angular
+// velocity. Differential rotation would wind the pattern up without bound,
+// so each field is sampled at two time-cycled phases half a period apart
+// and crossfaded; weights are renormalized to keep contrast constant.
 
-// Large-scale turbulent streaks using uniform rotation + minimal warping
-float getLargeScaleTurbulence(float r, float phi, float t) {
-  // Uniform rotation (no winding)
-  float rot = t * diskMaterialSpeed * 0.08;
-  float rotatedPhi = phi - rot;
+struct MHDResult {
+  float density;
+  float temperature;
+};
 
-  // Convert to Cartesian
-  float x = r * cos(rotatedPhi);
-  float y = r * sin(rotatedPhi);
-  vec2 pos = vec2(x, y);
+// The noise machinery below only compiles into the per-frame bake pass; the
+// main ray-marching shader reads the baked LUT through sampleMHDLUT instead.
+// Keeping getMHDCombined out of the main shader matters beyond dead code:
+// the full binary-mode shader is large enough to crash Metal's pipeline
+// compiler when this is inlined alongside it.
+#ifdef MHD_BAKE_PASS
 
-  // Minimal warping
-  float warp = snoise(pos * 0.015 + t * 0.002) * 0.15;
+const float SHEAR_PERIOD = 4.5;
 
-  // Anisotropic stretch for arc-following streaks
-  vec2 tangent = vec2(-sin(rotatedPhi), cos(rotatedPhi));
-  vec2 radial = vec2(cos(rotatedPhi), sin(rotatedPhi));
-
-  float tangentCoord = dot(pos, tangent) * 0.06 + warp;
-  float radialCoord = dot(pos, radial) * 0.9;  // Higher = smaller streaks
-  float blobs = snoise(vec2(tangentCoord, radialCoord));
-
-  // Second layer at different rotation speed
-  float rot2 = t * diskMaterialSpeed * 0.06;
-  float x2 = r * cos(phi - rot2);
-  float y2 = r * sin(phi - rot2);
-  vec2 pos2 = vec2(x2, y2);
-
-  vec2 tangent2 = vec2(-sin(phi - rot2), cos(phi - rot2));
-  vec2 radial2 = vec2(cos(phi - rot2), sin(phi - rot2));
-  float tc2 = dot(pos2, tangent2) * 0.07;
-  float rc2 = dot(pos2, radial2) * 0.8;  // Higher = smaller streaks
-  float blobs2 = snoise(vec2(tc2 + 5.0, rc2 + 5.0));
-
-  return blobs * 0.6 + blobs2 * 0.4;
+float keplerOmega(float r) {
+  return sqrt(0.5 * rs / (r * r * r));
 }
 
-// Spiral density wave pattern
+struct ShearSample {
+  float dPhiA;  // angular advection offsets: sample the field at phi - dPhi
+  float dPhiB;
+  float wA;
+  float wB;
+};
+
+ShearSample shearPhases(float r, float t) {
+  float omega = keplerOmega(r) * diskMaterialSpeed;
+  float tauA = mod(t, SHEAR_PERIOD);
+  float tauB = mod(t + 0.5 * SHEAR_PERIOD, SHEAR_PERIOD);
+  float wA = 1.0 - abs(2.0 * tauA / SHEAR_PERIOD - 1.0);
+  float wB = 1.0 - wA;
+  // wA + wB = 1, but a linear crossfade of independent noise dips in
+  // contrast mid-fade; dividing by sqrt(wA^2 + wB^2) keeps variance flat
+  float norm = inversesqrt(wA * wA + wB * wB);
+  ShearSample s;
+  s.dPhiA = omega * tauA;
+  s.dPhiB = omega * tauB;
+  s.wA = wA * norm;
+  s.wB = wB * norm;
+  return s;
+}
+
+// Log-polar streak field. v advances by 10*m per revolution and snoise tiles
+// with period 10, so any integer m wraps seamlessly around the disk.
+// radialFreq sets how thin the streaks are radially; m is the azimuthal
+// cell count, so radialFreq >> m gives orbit-elongated streaks.
+float streakField(float lnR, float phi, float radialFreq, float m, float offset) {
+  float u = lnR * radialFreq + offset;
+  float v = phi * (10.0 * m / (2.0 * PI)) + offset;
+  return snoise(vec2(u, v));
+}
+
+// Large-scale turbulent streaks (3 fetches: warp + 2 phases)
+float getLargeScaleTurbulence(float r, float phi, float t) {
+  ShearSample s = shearPhases(r, t);
+  float lnR = log(max(r, 0.05));
+  float warp = streakField(lnR, phi, 3.0, 1.0, 0.0) * 0.35;
+  float a = streakField(lnR, phi - s.dPhiA + warp, 12.0, 1.0, 2.7);
+  float b = streakField(lnR, phi - s.dPhiB + warp, 12.0, 1.0, 2.7);
+  return a * s.wA + b * s.wB;
+}
+
+// Sheared turbulence texture: 2-octave log-polar fbm at two cycled phases
+// (5 fetches: warp + 2 octaves x 2 phases; 3 when LOD drops octaves to 1)
+float advectedFBM(float r, float phi, float t, int octaves) {
+  ShearSample s = shearPhases(r, t);
+  float lnR = log(max(r, 0.05));
+  float warp = streakField(lnR, phi, 5.0, 2.0, 4.2) * 0.2;
+  float phiA = phi - s.dPhiA + warp;
+  float phiB = phi - s.dPhiB + warp;
+  float a = streakField(lnR, phiA, 18.0, 2.0, 0.0);
+  float b = streakField(lnR, phiB, 18.0, 2.0, 0.0);
+  if (octaves >= 2) {
+    a = (a + 0.5 * streakField(lnR, phiA, 36.0, 5.0, 7.3)) / 1.5;
+    b = (b + 0.5 * streakField(lnR, phiB, 36.0, 5.0, 7.3)) / 1.5;
+  }
+  return a * s.wA + b * s.wB;
+}
+
+// Fine detail layer (2 fetches)
+float getFineDetail(float r, float phi, float t) {
+  ShearSample s = shearPhases(r, t);
+  float lnR = log(max(r, 0.05));
+  float a = streakField(lnR, phi - s.dPhiA, 35.0, 3.0, 9.1);
+  float b = streakField(lnR, phi - s.dPhiB, 35.0, 3.0, 9.1);
+  return a * s.wA + b * s.wB;
+}
+
+// Spiral density wave pattern. Unlike material streaks, density waves have a
+// constant pattern speed (slower than the material), so no shear cycling.
 float getSpiralDensity(float r, float phi, float t) {
   // Logarithmic spiral: phase = m*phi + k*ln(r) - omega_p*t
   float k = mhdSpiralTightness;  // Spiral tightness
@@ -64,38 +121,43 @@ float getSpiralDensity(float r, float phi, float t) {
   return spiral;
 }
 
-// Orbiting hot spots
+// Orbiting hot spots on epicyclic (eccentric) orbits: the guiding center
+// circles at the Keplerian rate omega while the spot oscillates radially at
+// the relativistic epicyclic frequency kappa = omega * sqrt(1 - 3 rs / r),
+// with the 2:1 azimuthal libration of a first-order epicycle.
 float getHotspots(float r, float phi, float t) {
   float hotspotSum = 0.0;
-
-  // Define hot spot properties (radius, initial angle, size)
-  // These create asymmetric, orbiting bright regions
 
   for (int i = 0; i < 5; i++) {
     if (i >= mhdHotspotCount) break;
 
-    // Each hot spot at different radius
-    float spotRadius = diskInnerRadius + float(i) * (diskOuterRadius - diskInnerRadius) / 5.0 + 1.0;
+    // Each hot spot at different guiding-center radius
+    float guideR = diskInnerRadius + float(i) * (diskOuterRadius - diskInnerRadius) / 5.0 + 1.0;
 
     // Initial angle - spread around disk
     float spotPhi0 = float(i) * 2.0 * PI / 5.0 + float(i) * 0.7;
 
-    // Keplerian orbit rate at this radius
-    float omega = sqrt(0.5 * rs / spotRadius) / spotRadius;
-    float spotPhi = spotPhi0 + omega * t * mhdPatternSpeed;
+    float omega = keplerOmega(guideR);
+    // Floor keeps kappa finite inside r = 3 rs where circular orbits go unstable
+    float kappa = omega * sqrt(max(1.0 - 3.0 * rs / guideR, 0.04));
+    float tScaled = t * mhdPatternSpeed;
+    float epiPhase = kappa * tScaled + float(i) * 2.3;
+    float eSpot = mhdHotspotEccentricity;
+    float spotR = guideR * (1.0 - eSpot * cos(epiPhase));
+    float spotPhi = spotPhi0 + omega * tScaled + 2.0 * (omega / kappa) * eSpot * sin(epiPhase);
 
     // Angular difference (wrapped to -PI, PI)
     float dPhi = phi - spotPhi;
     dPhi = mod(dPhi + PI, 2.0 * PI) - PI;
 
     // Distance in disk plane (approximate arc length for angular component)
-    float dr = r - spotRadius;
+    float dr = r - spotR;
     float dArc = dPhi * r;
-    float dist = sqrt(dr * dr + dArc * dArc);
+    float dist2 = dr * dr + dArc * dArc;
 
     // Gaussian falloff - size varies per spot
     float spotSize = 0.8 + 0.4 * sin(float(i) * 1.3);
-    float spot = exp(-dist * dist / (spotSize * spotSize));
+    float spot = exp(-dist2 / (spotSize * spotSize));
 
     // Add some flickering/variability
     float flicker = 0.8 + 0.2 * sin(t * 3.0 + float(i) * 2.1);
@@ -106,208 +168,49 @@ float getHotspots(float r, float phi, float t) {
   return hotspotSum;
 }
 
-// Fine detail noise layer using uniform rotation + minimal warping
-float getFineDetail(float r, float phi, float t) {
-  // Uniform rotation (slightly faster for fine detail)
-  float rot = t * diskMaterialSpeed * 0.12;
-  float rotatedPhi = phi - rot;
-
-  // Convert to Cartesian
-  float x = r * cos(rotatedPhi);
-  float y = r * sin(rotatedPhi);
-  vec2 pos = vec2(x, y);
-
-  // Tangential stretch for fine arc-following streaks
-  vec2 tangent = vec2(-sin(rotatedPhi), cos(rotatedPhi));
-  vec2 radial = vec2(cos(rotatedPhi), sin(rotatedPhi));
-
-  float tangentCoord = dot(pos, tangent) * 0.15;
-  float radialCoord = dot(pos, radial) * 1.4;  // Higher = finer detail
-  float fine1 = snoise(vec2(tangentCoord, radialCoord));
-
-  // Second fine layer at different rotation speed
-  float rot2 = t * diskMaterialSpeed * 0.15;
-  float x2 = r * cos(phi - rot2);
-  float y2 = r * sin(phi - rot2);
-  vec2 pos2 = vec2(x2, y2);
-
-  vec2 tangent2 = vec2(-sin(phi - rot2), cos(phi - rot2));
-  vec2 radial2 = vec2(cos(phi - rot2), sin(phi - rot2));
-  float tc2 = dot(pos2, tangent2) * 0.18;
-  float rc2 = dot(pos2, radial2) * 1.2;  // Higher = finer detail
-  float fine2 = snoise(vec2(tc2 + 5.0, rc2 + 5.0));
-
-  return fine1 * 0.6 + fine2 * 0.4;
-}
-
-// Combined MHD density modulation
-float getMHDDensity(float r, float phi, float t) {
-  float density = 1.0;
-
-  // Large-scale turbulent streaks
-  float largeBlobs = getLargeScaleTurbulence(r, phi, t);
-  float blobMod = 1.0 + largeBlobs * 0.6 * mhdTurbulenceIntensity;  // Reduced
-
-  // Motion-blurred turbulence for tangential streaks
-  float turbulence = advectedFBM(r, phi, t, 3);
-  float turbMod = 1.0 + turbulence * 0.4 * mhdTurbulenceIntensity;  // Reduced
-
-  // Spiral density waves (minimal influence)
-  float spiral = getSpiralDensity(r, phi, t);
-  float spiralMod = 0.95 + 0.1 * spiral * mhdTurbulenceIntensity;  // Reduced
-
-  // Fine detail layer for added texture richness
-  float fineDetail = getFineDetail(r, phi, t);
-  float fineMod = 1.0 + fineDetail * 0.3 * mhdTurbulenceIntensity;  // Reduced
-
-  density *= blobMod * turbMod * spiralMod * fineMod;
-
-  // Clamp with configurable minimum density - narrower range
-  return clamp(density, mhdMinDensity, 2.0);
-}
-
-// Combined MHD temperature modulation
-float getMHDTemperature(float r, float phi, float t) {
-  float tempMod = 1.0;
-
-  // Hot spots add temperature
-  float hotspots = getHotspots(r, phi, t);
-  tempMod += hotspots * 0.35 * mhdHotspotIntensity;
-
-  // Spiral arms are slightly hotter (compressed gas)
-  float spiral = getSpiralDensity(r, phi, t);
-  tempMod += (spiral - 0.5) * 0.15 * mhdTurbulenceIntensity;
-
-  // Small-scale temperature fluctuations using offset radius for variation
-  float tempNoise = advectedFBM(r * 1.3 + 5.0, phi + 1.0, t, 3);
-  tempMod += tempNoise * 0.1 * mhdTurbulenceIntensity;
-
-  return clamp(tempMod, 0.7, 1.6);
-}
-
-// ============================================================================
-// Optimized Combined MHD - caches shared calculations
-// ============================================================================
-
-struct MHDResult {
-  float density;
-  float temperature;
-};
-
 // LOD-aware FBM octave count
 int getLodOctaves(float lod) {
   // lod: 1.0 = near (full detail), 0.0 = far (minimal detail)
-  // Returns 1-4 octaves based on LOD
   return int(mix(1.0, 4.0, lod));
 }
 
-// Optimized combined MHD function - computes both density and temperature
-// with shared calculations done only once
+// Combined MHD density and temperature modulation
+// (16 noise fetches at full LOD: spiral 1 + large 3 + fbm 5 + fine 2 + temp fbm 5)
 MHDResult getMHDCombined(float r, float phi, float t, float lod) {
   MHDResult result;
-  result.density = 1.0;
-  result.temperature = 1.0;
 
-  // Compute spiral ONCE (was computed in both getMHDDensity and getMHDTemperature)
+  // Spiral is shared by density and temperature - compute once
   float spiral = getSpiralDensity(r, phi, t);
-
-  // Cache common rotation values
-  float rot = t * diskMaterialSpeed * 0.1;
-  float rotatedPhi = phi - rot;
-  float cosRP = cos(rotatedPhi);
-  float sinRP = sin(rotatedPhi);
-
-  // LOD-based octave count for noise functions
   int octaves = getLodOctaves(lod);
 
-  // === DENSITY CALCULATION ===
+  // === DENSITY ===
 
-  // Large-scale turbulent streaks - cache trig values
-  float rot08 = t * diskMaterialSpeed * 0.08;
-  float rotatedPhi08 = phi - rot08;
-  float cosRP08 = cos(rotatedPhi08);
-  float sinRP08 = sin(rotatedPhi08);
-  float x = r * cosRP08;
-  float y = r * sinRP08;
-  vec2 pos = vec2(x, y);
-  float warp = snoise(pos * 0.015 + t * 0.002) * 0.15;
-  vec2 tangent = vec2(-sinRP08, cosRP08);
-  vec2 radial = vec2(cosRP08, sinRP08);
-  float tangentCoord = dot(pos, tangent) * 0.06 + warp;
-  float radialCoord = dot(pos, radial) * 0.9;
-  float blobs = snoise(vec2(tangentCoord, radialCoord));
-
-  // Second layer at different rotation speed - cache trig values
-  float rot06 = t * diskMaterialSpeed * 0.06;
-  float rotatedPhi06 = phi - rot06;
-  float cosRP06 = cos(rotatedPhi06);
-  float sinRP06 = sin(rotatedPhi06);
-  float x2 = r * cosRP06;
-  float y2 = r * sinRP06;
-  vec2 pos2 = vec2(x2, y2);
-  vec2 tangent2 = vec2(-sinRP06, cosRP06);
-  vec2 radial2 = vec2(cosRP06, sinRP06);
-  float tc2 = dot(pos2, tangent2) * 0.07;
-  float rc2 = dot(pos2, radial2) * 0.8;
-  float blobs2 = snoise(vec2(tc2 + 5.0, rc2 + 5.0));
-
-  float largeBlobs = blobs * 0.6 + blobs2 * 0.4;
+  float largeBlobs = getLargeScaleTurbulence(r, phi, t);
   float blobMod = 1.0 + largeBlobs * 0.6 * mhdTurbulenceIntensity;
 
-  // Motion-blurred turbulence (LOD-aware octaves)
   float turbulence = advectedFBM(r, phi, t, octaves);
   float turbMod = 1.0 + turbulence * 0.4 * mhdTurbulenceIntensity;
 
-  // Spiral density waves (use cached spiral)
   float spiralMod = 0.95 + 0.1 * spiral * mhdTurbulenceIntensity;
 
   // Fine detail layer (skip at low LOD)
   float fineMod = 1.0;
   if (lod > 0.3) {
-    // Fine detail - cache trig values
-    float rot12 = t * diskMaterialSpeed * 0.12;
-    float rotatedPhi12 = phi - rot12;
-    float cosRP12 = cos(rotatedPhi12);
-    float sinRP12 = sin(rotatedPhi12);
-    float xf = r * cosRP12;
-    float yf = r * sinRP12;
-    vec2 posf = vec2(xf, yf);
-    vec2 tangentF = vec2(-sinRP12, cosRP12);
-    vec2 radialF = vec2(cosRP12, sinRP12);
-    float tcf = dot(posf, tangentF) * 0.15;
-    float rcf = dot(posf, radialF) * 1.4;
-    float fine1 = snoise(vec2(tcf, rcf));
-
-    float rot15 = t * diskMaterialSpeed * 0.15;
-    float rotatedPhi15 = phi - rot15;
-    float cosRP15 = cos(rotatedPhi15);
-    float sinRP15 = sin(rotatedPhi15);
-    float xf2 = r * cosRP15;
-    float yf2 = r * sinRP15;
-    vec2 posf2 = vec2(xf2, yf2);
-    vec2 tangentF2 = vec2(-sinRP15, cosRP15);
-    vec2 radialF2 = vec2(cosRP15, sinRP15);
-    float tcf2 = dot(posf2, tangentF2) * 0.18;
-    float rcf2 = dot(posf2, radialF2) * 1.2;
-    float fine2 = snoise(vec2(tcf2 + 5.0, rcf2 + 5.0));
-
-    float fineDetail = fine1 * 0.6 + fine2 * 0.4;
+    float fineDetail = getFineDetail(r, phi, t);
     fineMod = 1.0 + fineDetail * 0.3 * mhdTurbulenceIntensity * lod;
   }
 
-  result.density = blobMod * turbMod * spiralMod * fineMod;
-  result.density = clamp(result.density, mhdMinDensity, 2.0);
+  result.density = clamp(blobMod * turbMod * spiralMod * fineMod, mhdMinDensity, 2.0);
 
-  // === TEMPERATURE CALCULATION ===
+  // === TEMPERATURE ===
 
-  // Hot spots
-  float hotspots = getHotspots(r, phi, t);
-  result.temperature += hotspots * 0.35 * mhdHotspotIntensity;
+  result.temperature = 1.0;
+  result.temperature += getHotspots(r, phi, t) * 0.35 * mhdHotspotIntensity;
 
-  // Spiral arms are slightly hotter (use cached spiral)
+  // Spiral arms are slightly hotter (compressed gas)
   result.temperature += (spiral - 0.5) * 0.15 * mhdTurbulenceIntensity;
 
-  // Small-scale temperature fluctuations (LOD-aware octaves)
+  // Small-scale temperature fluctuations, decorrelated from density
   float tempNoise = advectedFBM(r * 1.3 + 5.0, phi + 1.0, t, octaves);
   result.temperature += tempNoise * 0.1 * mhdTurbulenceIntensity;
 
@@ -315,3 +218,20 @@ MHDResult getMHDCombined(float r, float phi, float t, float lod) {
 
   return result;
 }
+
+#else
+// getMHDCombined costs 16 noise fetches per disk sample, which dominates the
+// frame in binary mode. LensingPass bakes it once per frame into a log-polar
+// LUT (u = phi wrapping, v = log r) so each disk sample is a single fetch.
+uniform sampler2D mhdLUT;
+
+MHDResult sampleMHDLUT(float r, float phi) {
+  float u = phi / (2.0 * PI) + 0.5;
+  float v = clamp(log(max(r, 1e-3) / mhdLutRMin) / mhdLutLogRange, 0.0, 1.0);
+  vec2 dt = texture(mhdLUT, vec2(u, v)).rg;
+  MHDResult result;
+  result.density = dt.x;
+  result.temperature = dt.y;
+  return result;
+}
+#endif

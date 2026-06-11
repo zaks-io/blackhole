@@ -1,19 +1,20 @@
 import * as THREE from 'three';
 
 /**
- * Generate a 256-entry blackbody color lookup table texture
- * Covers temperatures from 1000K to 15000K
+ * Generate a 512-entry blackbody color lookup table texture
+ * Covers temperatures from 1000K to 40000K, matching the shader's
+ * sampleBlackbody mapping of (temp - 1000) / 39000
  *
  * Uses Planck's law approximation via color temperature formulas
  * Based on algorithm by Tanner Helland
  */
 export function createBlackbodyLUT(): THREE.DataTexture {
-  const size = 256;
+  const size = 512;
   const data = new Uint8Array(size * 4);
 
   for (let i = 0; i < size; i++) {
-    // Map index to temperature: 1000K to 15000K
-    const temperature = 1000 + (i / (size - 1)) * 14000;
+    // Map index to temperature: 1000K to 40000K
+    const temperature = 1000 + (i / (size - 1)) * 39000;
     const rgb = temperatureToRGB(temperature);
 
     data[i * 4 + 0] = Math.round(rgb.r * 255);

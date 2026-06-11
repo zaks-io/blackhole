@@ -5,7 +5,8 @@ import * as THREE from 'three';
  * Uses the Z dimension for time-based animation (cycling through Z slices)
  */
 export function createNoiseLUT3D(size: number = 128): THREE.Data3DTexture {
-  const data = new Uint8Array(size * size * size * 4);
+  // Single channel: the shader only reads .r, so RGBA would waste 4x memory
+  const data = new Uint8Array(size * size * size);
 
   for (let z = 0; z < size; z++) {
     for (let y = 0; y < size; y++) {
@@ -22,18 +23,16 @@ export function createNoiseLUT3D(size: number = 128): THREE.Data3DTexture {
         // Convert from [-1, 1] to [0, 255]
         const value = Math.round((noise * 0.5 + 0.5) * 255);
 
-        const idx = (z * size * size + y * size + x) * 4;
-        data[idx + 0] = value; // R
-        data[idx + 1] = value; // G (same value for grayscale)
-        data[idx + 2] = value; // B (same value for grayscale)
-        data[idx + 3] = 255; // A
+        data[z * size * size + y * size + x] = value;
       }
     }
   }
 
   const texture = new THREE.Data3DTexture(data, size, size, size);
-  texture.format = THREE.RGBAFormat;
+  texture.format = THREE.RedFormat;
   texture.type = THREE.UnsignedByteType;
+  // Rows aren't 4-byte multiples for single-channel data
+  texture.unpackAlignment = 1;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
   texture.wrapS = THREE.RepeatWrapping;

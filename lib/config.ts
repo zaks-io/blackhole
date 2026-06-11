@@ -46,6 +46,10 @@ export const CONFIG = {
     textureContrast: 1.0,
     materialSpeed: 15.0,
     opacity: 0.4,
+    // m=1 eccentric mode (single-BH only): nested elliptical streamlines
+    // precessing rigidly at the GR apsidal rate times the speed multiplier
+    eccentricity: 0.18,
+    eccentricityPrecessionSpeed: 1.0,
   },
 
   // MHD turbulence effects
@@ -57,6 +61,7 @@ export const CONFIG = {
     hotspotCount: 3,
     patternSpeed: 3.0,
     minDensity: 0, // Minimum density for sparse areas (0-1)
+    hotspotEccentricity: 0.3, // Epicyclic radial oscillation of hotspots
   },
 
   // Ray marching settings
@@ -179,6 +184,8 @@ export function buildLensingParams(): LensingParams {
     diskTextureContrast: CONFIG.disk.textureContrast,
     diskMaterialSpeed: CONFIG.disk.materialSpeed,
     diskOpacity: CONFIG.disk.opacity,
+    diskEccentricity: CONFIG.disk.eccentricity,
+    diskEccentricityPrecessionSpeed: CONFIG.disk.eccentricityPrecessionSpeed,
     mhdTurbulenceIntensity: CONFIG.mhd.turbulenceIntensity,
     mhdSpiralArms: CONFIG.mhd.spiralArms,
     mhdSpiralTightness: CONFIG.mhd.spiralTightness,
@@ -186,6 +193,7 @@ export function buildLensingParams(): LensingParams {
     mhdHotspotCount: CONFIG.mhd.hotspotCount,
     mhdPatternSpeed: CONFIG.mhd.patternSpeed,
     mhdMinDensity: CONFIG.mhd.minDensity,
+    mhdHotspotEccentricity: CONFIG.mhd.hotspotEccentricity,
     supersampleLevel: CONFIG.antiAliasing.supersampleLevel,
     bhEdgeSoftness: CONFIG.antiAliasing.bhEdgeSoftness,
     photonSphereIntensity: CONFIG.photonSphere.intensity,

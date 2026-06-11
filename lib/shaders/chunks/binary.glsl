@@ -1,6 +1,7 @@
 // ============================================================================
 // Binary Black Hole System - Core Functions Only
 // ============================================================================
+#ifdef BINARY_MODE
 
 // Get BH positions as 3D vectors (Y=0 since disk is in XZ plane)
 vec3 getBH1World() {
@@ -38,3 +39,5 @@ vec2 getBHOrbitalVelocity(vec2 bhPos) {
   float omega = sqrt(0.5 * rs / (binarySeparation * binarySeparation * binarySeparation));
   return omega * vec2(-bhPos.y, bhPos.x);
 }
+
+#endif // BINARY_MODE

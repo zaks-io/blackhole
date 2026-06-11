@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { createBlackbodyLUT } from '../utils/blackbodyLUT';
 import { createNoiseLUT3D } from '../utils/noiseLUT';
 import { buildLensingParams } from '../config';
@@ -9,6 +10,29 @@ import fragmentShader from '../shaders/lensing.frag.glsl';
 
 // Register shader chunks before they are needed
 registerLensingChunks();
+
+// MHD turbulence is the dominant per-sample cost (16 noise fetches), so it is
+// baked once per frame into a log-polar LUT (u = phi, v = log r) that the main
+// pass reads with a single fetch. MHD_BAKE_PASS hides the LUT sampler from the
+// bake shader itself so getMHDCombined is evaluated directly.
+const MHD_LUT_WIDTH = 1024;
+const MHD_LUT_HEIGHT = 512;
+
+const mhdBakeFragmentShader = /* glsl */ `
+precision highp float;
+
+#define MHD_BAKE_PASS
+#include <lensing_uniforms>
+#include <lensing_noise>
+#include <lensing_mhd>
+
+void main() {
+  float phi = (vUv.x - 0.5) * 2.0 * PI;
+  float r = mhdLutRMin * exp(vUv.y * mhdLutLogRange);
+  MHDResult m = getMHDCombined(r, phi, time, 1.0);
+  gl_FragColor = vec4(m.density, m.temperature, 0.0, 1.0);
+}
+`;
 
 export interface LensingParams {
   rs: number;
@@ -28,6 +52,10 @@ export interface LensingParams {
   diskMaterialSpeed: number;
   // Base disk opacity (0 = transparent, 1 = opaque)
   diskOpacity: number;
+  // m=1 eccentric disk mode (single-BH only): amplitude and apsidal
+  // precession speed multiplier (1 = the GR rate at 2 * r_in)
+  diskEccentricity: number;
+  diskEccentricityPrecessionSpeed: number;
   // MHD parameters
   mhdTurbulenceIntensity: number;
   mhdSpiralArms: number;
@@ -36,6 +64,8 @@ export interface LensingParams {
   mhdHotspotCount: number;
   mhdPatternSpeed: number;
   mhdMinDensity: number;
+  // Epicyclic radial oscillation amplitude of orbiting hotspots
+  mhdHotspotEccentricity: number;
   // Supersampling for anti-aliasing (1 = off, 2 = 2x2, 4 = 4x4)
   supersampleLevel: number;
   // Black hole edge softness (0 = hard edge, 1 = very soft)
@@ -119,6 +149,9 @@ const LensingShader = {
     diskMaterialSpeed: { value: 15.0 },
     // Disk opacity uniform
     diskOpacity: { value: 0.85 },
+    // Eccentric disk uniforms (rate precomputed CPU-side)
+    diskEccentricity: { value: 0.0 },
+    diskEccPrecRate: { value: 0.0 },
     // MHD uniforms
     mhdTurbulenceIntensity: { value: 0.8 },
     mhdSpiralArms: { value: 2.0 },
@@ -127,6 +160,10 @@ const LensingShader = {
     mhdHotspotCount: { value: 3 },
     mhdPatternSpeed: { value: 25.0 },
     mhdMinDensity: { value: 0.5 },
+    mhdHotspotEccentricity: { value: 0.0 },
+    mhdLUT: { value: null },
+    mhdLutRMin: { value: 1.5 },
+    mhdLutLogRange: { value: 2.5 },
     // Supersampling uniform
     supersampleLevel: { value: 1 },
     // Black hole edge softness uniform
@@ -188,12 +225,24 @@ export class LensingPass extends ShaderPass {
   private blackbodyLUT: THREE.DataTexture;
   private noiseLUT: THREE.Data3DTexture;
 
+  // Per-frame MHD turbulence bake target and pass
+  private mhdLutTarget: THREE.WebGLRenderTarget;
+  private mhdBakeMaterial: THREE.ShaderMaterial;
+  private mhdBakeQuad: FullScreenQuad;
+
   // Camera caching for uniform update optimization
   private lastCameraPosition = new THREE.Vector3();
   private lastCameraMatrixWorld = new THREE.Matrix4();
+  private lastProjectionMatrix = new THREE.Matrix4();
 
-  // Binary orbital phase for audio sync
+  // Binary orbital phase for audio sync, integrated incrementally so that
+  // changing the separation mid-flight changes the rate without teleporting
   private currentOrbitalPhase = 0;
+  private lastBinaryTime: number | null = null;
+
+  // CPU-side inputs to precomputed uniforms
+  private eccentricityPrecessionSpeed = 1.0;
+  private explicitCircumbinaryOuter = 30.0;
 
   constructor(starfieldTexture: THREE.Texture, noiseTextureSize: number = 128) {
     super(LensingShader);
@@ -207,13 +256,78 @@ export class LensingPass extends ShaderPass {
     // Create 3D noise LUT texture
     this.noiseLUT = createNoiseLUT3D(noiseTextureSize);
     this.uniforms['noiseLUT'].value = this.noiseLUT;
+
+    // MHD LUT bake target: phi wraps (RepeatWrapping in u), log-r clamps
+    this.mhdLutTarget = new THREE.WebGLRenderTarget(MHD_LUT_WIDTH, MHD_LUT_HEIGHT, {
+      type: THREE.HalfFloatType,
+      format: THREE.RGBAFormat,
+      wrapS: THREE.RepeatWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: false,
+      stencilBuffer: false,
+    });
+    this.uniforms['mhdLUT'].value = this.mhdLutTarget.texture;
+
+    // The bake material shares this.uniforms, so time and MHD parameter
+    // updates flow into the bake pass with no extra bookkeeping
+    this.mhdBakeMaterial = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader,
+      fragmentShader: mhdBakeFragmentShader,
+    });
+    this.mhdBakeQuad = new FullScreenQuad(this.mhdBakeMaterial);
+
+    this.updateMhdLutRange();
+  }
+
+  render(
+    renderer: THREE.WebGLRenderer,
+    writeBuffer: THREE.WebGLRenderTarget,
+    readBuffer: THREE.WebGLRenderTarget,
+    deltaTime: number,
+    maskActive: boolean
+  ): void {
+    const prevTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(this.mhdLutTarget);
+    this.mhdBakeQuad.render(renderer);
+    renderer.setRenderTarget(prevTarget);
+
+    super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+  }
+
+  // The LUT's radial window must cover every (r, phi) the disk shaders ask
+  // for: in single mode the eccentric streamline label a = r(1 + e cos f)
+  // stays within [inner, outer] (eccentricity tapers to zero at both edges),
+  // leaving 1.5x outer as margin; in binary mode the mini-disks
+  // sample rescaled radii near the inner edge while the circumbinary disk
+  // reaches out to its configured outer radius.
+  private updateMhdLutRange(): void {
+    const binary = (this.uniforms['binaryEnabled'].value as number) > 0.5;
+    const diskInner = this.uniforms['diskInnerRadius'].value as number;
+    const diskOuter = this.uniforms['diskOuterRadius'].value as number;
+
+    let rMin: number;
+    let rMax: number;
+    if (binary) {
+      rMin = Math.max(0.15, 0.2 * diskInner);
+      rMax = Math.max(this.uniforms['circumbinaryOuterRadius'].value as number, 1.5 * diskOuter);
+    } else {
+      rMin = 0.5 * diskInner;
+      rMax = 1.5 * diskOuter;
+    }
+
+    this.uniforms['mhdLutRMin'].value = rMin;
+    this.uniforms['mhdLutLogRange'].value = Math.log(rMax / rMin);
   }
 
   updateCamera(camera: THREE.PerspectiveCamera): void {
     // Skip update if camera hasn't moved (optimization for static camera)
     if (
       this.lastCameraPosition.equals(camera.position) &&
-      this.lastCameraMatrixWorld.equals(camera.matrixWorld)
+      this.lastCameraMatrixWorld.equals(camera.matrixWorld) &&
+      this.lastProjectionMatrix.equals(camera.projectionMatrix)
     ) {
       return;
     }
@@ -221,6 +335,7 @@ export class LensingPass extends ShaderPass {
     // Cache current state
     this.lastCameraPosition.copy(camera.position);
     this.lastCameraMatrixWorld.copy(camera.matrixWorld);
+    this.lastProjectionMatrix.copy(camera.projectionMatrix);
 
     // Update uniforms
     this.uniforms['cameraPos'].value.copy(camera.position);
@@ -281,6 +396,14 @@ export class LensingPass extends ShaderPass {
     if (params.diskOpacity !== undefined) {
       this.uniforms['diskOpacity'].value = params.diskOpacity;
     }
+    // Eccentric disk mode
+    if (params.diskEccentricity !== undefined) {
+      this.uniforms['diskEccentricity'].value = params.diskEccentricity;
+    }
+    if (params.diskEccentricityPrecessionSpeed !== undefined) {
+      this.eccentricityPrecessionSpeed = params.diskEccentricityPrecessionSpeed;
+      this.updatePrecomputedUniforms();
+    }
     // MHD parameters
     if (params.mhdTurbulenceIntensity !== undefined) {
       this.uniforms['mhdTurbulenceIntensity'].value = params.mhdTurbulenceIntensity;
@@ -302,6 +425,9 @@ export class LensingPass extends ShaderPass {
     }
     if (params.mhdMinDensity !== undefined) {
       this.uniforms['mhdMinDensity'].value = params.mhdMinDensity;
+    }
+    if (params.mhdHotspotEccentricity !== undefined) {
+      this.uniforms['mhdHotspotEccentricity'].value = params.mhdHotspotEccentricity;
     }
     if (params.supersampleLevel !== undefined) {
       this.uniforms['supersampleLevel'].value = params.supersampleLevel;
@@ -394,9 +520,25 @@ export class LensingPass extends ShaderPass {
     if (params.noiseTimeScale !== undefined) {
       this.uniforms['noiseTimeScale'].value = params.noiseTimeScale;
     }
-    // Binary black hole system
+    // Binary black hole system. The mode is a compile-time specialization:
+    // toggling it swaps the BINARY_MODE define and recompiles the shader,
+    // which keeps the single-BH hot loop free of per-BH register pressure.
     if (params.binaryEnabled !== undefined) {
       this.uniforms['binaryEnabled'].value = params.binaryEnabled;
+      const wantBinary = params.binaryEnabled > 0.5;
+      const hasBinary = 'BINARY_MODE' in this.material.defines;
+      if (wantBinary !== hasBinary) {
+        if (wantBinary) {
+          this.material.defines['BINARY_MODE'] = '';
+        } else {
+          delete this.material.defines['BINARY_MODE'];
+        }
+        this.material.needsUpdate = true;
+      }
+      if (!wantBinary) {
+        this.lastBinaryTime = null;
+      }
+      this.updateMhdLutRange();
     }
     if (params.binaryMass1 !== undefined) {
       this.uniforms['binaryMass1'].value = params.binaryMass1;
@@ -408,7 +550,8 @@ export class LensingPass extends ShaderPass {
       this.updateBinaryDerivedUniforms();
     }
     if (params.circumbinaryOuterRadius !== undefined) {
-      this.uniforms['circumbinaryOuterRadius'].value = params.circumbinaryOuterRadius;
+      this.explicitCircumbinaryOuter = params.circumbinaryOuterRadius;
+      this.updateBinaryDerivedUniforms();
     }
     if (params.binaryBlendWidth !== undefined) {
       this.uniforms['binaryBlendWidth'].value = params.binaryBlendWidth;
@@ -436,14 +579,21 @@ export class LensingPass extends ShaderPass {
     const separation = this.uniforms['binarySeparation'].value as number;
     const rs = this.uniforms['rs'].value as number;
 
-    // Orbital period from Kepler's third law: P = 2π√(a³/GM_tot)
+    // Keplerian rate from Kepler's third law: omega = sqrt(GM_tot / a³).
     // Total mass is conserved across the split (rs1 + rs2 = rs), and
-    // rs = 2GM/c² with c=1 gives GM_tot = rs/2, hence the factor of 2.
-    const orbitalPeriod = 2 * Math.PI * Math.sqrt((2 * separation * separation * separation) / rs);
+    // rs = 2GM/c² with c=1 gives GM_tot = rs/2.
+    const omega = Math.sqrt((0.5 * rs) / (separation * separation * separation));
 
-    // Orbital phase (normalized to 0-2π)
-    const phase = ((time * 2 * Math.PI) / orbitalPeriod) % (2 * Math.PI);
-    this.currentOrbitalPhase = phase;
+    // Integrate the phase so a separation change adjusts the rate from the
+    // current position instead of re-evaluating omega * t (which teleports)
+    if (this.lastBinaryTime === null) {
+      this.currentOrbitalPhase = (omega * time) % (2 * Math.PI);
+    } else {
+      this.currentOrbitalPhase =
+        (this.currentOrbitalPhase + omega * (time - this.lastBinaryTime)) % (2 * Math.PI);
+    }
+    this.lastBinaryTime = time;
+    const phase = this.currentOrbitalPhase;
 
     // Distance from center of mass (COM at origin)
     const a1 = separation * m2; // BH1 distance from COM
@@ -461,17 +611,21 @@ export class LensingPass extends ShaderPass {
   }
 
   private updateBinaryDerivedUniforms(): void {
-    const m1 = this.uniforms['binaryMass1'].value as number;
     const separation = this.uniforms['binarySeparation'].value as number;
 
     // Circumbinary cavity inner edge (~2.5 * separation)
-    this.uniforms['circumbinaryInnerRadius'].value = 2.5 * separation;
+    const inner = 2.5 * separation;
+    this.uniforms['circumbinaryInnerRadius'].value = inner;
 
-    // If outer radius wasn't explicitly set, default to reasonable value
-    const currentOuter = this.uniforms['circumbinaryOuterRadius'].value as number;
-    if (currentOuter < this.uniforms['circumbinaryInnerRadius'].value) {
-      this.uniforms['circumbinaryOuterRadius'].value = 4.0 * separation;
-    }
+    // Derive the outer edge from the explicit setting each time so growing
+    // the separation pushes the disk out and shrinking it restores the
+    // configured radius (a clamp on the uniform itself would be sticky)
+    this.uniforms['circumbinaryOuterRadius'].value = Math.max(
+      this.explicitCircumbinaryOuter,
+      1.4 * inner
+    );
+
+    this.updateMhdLutRange();
   }
 
   setStarfield(texture: THREE.Texture): void {
@@ -512,6 +666,17 @@ export class LensingPass extends ShaderPass {
 
     // Disk radius range (used multiple times in sampleDisk)
     this.uniforms['diskRadiusRange'].value = diskOuterRadius - diskInnerRadius;
+
+    // Rigid apsidal precession rate for the m=1 eccentric mode: the GR
+    // periapsis advance Omega_prec = Omega - kappa = Omega * (1 - sqrt(1 - 3rs/r)),
+    // evaluated at a characteristic radius 2 * r_in and scaled by the user
+    // multiplier. Precomputed so the shader gets a plain rate in rad/sim-time.
+    const rc = 2 * diskInnerRadius;
+    const omegaC = Math.sqrt((0.5 * rs) / (rc * rc * rc));
+    const omegaPrec = omegaC * (1 - Math.sqrt(Math.max(0, 1 - (3 * rs) / rc)));
+    this.uniforms['diskEccPrecRate'].value = this.eccentricityPrecessionSpeed * omegaPrec;
+
+    this.updateMhdLutRange();
   }
 
   private updateAnyOverlayEnabled(): void {
@@ -549,7 +714,11 @@ export class LensingPass extends ShaderPass {
   }
 
   dispose(): void {
+    super.dispose();
     this.blackbodyLUT.dispose();
     this.noiseLUT.dispose();
+    this.mhdLutTarget.dispose();
+    this.mhdBakeMaterial.dispose();
+    this.mhdBakeQuad.dispose();
   }
 }

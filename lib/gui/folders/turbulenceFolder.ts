@@ -61,4 +61,11 @@ export function createTurbulenceFolder(gui: GUI, config: TurbulenceFolderConfig)
     .onChange((value: number) => {
       lensingPass.updateParams({ mhdMinDensity: value });
     });
+
+  folder
+    .add(params, 'mhdHotspotEccentricity', 0.0, 0.6, 0.05)
+    .name('Hotspot Eccentricity')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ mhdHotspotEccentricity: value });
+    });
 }

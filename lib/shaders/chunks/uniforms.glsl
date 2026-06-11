@@ -29,6 +29,8 @@ uniform float mhdHotspotIntensity;     // 0-1
 uniform int mhdHotspotCount;           // 0-5
 uniform float mhdPatternSpeed;         // Pattern rotation speed multiplier
 uniform float mhdMinDensity;           // Minimum density for sparse areas (0-1)
+uniform float mhdLutRMin;              // MHD LUT log-polar radial origin
+uniform float mhdLutLogRange;          // log(rMax / rMin) of the MHD LUT
 
 // Luminance compression for detail preservation
 uniform float diskLuminanceCompression;  // 0.0 = no compression, 1.0 = strong
@@ -85,6 +87,11 @@ uniform float photonRingLogInner;   // log(rs * 1.5) - precomputed for photon ri
 uniform float photonRingLogOuter;   // log(diskInnerRadius) - precomputed for photon ring mapping
 uniform float diskRadiusRange;      // diskOuterRadius - diskInnerRadius
 uniform float anyOverlayEnabled;    // 1.0 if any overlay is on, 0.0 otherwise
+
+// Eccentric disk (single-BH mode)
+uniform float diskEccentricity;        // m=1 eccentric mode amplitude (0 = circular)
+uniform float diskEccPrecRate;         // rigid apsidal precession rate, rad per sim-time (precomputed)
+uniform float mhdHotspotEccentricity;  // epicyclic amplitude of orbiting hotspots
 
 // Binary black hole system
 uniform float binaryEnabled;        // 0.0 = single BH, 1.0 = binary system

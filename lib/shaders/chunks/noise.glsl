@@ -39,29 +39,3 @@ float fbm(vec2 p, int octaves) {
 
   return value / maxValue;
 }
-
-// Stable disk texture using uniform rotation + minimal warping
-float advectedFBM(float r, float phi, float t, int octaves) {
-  // Uniform rotation - entire pattern rotates together (prevents winding)
-  float rot = t * diskMaterialSpeed * 0.1;
-  float rotatedPhi = phi - rot;
-
-  // Convert to Cartesian for seamless sampling
-  float x = r * cos(rotatedPhi);
-  float y = r * sin(rotatedPhi);
-  vec2 pos = vec2(x, y);
-
-  // Minimal warping - just enough to break perfect symmetry
-  float warp = snoise(pos * 0.02 + t * 0.002) * 0.2;
-
-  // Anisotropic noise stretched along rotation direction
-  vec2 tangent = vec2(-sin(rotatedPhi), cos(rotatedPhi));
-  vec2 radial = vec2(cos(rotatedPhi), sin(rotatedPhi));
-
-  // Sample noise with tangential stretch (features elongated along orbit)
-  // Higher radial = smaller/more streaks, lower tangent = longer streaks
-  float tangentCoord = dot(pos, tangent) * 0.08 + warp;
-  float radialCoord = dot(pos, radial) * 1.2;  // Much higher = smaller streaks
-
-  return fbm(vec2(tangentCoord, radialCoord), octaves);
-}

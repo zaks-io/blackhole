@@ -59,6 +59,7 @@ vec4 sampleCorona(vec3 rayPos, vec3 rayDir, float r, float lod) {
   return sampleCoronaAt(rayPos, rayDir, vec3(0.0), rs, lod);
 }
 
+#ifdef BINARY_MODE
 // Binary black hole corona - samples around both BHs
 vec4 sampleBinaryCorona(vec3 rayPos, vec3 rayDir, float lod) {
   if (coronaEnabled < 0.5) return vec4(0.0);
@@ -83,3 +84,4 @@ vec4 sampleBinaryCorona(vec3 rayPos, vec3 rayDir, float lod) {
 
   return combined;
 }
+#endif // BINARY_MODE

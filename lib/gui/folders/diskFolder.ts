@@ -107,4 +107,18 @@ export function createDiskFolder(gui: GUI, config: DiskFolderConfig): void {
     .onChange((value: number) => {
       lensingPass.updateParams({ diskMaterialSpeed: value });
     });
+
+  motionFolder
+    .add(params, 'diskEccentricity', 0.0, 0.4, 0.01)
+    .name('Eccentricity')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ diskEccentricity: value });
+    });
+
+  motionFolder
+    .add(params, 'diskEccentricityPrecessionSpeed', 0.0, 10.0, 0.1)
+    .name('Precession Speed')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ diskEccentricityPrecessionSpeed: value });
+    });
 }

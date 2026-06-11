@@ -34,35 +34,42 @@ export class PostProcessingPipeline {
 
     const width = window.innerWidth;
     const height = window.innerHeight;
+    const pixelRatio = renderer.getPixelRatio();
+    const deviceWidth = Math.floor(width * pixelRatio);
+    const deviceHeight = Math.floor(height * pixelRatio);
 
-    // Create render target with HalfFloatType for HDR
-    const renderTarget = new THREE.WebGLRenderTarget(width, height, {
+    // Composer buffers must match the renderer's device-pixel output, and the
+    // fullscreen passes never use depth/stencil, so drop those attachments.
+    const renderTarget = new THREE.WebGLRenderTarget(deviceWidth, deviceHeight, {
       type: THREE.HalfFloatType,
       format: THREE.RGBAFormat,
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
+      depthBuffer: false,
+      stencilBuffer: false,
     });
     this._composer = new EffectComposer(renderer, renderTarget);
+    // Composer infers CSS size from the custom target's pixel size; normalize
+    // it so later setSize(cssW, cssH) calls don't double-apply the pixel ratio.
+    this._composer.setSize(width, height);
 
     // Lensing pass
     this._lensingPass = new LensingPass(starfieldTexture, CONFIG.noise.textureSize);
-    this._lensingPass.updateResolution(width, height);
+    this._lensingPass.updateResolution(deviceWidth, deviceHeight);
     this._lensingPass.updateParams(initialParams);
     this._composer.addPass(this._lensingPass);
 
     // FXAA pass
     this.fxaaPass = new ShaderPass(FXAAShader);
-    this.fxaaPass.uniforms['resolution'].value.set(
-      1 / (width * renderer.getPixelRatio()),
-      1 / (height * renderer.getPixelRatio())
-    );
+    this.fxaaPass.uniforms['resolution'].value.set(1 / deviceWidth, 1 / deviceHeight);
     this.fxaaPass.enabled = config.fxaaEnabled;
     this._composer.addPass(this.fxaaPass);
 
     // Bloom pass
+    const bloomScale = config.bloomResolutionScale;
     const bloomRes = new THREE.Vector2(
-      Math.floor(width * config.bloomResolutionScale),
-      Math.floor(height * config.bloomResolutionScale)
+      Math.max(1, Math.round(deviceWidth * bloomScale)),
+      Math.max(1, Math.round(deviceHeight * bloomScale))
     );
     this.bloomPass = new UnrealBloomPass(
       bloomRes,
@@ -70,6 +77,15 @@ export class PostProcessingPipeline {
       config.bloomRadius,
       config.bloomThreshold
     );
+    // UnrealBloomPass ignores its resolution field after construction; only
+    // setSize resizes its internal targets. Wrap it (before addPass, which
+    // calls setSize) so bloom always renders at the configured scale.
+    const bloomSetSize = this.bloomPass.setSize.bind(this.bloomPass);
+    this.bloomPass.setSize = (w: number, h: number) =>
+      bloomSetSize(
+        Math.max(1, Math.round(w * bloomScale)),
+        Math.max(1, Math.round(h * bloomScale))
+      );
     this._composer.addPass(this.bloomPass);
 
     // EHT blur passes
@@ -78,8 +94,8 @@ export class PostProcessingPipeline {
       const vBlurPass = new ShaderPass(VerticalBlurShader);
 
       const blurAmount = this.ehtBlurStrength * this.ehtBlurState.intensity;
-      hBlurPass.uniforms['h'].value = blurAmount / width;
-      vBlurPass.uniforms['v'].value = blurAmount / height;
+      hBlurPass.uniforms['h'].value = blurAmount / deviceWidth;
+      vBlurPass.uniforms['v'].value = blurAmount / deviceHeight;
 
       hBlurPass.enabled = this.ehtBlurEnabled;
       vBlurPass.enabled = this.ehtBlurEnabled;
@@ -111,14 +127,15 @@ export class PostProcessingPipeline {
   }
 
   private updateBlurStrength(intensity: number): void {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const pixelRatio = this.renderer.getPixelRatio();
+    const deviceWidth = Math.floor(window.innerWidth * pixelRatio);
+    const deviceHeight = Math.floor(window.innerHeight * pixelRatio);
     const blurAmount = this.ehtBlurStrength * intensity;
     const enabled = intensity > 0;
 
     this.blurPasses.forEach(({ h, v }) => {
-      h.uniforms['h'].value = blurAmount / width;
-      v.uniforms['v'].value = blurAmount / height;
+      h.uniforms['h'].value = blurAmount / deviceWidth;
+      v.uniforms['v'].value = blurAmount / deviceHeight;
       h.enabled = enabled;
       v.enabled = enabled;
     });
@@ -152,24 +169,19 @@ export class PostProcessingPipeline {
   }
 
   updateResolution(width: number, height: number, pixelRatio: number): void {
+    const deviceWidth = Math.floor(width * pixelRatio);
+    const deviceHeight = Math.floor(height * pixelRatio);
+
+    this._composer.setPixelRatio(pixelRatio);
     this._composer.setSize(width, height);
-    this._lensingPass.updateResolution(width, height);
+    this._lensingPass.updateResolution(deviceWidth, deviceHeight);
 
-    this.fxaaPass.uniforms['resolution'].value.set(
-      1 / (width * pixelRatio),
-      1 / (height * pixelRatio)
-    );
-
-    const bloomResScale = CONFIG.bloom.resolutionScale;
-    this.bloomPass.resolution.set(
-      Math.floor(width * bloomResScale),
-      Math.floor(height * bloomResScale)
-    );
+    this.fxaaPass.uniforms['resolution'].value.set(1 / deviceWidth, 1 / deviceHeight);
 
     const blurAmount = this.ehtBlurStrength * this.ehtBlurState.intensity;
     this.blurPasses.forEach(({ h, v }) => {
-      h.uniforms['h'].value = blurAmount / width;
-      v.uniforms['v'].value = blurAmount / height;
+      h.uniforms['h'].value = blurAmount / deviceWidth;
+      v.uniforms['v'].value = blurAmount / deviceHeight;
     });
   }
 

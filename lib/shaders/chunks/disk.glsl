@@ -11,13 +11,45 @@ vec2 dirToUV(vec3 dir) {
 
 vec3 sampleStarfield(vec3 dir) {
   vec2 uv = dirToUV(dir);
-  vec3 current = texture2D(starfield, uv).rgb * starfieldExposure;
-  vec3 next = texture2D(starfieldNext, uv).rgb * starfieldExposure;
-  return mix(current, next, starfieldBlend);
+
+  // Lensing compresses the sky near the shadow, so mip selection is essential
+  // to avoid star shimmer and moire. Differentiating uv directly breaks at the
+  // atan seam (u wraps 1 -> 0), so differentiate the seam-free direction and
+  // convert analytically: du = (x*dz - z*dx)/(x^2+z^2)/2pi, dv = dy/cos(lat)/pi
+  vec3 ddx = dFdx(dir);
+  vec3 ddy = dFdy(dir);
+  float planarSq = max(dir.x * dir.x + dir.z * dir.z, 1e-6);
+  float invCosLat = inversesqrt(max(1.0 - dir.y * dir.y, 1e-6));
+  vec2 gradX = vec2((dir.x * ddx.z - dir.z * ddx.x) / (planarSq * 2.0 * PI), ddx.y * invCosLat / PI);
+  vec2 gradY = vec2((dir.x * ddy.z - dir.z * ddy.x) / (planarSq * 2.0 * PI), ddy.y * invCosLat / PI);
+
+  // Explicit LOD from the major footprint axis. Near the critical curve the
+  // whole sky compresses into a pixel, so the footprint legitimately spans
+  // hundreds of texels; the only alias-free answer there is a heavy blur.
+  // Conservative (isotropic) on purpose: driver anisotropic filtering via
+  // textureGrad is unreliable under ANGLE/Metal and underblur reads as
+  // blinking stars. The cap only guards divergent-march garbage derivatives.
+  vec2 sizeA = vec2(textureSize(starfield, 0));
+  vec2 gxA = gradX * sizeA;
+  vec2 gyA = gradY * sizeA;
+  float lodA = clamp(0.5 * log2(max(max(dot(gxA, gxA), dot(gyA, gyA)), 1e-12)), 0.0, 12.0);
+  vec3 color = textureLod(starfield, uv, lodA).rgb;
+
+  // starfieldNext only holds a real texture during crossfades - skip the
+  // second fetch (and its gradient math) the rest of the time
+  if (starfieldBlend > 0.001) {
+    vec2 sizeB = vec2(textureSize(starfieldNext, 0));
+    vec2 gxB = gradX * sizeB;
+    vec2 gyB = gradY * sizeB;
+    float lodB = clamp(0.5 * log2(max(max(dot(gxB, gxB), dot(gyB, gyB)), 1e-12)), 0.0, 12.0);
+    color = mix(color, textureLod(starfieldNext, uv, lodB).rgb, starfieldBlend);
+  }
+
+  return color * starfieldExposure;
 }
 
 vec3 sampleBlackbody(float temp) {
-  float t = clamp((temp - 1000.0) / 14000.0, 0.0, 1.0);
+  float t = clamp((temp - 1000.0) / 39000.0, 0.0, 1.0);
   return texture2D(blackbodyLUT, vec2(t, 0.5)).rgb;
 }
 
@@ -25,25 +57,49 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   // Get azimuthal angle for MHD effects
   float phi = atan(hitPos.z, hitPos.x);
 
-  // Exact frequency ratio for a circular geodesic orbit in Schwarzschild:
-  //   g = sqrt(1 - 1.5*rs/r) / (1 - Omega * bz)
-  // The numerator is 1/u^t and bundles gravitational redshift with orbital
-  // time dilation; the denominator is the exact Doppler term built from the
-  // photon's conserved angular momentum bz about the disk axis. Because bz
-  // is a constant of the lensed path, this holds for every image order.
+  // m=1 eccentric disk mode: gas streamlines are nested aligned ellipses,
+  // r = a(1 - e cos f) to first order, precessing rigidly at diskEccPrecRate.
+  // a is the streamline label; thermal structure, texture, and edge fades
+  // advect with the gas, so they key off a instead of the instantaneous r.
+  float a = r;
+  float eccCosF = 0.0;
+  float eccSinF = 0.0;
+  if (diskEccentricity > 0.001) {
+    float f = phi - diskEccPrecRate * time;
+    // Taper to circular at the ISCO where eccentric orbits cannot survive,
+    // and toward the outer edge where freshly supplied gas still orbits
+    // circularly. The outer taper reaches zero before the alpha fade begins,
+    // so the disk silhouette stays centered on the hole instead of forming
+    // an m=1 offset oval around it.
+    float ecc = diskEccentricity * smoothstep(diskInnerRadius, diskInnerRadius * 2.0, r) *
+                (1.0 - smoothstep(diskInnerRadius + 0.45 * diskRadiusRange,
+                                  diskInnerRadius + 0.8 * diskRadiusRange, r));
+    eccCosF = ecc * cos(f);
+    eccSinF = ecc * sin(f);
+    a = r * (1.0 + eccCosF);
+  }
+
+  // Frequency ratio for a disk orbit in Schwarzschild:
+  //   g = sqrt(1 - 1.5*rs/r) / dopplerTerm
+  // The numerator is 1/u^t for a circular geodesic, bundling gravitational
+  // redshift with orbital time dilation. The Doppler term uses the photon's
+  // conserved angular momentum bz about the disk axis, so it is exact for
+  // circular orbits at every image order; eccentricity enters at first order
+  // via the v_phi correction (1 + 0.5 e cos f) and a radial term e sin f.
   float omega = sqrt(0.5 * rs / (r * r * r));
-  float dopplerTerm = max(0.15, 1.0 - omega * bz);
+  float radialDoppler = sqrt(0.5 * rs / r) * eccSinF * dot(rayDir, hitPos / max(r, 1e-4));
+  float dopplerTerm = max(0.15, 1.0 - omega * bz * (1.0 + 0.5 * eccCosF) - radialDoppler);
   float g = sqrt(max(0.0, 1.0 - 1.5 * rs / r)) / dopplerTerm;
 
-  // Get MHD modulations using optimized combined function
-  MHDResult mhd = getMHDCombined(r, phi, time, lod);
+  // Get MHD modulations from the per-frame baked LUT (single fetch)
+  MHDResult mhd = sampleMHDLUT(a, phi);
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
   // Novikov-Thorne thin-disk profile: T ~ r^(-3/4) * (1 - sqrt(r_in/r))^(1/4).
   // Zero torque at the ISCO pulls T to zero at the inner edge; the peak sits
   // at r = (49/36)*r_in and is normalized to diskTemperatureInner (2.0487 = 1/peak).
-  float x = r / diskInnerRadius;
+  float x = a / diskInnerRadius;
   float thermal = 2.0487 * pow(x, -0.75) * pow(max(0.0, 1.0 - inversesqrt(x)), 0.25);
   float temp = diskTemperatureInner * thermal * g * mhdTemp;
 
@@ -109,13 +165,14 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   float higherOrderDecay = pow(0.25, float(orbits));
   intensity *= higherOrderDecay;
 
-  // Alpha: smooth edge fading
+  // Alpha: smooth edge fading (in streamline label a, so the disk edges
+  // follow the eccentric flow instead of cutting circular holes in it)
   // Inner edge: fairly sharp at ISCO
   float innerEdgeWidth = diskRadiusRange * 0.05;
-  float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + innerEdgeWidth, r);
+  float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + innerEdgeWidth, a);
   // Outer edge: much wider/smoother fade for natural falloff
   float outerEdgeWidth = diskRadiusRange * 0.25;
-  float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - outerEdgeWidth, r);
+  float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - outerEdgeWidth, a);
 
   float alpha = innerFade * outerFade * diskOpacity;
 
@@ -134,6 +191,7 @@ float computeImpactParameter(vec3 pos, vec3 dir) {
   return length(cross(pos, dir));
 }
 
+#ifdef BINARY_MODE
 // ============================================================================
 // Mini-Disk Sampling for Binary System
 // Uses the SAME high-quality pipeline as sampleDisk() but in BH-local coords
@@ -194,7 +252,7 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
   // Get MHD modulations - scale radius to get proper texture frequency
   // Mini-disks are smaller, so we scale up to get comparable feature sizes
   float scaledR = r * (diskOuterRadius / outerR);
-  MHDResult mhd = getMHDCombined(scaledR, phi, time, lod);
+  MHDResult mhd = sampleMHDLUT(scaledR, phi);
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
@@ -289,8 +347,9 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
   float warpedR = length(warpedPos);
   float warpedPhi = atan(warpedPos.y, warpedPos.x);
 
-  // Bounds check uses warpedR so cavity shape is oblong
-  if (warpedR < innerR * 0.4) {
+  // Bounds check uses warpedR so cavity shape is oblong; outerFade hits zero
+  // at outerR so the early-out past it skips pure-zero samples
+  if (warpedR < innerR * 0.4 || warpedR > outerR) {
     return vec4(0.0);
   }
 
@@ -312,7 +371,7 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
   float g = doppler * gravRedshift;
 
   // MHD turbulence - use warped coordinates so texture deforms with cavity
-  MHDResult mhd = getMHDCombined(warpedR, warpedPhi, time, lod);
+  MHDResult mhd = sampleMHDLUT(warpedR, warpedPhi);
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
@@ -370,3 +429,4 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
 
   return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
 }
+#endif // BINARY_MODE

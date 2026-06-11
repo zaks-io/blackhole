@@ -15,8 +15,9 @@ vec4 sampleJet(vec3 rayPos, vec3 rayDir, float r, float lod) {
   float halfAngleRad = radians(jetsHalfOpeningAngle);
 
   // Jet inner edge: material launches from ~ISCO radius at disk level
-  // and collimates toward the axis with height
-  float launchRadius = diskInnerRadius * rs;  // ISCO = 3rs
+  // and collimates toward the axis with height. diskInnerRadius is already
+  // in world units (3 rs by default).
+  float launchRadius = diskInnerRadius;
   float collimationHeight = 10.0 * rs;  // Height over which jet collimates
   float collimationFactor = clamp(absY / collimationHeight, 0.0, 1.0);
 
@@ -89,8 +90,10 @@ vec4 sampleJet(vec3 rayPos, vec3 rayDir, float r, float lod) {
     color = mix(baseColor, redShifted, clamp(1.0 - doppler, 0.0, 0.8));
   }
 
-  // Increased emission for visibility
-  float emission = density * beaming * 3.0;
+  // Emission is per unit path length; the ray marcher scales it by stepSize.
+  // 0.6 reproduces the old look (was 3.0 unweighted with ~0.75 steps in the
+  // jet body, i.e. an implicit ds/0.15 factor of ~5).
+  float emission = density * beaming * 0.6;
   float alpha = density * 0.4;
 
   return vec4(color * emission, alpha);

@@ -192,4 +192,87 @@ describe('disk.glsl relativistic g-factor', () => {
   test('g vanishes at the photon sphere orbit radius', () => {
     expect(gFactor(1.5 * rs, 0)).toBe(0);
   });
+
+  // Mirrors the m=1 eccentric extension in sampleDisk(): the azimuthal
+  // Doppler term picks up (1 + 0.5*e*cos f) and a radial term
+  // v_r * dot(rayDir, rHat) with v_r = sqrt(0.5*rs/r) * e*sin f, following
+  // the same dopplerTerm = 1 - v.rayDir convention as the circular case.
+  const gFactorEcc = (r: number, bz: number, ecc: number, f: number, rayDotRhat: number) => {
+    const eccCosF = ecc * Math.cos(f);
+    const eccSinF = ecc * Math.sin(f);
+    const omega = Math.sqrt((0.5 * rs) / (r * r * r));
+    const radialDoppler = Math.sqrt((0.5 * rs) / r) * eccSinF * rayDotRhat;
+    const dopplerTerm = Math.max(0.15, 1 - omega * bz * (1 + 0.5 * eccCosF) - radialDoppler);
+    return Math.sqrt(Math.max(0, 1 - (1.5 * rs) / r)) / dopplerTerm;
+  };
+
+  test('eccentric g-factor reduces to circular at e = 0', () => {
+    for (const r of [3 * rs, 5 * rs, 10 * rs]) {
+      for (const bz of [-2, 0, 2]) {
+        expect(gFactorEcc(r, bz, 0, 1.234, 0.7)).toBeCloseTo(gFactor(r, bz), 12);
+      }
+    }
+  });
+
+  test('g still vanishes at the photon sphere with eccentricity on', () => {
+    expect(gFactorEcc(1.5 * rs, 1, 0.3, 0.9, 0.5)).toBe(0);
+  });
+
+  test('radial Doppler shifts symmetrically around the circular value', () => {
+    const r = 5 * rs;
+    const e = 0.2;
+    const circular = gFactor(r, 1);
+    // f = pi/2: pure radial motion (eccCosF = 0), so flipping either the
+    // ray projection or the radial phase mirrors blueshift <-> redshift
+    const blue = gFactorEcc(r, 1, e, Math.PI / 2, 1);
+    const red = gFactorEcc(r, 1, e, Math.PI / 2, -1);
+    expect(blue).toBeGreaterThan(circular);
+    expect(red).toBeLessThan(circular);
+    expect(gFactorEcc(r, 1, e, -Math.PI / 2, 1)).toBeCloseTo(red, 12);
+  });
+
+  test('apsis phase modulates the azimuthal Doppler term', () => {
+    const r = 5 * rs;
+    const e = 0.2;
+    // f = 0: no radial motion, azimuthal term scaled by (1 + 0.5e),
+    // so prograde blueshift strengthens and retrograde redshift deepens
+    expect(gFactorEcc(r, 2, e, 0, 0)).toBeGreaterThan(gFactor(r, 2));
+    expect(gFactorEcc(r, -2, e, 0, 0)).toBeLessThan(gFactor(r, -2));
+  });
+
+  test('eccentricity tapers to zero at both disk edges', () => {
+    // Mirrors ecc = e * smoothstep(inner, 2*inner, r)
+    //               * (1 - smoothstep(inner + 0.45*range, inner + 0.8*range, r))
+    const smoothstep = (e0: number, e1: number, x: number) => {
+      const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+      return t * t * (3 - 2 * t);
+    };
+    const inner = CONFIG.disk.innerRadius;
+    const outer = CONFIG.disk.outerRadius;
+    const range = outer - inner;
+    const taper = (r: number) =>
+      smoothstep(inner, 2 * inner, r) *
+      (1 - smoothstep(inner + 0.45 * range, inner + 0.8 * range, r));
+
+    // Circular at the ISCO and at the outer edge, eccentric in between
+    expect(taper(inner)).toBe(0);
+    expect(taper(outer)).toBe(0);
+    expect(taper(2 * inner)).toBe(1);
+    expect(taper(1.5 * inner)).toBeGreaterThan(0);
+    expect(taper(1.5 * inner)).toBeLessThan(1);
+
+    // Zero before the alpha outer fade begins (outer - 0.25*range), so the
+    // disk silhouette stays centered on the hole
+    expect(taper(outer - 0.2 * range)).toBe(0);
+
+    // Streamlines stay inside [inner, outer]: r*(1 +/- e(r)) bounded, so the
+    // ray marcher's crossing band needs no eccentricity expansion
+    const e = 0.4; // GUI slider max
+    for (let i = 0; i <= 100; i++) {
+      const r = inner + (range * i) / 100;
+      const ecc = e * taper(r);
+      expect(r * (1 - ecc)).toBeGreaterThanOrEqual(inner * 0.999);
+      expect(r * (1 + ecc)).toBeLessThanOrEqual(outer * 1.001);
+    }
+  });
 });
