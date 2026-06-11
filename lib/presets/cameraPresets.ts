@@ -51,3 +51,17 @@ export const CAMERA_PRESETS: Record<string, CameraPreset> = {
     duration: 2.5,
   },
 };
+
+/**
+ * Kebab-case URL slugs mapped to camera preset keys, so direct-view routes
+ * (e.g. `/accretion-disk`) share one source of truth with the presets.
+ */
+export const VIEW_SLUGS: Record<string, keyof typeof CAMERA_PRESETS> = {
+  far: 'far',
+  default: 'default',
+  'accretion-disk': 'accretionDisk',
+  'top-down': 'topDown',
+  'edge-on': 'edgeOn',
+  eht: 'eht',
+  'photon-sphere': 'photonSphere',
+};

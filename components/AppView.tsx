@@ -20,13 +20,14 @@ import { ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
  * Wrapper component that contains both the simulation and camera controls.
  * This is dynamically imported so everything is in the same module scope.
  */
-export default function AppView() {
+export default function AppView({ initialView }: { initialView?: keyof typeof CAMERA_PRESETS }) {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
-  const [activePreset, setActivePreset] = useState<string | null>('default');
+  const [activePreset, setActivePreset] = useState<string | null>(initialView ?? 'default');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
   const [ehtMode, setEhtMode] = useState(false);
   const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
-  const [introComplete, setIntroComplete] = useState(false);
+  const [introComplete, setIntroComplete] = useState(!!initialView);
+  const directViewStartedRef = useRef(false);
   const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
   const [cameraDistance, setCameraDistance] = useState(20);
   const [isManualMode, setIsManualMode] = useState(false);
@@ -57,6 +58,22 @@ export default function AppView() {
       }
     };
   }, [cameraController]);
+
+  // Direct-view deep link: snap to the preset and start orbiting immediately,
+  // skipping the intro overlay and the default reveal fly-in.
+  useEffect(() => {
+    if (!initialView || !cameraController || directViewStartedRef.current) return;
+    directViewStartedRef.current = true;
+
+    const preset = CAMERA_PRESETS[initialView];
+    const distance = Math.sqrt(preset.position.x ** 2 + preset.position.z ** 2);
+    cameraController.startOrbit({
+      distance,
+      height: preset.position.y,
+      speed: 1,
+      lookAt: preset.lookAt,
+    });
+  }, [initialView, cameraController]);
 
   const handleEhtBlurReady = useCallback((controller: EhtBlurController) => {
     setEhtBlurController(controller);
@@ -236,6 +253,7 @@ export default function AppView() {
       <BlackHoleSimulation
         showDevControls={false}
         showStats={false}
+        initialCameraPreset={initialView ?? 'far'}
         initialEhtBlurEnabled={false}
         toggleState={toggleState}
         onCameraReady={handleCameraReady}

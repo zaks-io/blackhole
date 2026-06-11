@@ -9,6 +9,7 @@ import { DevGUIController } from '@/lib/gui';
 import { BinaryAudioController } from '@/lib/audio';
 import {
   CAMERA_PRESETS,
+  VIEW_SLUGS,
   STARFIELD_BACKGROUNDS,
   CAMERA_SEQUENCES,
   type CameraPreset,
@@ -16,7 +17,7 @@ import {
 } from '@/lib/presets';
 
 // Re-export for API compatibility
-export { CAMERA_PRESETS, STARFIELD_BACKGROUNDS, CAMERA_SEQUENCES };
+export { CAMERA_PRESETS, VIEW_SLUGS, STARFIELD_BACKGROUNDS, CAMERA_SEQUENCES };
 export type { CameraPreset, StarfieldKey, EhtBlurController };
 
 export interface BlackHoleSimulationProps {

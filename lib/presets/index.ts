@@ -1,4 +1,4 @@
-export { CAMERA_PRESETS, type CameraPreset } from './cameraPresets';
+export { CAMERA_PRESETS, VIEW_SLUGS, type CameraPreset } from './cameraPresets';
 export {
   STARFIELD_BACKGROUNDS,
   type StarfieldBackground,
