@@ -37,13 +37,18 @@ export function blurTexture(
   const width = texture.image?.width || 4096;
   const height = texture.image?.height || 2048;
 
-  // Create two render targets for ping-pong blurring
+  // Create two render targets for ping-pong blurring. The result is sampled
+  // under extreme lensing minification, so it needs mips + anisotropy or the
+  // stars alias; the renderer regenerates mips after each render-to-target.
   const rtOptions: THREE.RenderTargetOptions = {
     type: THREE.HalfFloatType,
     format: THREE.RGBAFormat,
-    minFilter: THREE.LinearFilter,
+    minFilter: THREE.LinearMipmapLinearFilter,
     magFilter: THREE.LinearFilter,
-    generateMipmaps: false,
+    generateMipmaps: true,
+    anisotropy: renderer.capabilities.getMaxAnisotropy(),
+    depthBuffer: false,
+    stencilBuffer: false,
   };
 
   const rtA = new THREE.WebGLRenderTarget(width, height, rtOptions);

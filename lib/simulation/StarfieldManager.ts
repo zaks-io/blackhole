@@ -15,6 +15,15 @@ export class StarfieldManager {
     this.renderer = renderer;
   }
 
+  // Lensing compresses the whole sky into a few pixels near the shadow;
+  // without mips + anisotropy the stars alias (shimmer, moire).
+  private applyLensingFilters(texture: THREE.Texture): void {
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
+    texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+  }
+
   async load(key: StarfieldKey = 'milkyWay'): Promise<THREE.Texture> {
     const bg = STARFIELD_BACKGROUNDS[key];
     const texture = await this.loadTexture(bg.path, bg.hdr);
@@ -31,8 +40,7 @@ export class StarfieldManager {
           path,
           (texture) => {
             texture.mapping = THREE.EquirectangularReflectionMapping;
-            texture.minFilter = THREE.LinearFilter;
-            texture.magFilter = THREE.LinearFilter;
+            this.applyLensingFilters(texture);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
             resolve(texture);
@@ -54,7 +62,9 @@ export class StarfieldManager {
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
 
-            // Blur to smooth compression artifacts (only for non-HDR)
+            // Blur to smooth compression artifacts (only for non-HDR).
+            // Mip filtering is baked into the blur render target; setting it
+            // here after the fact would not reach the GPU sampler.
             const blurredTexture = blurTexture(this.renderer, texture, 0.1, 1, 1.0);
             blurredTexture.mapping = THREE.EquirectangularReflectionMapping;
             blurredTexture.wrapS = THREE.RepeatWrapping;
@@ -99,8 +109,7 @@ export class StarfieldManager {
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
+    this.applyLensingFilters(texture);
 
     return texture;
   }

@@ -47,8 +47,6 @@ function createProceduralStarfield(): THREE.Texture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
 
   return texture;
 }
@@ -110,14 +108,17 @@ export function RenderView() {
         const loader = new THREE.TextureLoader();
         starfieldTexture = await loader.loadAsync('/textures/starmap_4k.webp');
         starfieldTexture.mapping = THREE.EquirectangularReflectionMapping;
-        starfieldTexture.minFilter = THREE.LinearFilter;
-        starfieldTexture.magFilter = THREE.LinearFilter;
         starfieldTexture.wrapS = THREE.RepeatWrapping;
         starfieldTexture.wrapT = THREE.ClampToEdgeWrapping;
       } catch {
         // Fallback to procedural starfield
         starfieldTexture = createProceduralStarfield();
       }
+      // Mips + anisotropy keep the lensed sky from aliasing (star shimmer)
+      starfieldTexture.minFilter = THREE.LinearMipmapLinearFilter;
+      starfieldTexture.magFilter = THREE.LinearFilter;
+      starfieldTexture.generateMipmaps = true;
+      starfieldTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
       // Setup post-processing
       const renderTarget = new THREE.WebGLRenderTarget(
