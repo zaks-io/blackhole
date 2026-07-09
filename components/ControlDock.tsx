@@ -53,7 +53,13 @@ const TOGGLE_BUTTONS: {
     title: 'Event Horizon',
     color: '#ff2626',
   },
-  { key: 'binary', icon: BinaryIcon, label: 'Binary', title: 'Binary System', color: '#ff66cc' },
+  {
+    key: 'binary',
+    icon: BinaryIcon,
+    label: 'Binary',
+    title: 'Illustrative Binary (Approximate)',
+    color: '#ff66cc',
+  },
   { key: 'audio', icon: AudioIcon, label: 'Audio', title: 'Binary Audio', color: '#9966ff' },
 ];
 

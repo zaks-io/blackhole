@@ -27,7 +27,7 @@ export function createPhysicsFolder(gui: GUI, config: PhysicsFolderConfig): void
 
   folder
     .add(params, 'photonSphereIntensity', 0.0, 1.0, 0.05)
-    .name('Photon Sphere Glow')
+    .name('Cinematic Ring Boost')
     .onChange((value: number) => {
       lensingPass.updateParams({ photonSphereIntensity: value });
     });

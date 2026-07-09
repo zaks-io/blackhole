@@ -70,14 +70,14 @@ export function createDiskFolder(gui: GUI, config: DiskFolderConfig): void {
 
   appearFolder
     .add(params, 'diskLuminanceCompression', 0.0, 0.5, 0.01)
-    .name('Luminance Comp.')
+    .name('Artistic Compression')
     .onChange((value: number) => {
       lensingPass.updateParams({ diskLuminanceCompression: value });
     });
 
   appearFolder
     .add(params, 'diskTextureContrast', 0.0, 2.0, 0.1)
-    .name('Texture Contrast')
+    .name('Artistic Contrast')
     .onChange((value: number) => {
       lensingPass.updateParams({ diskTextureContrast: value });
     });

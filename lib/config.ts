@@ -42,8 +42,10 @@ export const CONFIG = {
     temperatureOuter: 3000, // Circumbinary disk temp at the cavity edge (binary mode only)
     halfThickness: 0.1,
     volumeDensity: 0.15,
-    luminanceCompression: 0.2,
-    textureContrast: 1.0,
+    // Keep radiance linear through the physical accumulation pass. These
+    // artistic controls remain available in /dev, but default to neutral.
+    luminanceCompression: 0,
+    textureContrast: 0,
     materialSpeed: 15.0,
     opacity: 0.4,
     // m=1 eccentric mode (single-BH only): nested elliptical streamlines
@@ -86,7 +88,9 @@ export const CONFIG = {
 
   // Photon sphere settings
   photonSphere: {
-    intensity: 0.5, // 0 = off, 1 = full glow
+    // Real photon rings come from traced disk crossings. This optional
+    // cinematic glow stays off in the physically grounded default.
+    intensity: 0,
   },
 
   // Particle system settings

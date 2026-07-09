@@ -13,13 +13,13 @@ export interface BinaryFolderConfig {
 export function createBinaryFolder(gui: GUI, config: BinaryFolderConfig): void {
   const { lensingPass, params } = config;
 
-  const folder = gui.addFolder('Binary System');
+  const folder = gui.addFolder('Illustrative Binary (Approximate)');
   folder.close();
 
   // Binary toggle
   folder
     .add(params, 'binaryEnabled', { Off: 0, On: 1 })
-    .name('Enable Binary')
+    .name('Enable Approximation')
     .onChange((value: number) => {
       lensingPass.updateParams({ binaryEnabled: value });
     });

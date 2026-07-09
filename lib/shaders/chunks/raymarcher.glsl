@@ -22,6 +22,7 @@ vec4 traceRay(vec2 uv) {
   // the direction measured by the static camera, whose local frame relates
   // to coordinate time by sqrt(1 - rs/r_cam), so L_z/E picks up that factor.
   float bz = cross(rayPos, rayDir).y / sqrt(max(1.0 - rs / camDist, 0.01));
+  float impactParam = computeImpactParameter(rayPos, rayDir, rs);
 
   float lod = calculateLOD(camDist);
 
@@ -34,7 +35,6 @@ vec4 traceRay(vec2 uv) {
 
   // Ray classification based on impact parameter (b = perpendicular distance to BH)
   // Rays with b > disk outer radius cannot hit the disk - use faster path
-  float impactParam = computeImpactParameter(rayPos, rayDir);
 #ifdef BINARY_MODE
   float effectiveDiskOuter = circumbinaryOuterRadius;
 #else
@@ -268,9 +268,14 @@ vec4 traceRay(vec2 uv) {
 
         if (diskAccum.a > 0.99 && diskCrossings >= 2) break;
       }
-      // For photon rings: rays that cross near the photon sphere (1.5rs to 3rs)
-      // are lensed images of the disk - sample the disk at a mapped radius
-      else if (hitR > rs * 1.5 && hitR < diskInnerRadius && diskCrossings > 0) {
+      // Optional cinematic enhancement. Physical rendering leaves this off:
+      // higher-order images must come from actual disk-plane intersections.
+      else if (
+        photonSphereIntensity > 0.0 &&
+        hitR > rs * 1.5 &&
+        hitR < diskInnerRadius &&
+        diskCrossings > 0
+      ) {
         // Use logarithmic mapping to prevent excessive compression near photon sphere
         // This spreads the disk content more evenly across the photon ring
         // Using precomputed log bounds (photonRingLogInner/Outer) for performance
@@ -428,7 +433,11 @@ vec4 traceRay(vec2 uv) {
             volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, bz);
 #endif
 
-            float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier;
+            float opticalDepth = max(
+              volColor.a * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier,
+              0.0
+            );
+            float volAlpha = 1.0 - exp(-opticalDepth);
             diskAccum.rgb += volColor.rgb * volAlpha * remaining;
             diskAccum.a += volAlpha * remaining;
           }
@@ -454,7 +463,8 @@ vec4 traceRay(vec2 uv) {
         coronaSample = sampleCorona(rayPos, rayDir, r, lod);
       }
 #endif
-      float coronaW = min(coronaSample.a * stepSize * (1.0 / 0.15), 1.0);
+      float coronaOpticalDepth = max(coronaSample.a * stepSize * (1.0 / 0.15), 0.0);
+      float coronaW = 1.0 - exp(-coronaOpticalDepth);
       float coronaContrib = step(0.001, coronaSample.a);
       float remaining = 1.0 - diskAccum.a;
       diskAccum.rgb += coronaSample.rgb * coronaW * remaining * coronaContrib;
@@ -491,9 +501,8 @@ vec4 traceRay(vec2 uv) {
   }
 
 #ifndef BINARY_MODE
-  // Photon sphere glow: rays passing near r = 1.5rs (photon sphere)
-  // create the bright ring visible in EHT images
-  // Compiled out in binary mode - each BH has natural photon rings from ray tracing
+  // Optional cinematic glow. A physical photon ring is produced by lensed
+  // emission, not emissivity attached to the photon sphere itself.
   if (!hitHorizon && minRadius < 2.5 * rs && minRadius > rs && photonSphereIntensity > 0.0) {
     float photonSphereRadius = 1.5 * rs;
     float psDistance = abs(minRadius - photonSphereRadius);
@@ -532,7 +541,7 @@ vec2 hash2(vec2 p) {
 }
 
 // Analytic closest-approach estimate for edge supersampling, returned in
-// units of the relevant BH's rs. The impact parameter b = |r x v| is
+// units of the relevant BH's rs. The finite-observer impact parameter L/E is
 // conserved along the geodesic. For Schwarzschild null geodesics the closest
 // approach r0 is the largest root of
 //   r0^3 - b^2 * r0 + b^2 * rs = 0
@@ -540,7 +549,7 @@ vec2 hash2(vec2 p) {
 // critical impact parameter b_crit = (3*sqrt(3)/2) * rs are captured.
 // This replaces an 80-step ray march per pixel with a few ALU ops.
 float closestApproachNorm(vec3 relPos, vec3 rayDir, float rsBH) {
-  float b = length(cross(relPos, rayDir));
+  float b = computeImpactParameter(relPos, rayDir, rsBH);
   float bCrit = 2.598076211 * rsBH; // 3*sqrt(3)/2
   // Captured rays: only those skimming the critical curve need the
   // supersample band; deep-shadow rays return 0 and skip the 4x cost

@@ -142,9 +142,9 @@ const LensingShader = {
     diskHalfThickness: { value: 0.2 },
     diskVolumeDensity: { value: 0.15 },
     // Luminance compression uniform
-    diskLuminanceCompression: { value: 0.15 },
+    diskLuminanceCompression: { value: 0.0 },
     // Texture contrast uniform
-    diskTextureContrast: { value: 1.0 },
+    diskTextureContrast: { value: 0.0 },
     // Material speed uniform
     diskMaterialSpeed: { value: 15.0 },
     // Disk opacity uniform
@@ -168,8 +168,8 @@ const LensingShader = {
     supersampleLevel: { value: 1 },
     // Black hole edge softness uniform
     bhEdgeSoftness: { value: 0.5 },
-    // Photon sphere glow intensity uniform
-    photonSphereIntensity: { value: 0.5 },
+    // Optional cinematic ring enhancement
+    photonSphereIntensity: { value: 0.0 },
     // Overlay uniforms
     overlayIsco: { value: 0.0 },
     overlayEventHorizon: { value: 0.0 },

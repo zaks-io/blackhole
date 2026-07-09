@@ -185,10 +185,12 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
 }
 
-// Compute impact parameter b = |r x v| (perpendicular distance from ray to origin at infinity)
-// For Schwarzschild BH, rays with b > disk outer radius cannot hit the disk
-float computeImpactParameter(vec3 pos, vec3 dir) {
-  return length(cross(pos, dir));
+// Conserved impact parameter L/E for a ray measured by a static observer at
+// finite Schwarzschild radius. The lapse correction tends to one at infinity.
+float computeImpactParameter(vec3 pos, vec3 dir, float rsBH) {
+  float observerRadius = length(pos);
+  float lapse = sqrt(max(1.0 - rsBH / observerRadius, 0.01));
+  return length(cross(pos, dir)) / lapse;
 }
 
 #ifdef BINARY_MODE

@@ -90,9 +90,9 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
 
         <h2 className="title">Schwarzschild Black Hole</h2>
         <p className="desc">
-          A real-time gravitational lensing simulation using Schwarzschild geodesic equations. Light
-          rays are traced through curved spacetime, producing the photon ring, relativistic beaming,
-          and Doppler-shifted accretion disk.
+          A real-time gravitational lensing simulation that numerically approximates Schwarzschild
+          light paths. Traced disk crossings produce higher-order images, relativistic beaming, and
+          a Doppler-shifted accretion disk.
         </p>
 
         <div className="section">
@@ -133,9 +133,11 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
               </div>
               <div className="control-item">
                 <span className="control-name" style={{ color: '#ff66cc' }}>
-                  Binary
+                  Illustrative Binary
                 </span>
-                <span className="control-desc">Companion star in orbit</span>
+                <span className="control-desc">
+                  Approximate two-black-hole visualization; strong-field lensing is not exact
+                </span>
               </div>
               <div className="control-item">
                 <span className="control-name" style={{ color: '#9966ff' }}>
