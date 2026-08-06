@@ -10,6 +10,7 @@ import jets from './chunks/jets.glsl';
 import overlays from './chunks/overlays.glsl';
 import binary from './chunks/binary.glsl';
 import disk from './chunks/disk.glsl';
+import wormhole from './chunks/wormhole.glsl';
 import raymarcher from './chunks/raymarcher.glsl';
 
 let registered = false;
@@ -29,6 +30,7 @@ export function registerLensingChunks() {
   chunks.lensing_overlays = overlays;
   chunks.lensing_binary = binary;
   chunks.lensing_disk = disk;
+  chunks.lensing_wormhole = wormhole;
   chunks.lensing_raymarcher = raymarcher;
 
   registered = true;

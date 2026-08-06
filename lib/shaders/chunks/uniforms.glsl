@@ -93,6 +93,14 @@ uniform float diskEccentricity;        // m=1 eccentric mode amplitude (0 = circ
 uniform float diskEccPrecRate;         // rigid apsidal precession rate, rad per sim-time (precomputed)
 uniform float mhdHotspotEccentricity;  // epicyclic amplitude of orbiting hotspots
 
+// Ellis wormhole mode
+uniform float wormholeEnabled;      // 0.0 = black hole, 1.0 = wormhole
+uniform float wormholeThroatRadius; // Throat radius b in scene units
+uniform float wormholeCameraSide;   // +1 = near universe, -1 = far universe
+uniform mat3 wormholeChartBasis;    // Chart map for sky directions, one reflection composed per throat crossing
+uniform sampler2D starfieldFar;     // Sky of the far universe
+uniform float starfieldFarExposure;
+
 // Binary black hole system
 uniform float binaryEnabled;        // 0.0 = single BH, 1.0 = binary system
 uniform float binaryMass1;          // Mass fraction of BH1 (0.1 to 0.9)

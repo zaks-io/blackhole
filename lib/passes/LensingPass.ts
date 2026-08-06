@@ -103,6 +103,9 @@ export interface LensingParams {
   baseStepSize: number;
   // Noise LUT animation
   noiseTimeScale: number;
+  // Ellis wormhole mode
+  wormholeEnabled: number;
+  wormholeThroatRadius: number;
   // Binary black hole system
   binaryEnabled: number;
   binaryMass1: number;
@@ -204,6 +207,13 @@ const LensingShader = {
     photonRingLogOuter: { value: 0.0 },
     diskRadiusRange: { value: 9.0 },
     anyOverlayEnabled: { value: 0.0 },
+    // Ellis wormhole mode
+    wormholeEnabled: { value: 0.0 },
+    wormholeThroatRadius: { value: 3.0 },
+    wormholeCameraSide: { value: 1.0 },
+    wormholeChartBasis: { value: new THREE.Matrix3() },
+    starfieldFar: { value: null },
+    starfieldFarExposure: { value: 0.5 },
     // Binary black hole system
     binaryEnabled: { value: 0.0 },
     binaryMass1: { value: 0.5 },
@@ -235,6 +245,15 @@ export class LensingPass extends ShaderPass {
   private lastCameraMatrixWorld = new THREE.Matrix4();
   private lastProjectionMatrix = new THREE.Matrix4();
 
+  // Which universe the wormhole camera is in. The far side is only reachable
+  // through the throat at the origin, so a crossing shows up as the position
+  // vector swinging more than 90 degrees between consecutive frames.
+  // (FlyCamera's throat attractor funnels free flights through the origin so
+  // this fires for hand-flown paths too, not just scripted transits.)
+  private wormholePrevCamPos = new THREE.Vector3();
+  private hasWormholePrevCamPos = false;
+  private wormholeCrossReflection = new THREE.Matrix3();
+
   // Binary orbital phase for audio sync, integrated incrementally so that
   // changing the separation mid-flight changes the rate without teleporting
   private currentOrbitalPhase = 0;
@@ -252,6 +271,8 @@ export class LensingPass extends ShaderPass {
     this.uniforms['blackbodyLUT'].value = this.blackbodyLUT;
     this.uniforms['starfield'].value = starfieldTexture;
     this.uniforms['starfieldNext'].value = starfieldTexture;
+    // Placeholder until the far-universe sky loads (first wormhole enable)
+    this.uniforms['starfieldFar'].value = starfieldTexture;
 
     // Create 3D noise LUT texture
     this.noiseLUT = createNoiseLUT3D(noiseTextureSize);
@@ -289,10 +310,13 @@ export class LensingPass extends ShaderPass {
     deltaTime: number,
     maskActive: boolean
   ): void {
-    const prevTarget = renderer.getRenderTarget();
-    renderer.setRenderTarget(this.mhdLutTarget);
-    this.mhdBakeQuad.render(renderer);
-    renderer.setRenderTarget(prevTarget);
+    // Wormhole mode renders no disk, so skip the per-frame MHD bake
+    if ((this.uniforms['wormholeEnabled'].value as number) < 0.5) {
+      const prevTarget = renderer.getRenderTarget();
+      renderer.setRenderTarget(this.mhdLutTarget);
+      this.mhdBakeQuad.render(renderer);
+      renderer.setRenderTarget(prevTarget);
+    }
 
     super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
   }
@@ -341,6 +365,42 @@ export class LensingPass extends ShaderPass {
     this.uniforms['cameraPos'].value.copy(camera.position);
     this.uniforms['inverseProjection'].value.copy(camera.projectionMatrixInverse);
     this.uniforms['inverseView'].value.copy(camera.matrixWorld);
+
+    if ((this.uniforms['wormholeEnabled'].value as number) > 0.5) {
+      if (this.hasWormholePrevCamPos && this.wormholePrevCamPos.dot(camera.position) < 0) {
+        this.uniforms['wormholeCameraSide'].value =
+          (this.uniforms['wormholeCameraSide'].value as number) * -1;
+        // Compose a reflection across the plane perpendicular to the radial
+        // line the camera crossed along into the chart map. Composing (rather
+        // than freezing one axis) keeps repeated crossings continuous even
+        // when the camera returns through the throat on a different axis
+        // (see wormhole.glsl).
+        if (this.wormholePrevCamPos.lengthSq() > 1e-12) {
+          const n = this.wormholePrevCamPos.normalize();
+          this.wormholeCrossReflection.set(
+            1 - 2 * n.x * n.x,
+            -2 * n.x * n.y,
+            -2 * n.x * n.z,
+            -2 * n.y * n.x,
+            1 - 2 * n.y * n.y,
+            -2 * n.y * n.z,
+            -2 * n.z * n.x,
+            -2 * n.z * n.y,
+            1 - 2 * n.z * n.z
+          );
+          (this.uniforms['wormholeChartBasis'].value as THREE.Matrix3).multiply(
+            this.wormholeCrossReflection
+          );
+        }
+      }
+      // A frame that lands numerically on the origin has no side information
+      // (dot products with it are 0); keep the previous sample so the next
+      // frame straddles the crossing and the flip still fires
+      if (camera.position.lengthSq() > 1e-12) {
+        this.wormholePrevCamPos.copy(camera.position);
+        this.hasWormholePrevCamPos = true;
+      }
+    }
   }
 
   updateResolution(width: number, height: number): void {
@@ -520,6 +580,29 @@ export class LensingPass extends ShaderPass {
     if (params.noiseTimeScale !== undefined) {
       this.uniforms['noiseTimeScale'].value = params.noiseTimeScale;
     }
+    // Ellis wormhole mode. Same compile-time specialization strategy as
+    // BINARY_MODE: the define swap recompiles the shader so the black-hole
+    // hot loop never carries the wormhole integrator.
+    if (params.wormholeEnabled !== undefined) {
+      this.uniforms['wormholeEnabled'].value = params.wormholeEnabled;
+      const wantWormhole = params.wormholeEnabled > 0.5;
+      const hasWormhole = 'WORMHOLE_MODE' in this.material.defines;
+      if (wantWormhole !== hasWormhole) {
+        if (wantWormhole) {
+          this.material.defines['WORMHOLE_MODE'] = '';
+        } else {
+          delete this.material.defines['WORMHOLE_MODE'];
+        }
+        this.material.needsUpdate = true;
+      }
+      // Every enable starts in the near universe with fresh crossing tracking
+      this.uniforms['wormholeCameraSide'].value = 1.0;
+      (this.uniforms['wormholeChartBasis'].value as THREE.Matrix3).identity();
+      this.hasWormholePrevCamPos = false;
+    }
+    if (params.wormholeThroatRadius !== undefined) {
+      this.uniforms['wormholeThroatRadius'].value = params.wormholeThroatRadius;
+    }
     // Binary black hole system. The mode is a compile-time specialization:
     // toggling it swaps the BINARY_MODE define and recompiles the shader,
     // which keeps the single-BH hot loop free of per-BH register pressure.
@@ -653,6 +736,11 @@ export class LensingPass extends ShaderPass {
 
   setStarfieldExposure(exposure: number): void {
     this.uniforms['starfieldExposure'].value = exposure;
+  }
+
+  setStarfieldFar(texture: THREE.Texture, exposure: number): void {
+    this.uniforms['starfieldFar'].value = texture;
+    this.uniforms['starfieldFarExposure'].value = exposure;
   }
 
   private updatePrecomputedUniforms(): void {

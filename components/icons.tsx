@@ -245,7 +245,7 @@ export function ShadowIcon({ size = 20 }: IconProps) {
   );
 }
 
-export function ManualIcon({ size = 20 }: IconProps) {
+export function FlyIcon({ size = 20 }: IconProps) {
   return (
     <svg
       width={size}
@@ -257,10 +257,9 @@ export function ManualIcon({ size = 20 }: IconProps) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M18 11V6a2 2 0 0 0-4 0v5" />
-      <path d="M14 10V4a2 2 0 0 0-4 0v6" />
-      <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
-      <path d="M18 11a2 2 0 0 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-1-6.4-3.8L4 15.5a2 2 0 0 1 3.4-2L10 17" />
+      <path d="M21 3 3 10.5l7 3.5" />
+      <path d="M21 3 13.5 21 10 14" />
+      <path d="m10 14 4.5-4.5" />
     </svg>
   );
 }
@@ -354,6 +353,45 @@ export function SharpIcon({ size = 20 }: IconProps) {
     >
       <circle cx="12" cy="12" r="9" />
       <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function WormholeIcon({ size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5.5" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+export function TransitIcon({ size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <ellipse cx="12" cy="12" rx="4" ry="8" />
+      <path d="M2 12h7" />
+      <path d="M15 12h7" />
+      <path d="M19 9l3 3-3 3" />
     </svg>
   );
 }

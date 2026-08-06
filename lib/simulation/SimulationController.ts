@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import Stats from 'stats.js';
-import { CameraController } from '@/lib/camera';
+import { CameraController, FlyCamera } from '@/lib/camera';
 import { defaultLensingParams, LensingParams } from '@/lib/passes/LensingPass';
 import { CONFIG } from '@/lib/config';
 import { ToggleState } from '@/lib/types';
@@ -20,6 +20,7 @@ export class SimulationController {
   private renderer!: THREE.WebGLRenderer;
   private camera!: THREE.PerspectiveCamera;
   private controls!: OrbitControls;
+  private flyCamera!: FlyCamera;
   private clock!: THREE.Clock;
 
   // Controllers
@@ -149,7 +150,15 @@ export class SimulationController {
     this.controls.target.set(0, 0, 0);
     this.controls.update();
 
+    this.flyCamera = new FlyCamera(
+      this.camera,
+      this.renderer.domElement,
+      CONFIG.controls.flyMovementSpeed
+    );
+    this.flyCamera.pointerSpeed = CONFIG.controls.flyPointerSpeed;
+
     this._cameraController = new CameraController(this.camera, this.controls);
+    this._cameraController.attachFlyCamera(this.flyCamera);
   }
 
   private initializeClock(): void {
@@ -225,7 +234,9 @@ export class SimulationController {
 
       this.stats?.begin();
 
-      const deltaTime = this.clock.getDelta();
+      // Clamp: after tab suspension getDelta() returns the whole hidden
+      // duration, which would teleport fly/orbit cameras in one frame
+      const deltaTime = Math.min(this.clock.getDelta(), 0.1);
       this.scaledTime += deltaTime * this.params.simulationSpeed;
 
       this._cameraController.update(deltaTime);
@@ -330,8 +341,26 @@ export class SimulationController {
     this.pipeline?.lensingPass.updateParams({
       overlayEventHorizon: state.eventHorizon ? 1.0 : 0.0,
       diskOpacity: state.disk ? CONFIG.disk.opacity : 0.0,
-      binaryEnabled: state.binary ? 1.0 : 0.0,
+      binaryEnabled: state.binary && !state.wormhole ? 1.0 : 0.0,
+      wormholeEnabled: state.wormhole ? 1.0 : 0.0,
     });
+    this.flyCamera?.setWormholeAttractor(state.wormhole ? CONFIG.wormhole.throatRadius : null);
+    if (state.wormhole) {
+      void this.ensureWormholeFarSky();
+    }
+  }
+
+  // Loaded on first wormhole enable so black-hole sessions never pay for it
+  private wormholeFarSkyLoad: Promise<void> | null = null;
+
+  private ensureWormholeFarSky(): Promise<void> {
+    this.wormholeFarSkyLoad ??= this.starfieldManager
+      .loadFar(CONFIG.wormhole.farSky)
+      .then(({ texture, exposure }) => {
+        if (this.disposed) return;
+        this.pipeline?.lensingPass.setStarfieldFar(texture, exposure);
+      });
+    return this.wormholeFarSkyLoad;
   }
 
   async enableAudio(enabled: boolean): Promise<void> {
@@ -348,6 +377,7 @@ export class SimulationController {
   private cleanup(): void {
     this.renderer?.dispose();
     this.controls?.dispose();
+    this.flyCamera?.dispose();
     if (this.config.container.contains(this.renderer?.domElement)) {
       this.config.container.removeChild(this.renderer.domElement);
     }
@@ -373,6 +403,7 @@ export class SimulationController {
     this.audioController?.dispose();
     this.renderer?.dispose();
     this.controls?.dispose();
+    this.flyCamera?.dispose();
 
     if (this.stats?.dom) {
       this.stats.dom.remove();

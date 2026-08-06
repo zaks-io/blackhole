@@ -30,7 +30,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
   const directViewStartedRef = useRef(false);
   const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
   const [cameraDistance, setCameraDistance] = useState(20);
-  const [isManualMode, setIsManualMode] = useState(false);
+  const [isFlyMode, setIsFlyMode] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -46,7 +46,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
     const updateState = () => {
       setCameraDistance(cameraController.getDistance());
-      setIsManualMode(cameraController.getMode() === 'manual');
+      setIsFlyMode(cameraController.getMode() === 'fly');
       animationFrameRef.current = requestAnimationFrame(updateState);
     };
 
@@ -127,11 +127,11 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
     ehtBlurController.setEnabled(newState);
   }, [ehtBlurController, ehtBlurEnabled]);
 
-  const handleManualModeToggle = useCallback(() => {
+  const handleFlyModeToggle = useCallback(() => {
     if (!cameraController) return;
 
-    if (isManualMode) {
-      // Exit manual mode - return to default orbit
+    if (isFlyMode) {
+      // Exit fly mode - return to default orbit
       setActivePreset('default');
 
       const defaultPreset = CAMERA_PRESETS.default;
@@ -148,8 +148,8 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
           });
         });
     } else {
-      // Enter manual mode
-      cameraController.returnToManual();
+      // Enter fly mode from the current camera pose
+      cameraController.startFly();
       setActivePreset(null);
 
       // Exit EHT mode if active
@@ -159,7 +159,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         ehtBlurController?.setEnabled(false);
       }
     }
-  }, [cameraController, isManualMode, ehtMode, ehtBlurController]);
+  }, [cameraController, isFlyMode, ehtMode, ehtBlurController]);
 
   const handleReveal = useCallback(() => {
     if (!ehtBlurController || !cameraController) return;
@@ -195,7 +195,13 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
   }, [handleReveal]);
 
   const handleToggleChange = useCallback((toggles: Partial<ToggleState>) => {
-    setToggleState((prev) => ({ ...prev, ...toggles }));
+    setToggleState((prev) => {
+      const next = { ...prev, ...toggles };
+      // Wormhole and binary are mutually exclusive scene modes
+      if (toggles.wormhole) next.binary = false;
+      if (toggles.binary) next.wormhole = false;
+      return next;
+    });
   }, []);
 
   const handlePresetSelect = useCallback(
@@ -280,8 +286,8 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         ehtBlurEnabled={ehtBlurEnabled}
         onEhtToggle={handleEhtToggle}
         onEhtBlurToggle={handleEhtBlurToggle}
-        isManualMode={isManualMode}
-        onManualModeToggle={handleManualModeToggle}
+        isFlyMode={isFlyMode}
+        onFlyModeToggle={handleFlyModeToggle}
         onHelpOpen={() => setHelpOpen(true)}
         show={introComplete}
       />

@@ -7,6 +7,11 @@
 
 // Trace a single ray and return the color + TAA mask in alpha
 vec4 traceRay(vec2 uv) {
+#ifdef WORMHOLE_MODE
+  // Wormhole mode replaces the whole march: no horizon, no disk, just the
+  // Ellis geodesic integration against two sky maps (see wormhole.glsl)
+  return traceWormholeRay(uv);
+#else
   // Ray from camera through pixel
   vec2 ndc = uv * 2.0 - 1.0;
   vec4 clip = vec4(ndc, -1.0, 1.0);
@@ -517,6 +522,7 @@ vec4 traceRay(vec2 uv) {
   }
 
   return vec4(color, 1.0);
+#endif // WORMHOLE_MODE
 }
 
 // Simple hash function for jitter
@@ -557,7 +563,12 @@ float traceEdgeDetect(vec2 uv) {
   viewPos = vec4(viewPos.xy, -1.0, 0.0);
   vec3 rayDir = normalize((inverseView * viewPos).xyz);
 
-#ifdef BINARY_MODE
+#ifdef WORMHOLE_MODE
+  // The Ellis critical impact parameter is the throat radius itself: rays
+  // near it wind around the throat and alias hard. Scale so the critical
+  // curve lands at 2.0, inside the caller's 2-4 supersample threshold.
+  return 2.0 * length(cross(cameraPos, rayDir)) / wormholeThroatRadius;
+#elif defined(BINARY_MODE)
   // Binary mode has a shadow around each BH; supersample whichever edge the
   // ray passes closest to (in units of that BH's own rs).
   float n1 = closestApproachNorm(cameraPos - getBH1World(), rayDir, getBH1Rs());

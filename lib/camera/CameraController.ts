@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { gsap } from 'gsap';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { FlyCamera } from './FlyCamera';
 
 // ============================================================================
 // Types
@@ -59,7 +60,7 @@ export interface CameraSequence {
   steps: CameraSequenceStep[];
 }
 
-type ControlMode = 'manual' | 'cinematic' | 'orbit';
+type ControlMode = 'manual' | 'cinematic' | 'orbit' | 'fly';
 
 // ============================================================================
 // CameraController
@@ -68,7 +69,9 @@ type ControlMode = 'manual' | 'cinematic' | 'orbit';
 export class CameraController {
   private camera: THREE.PerspectiveCamera;
   private orbitControls: OrbitControls;
+  private flyCamera: FlyCamera | null = null;
   private mode: ControlMode = 'manual';
+  private flyDirection = new THREE.Vector3();
 
   // Internal state for tweening
   private currentLookAt = new THREE.Vector3(0, 0, 0);
@@ -243,6 +246,29 @@ export class CameraController {
       this.orbitConfig = null;
       this.setMode('cinematic');
     }
+  }
+
+  /**
+   * Attach the free-flight camera (created by the simulation, which owns the
+   * renderer DOM element). Disabled until startFly() enters fly mode.
+   */
+  attachFlyCamera(flyCamera: FlyCamera): void {
+    this.flyCamera = flyCamera;
+    flyCamera.enabled = false;
+  }
+
+  /**
+   * Enter free-flight mode from the current camera pose. Called from a click
+   * handler, so the pointer capture request counts as a user gesture.
+   */
+  startFly(): void {
+    if (!this.flyCamera) {
+      throw new Error('CameraController: no FlyCamera attached');
+    }
+    this.cancelSequence();
+    this.orbitConfig = null;
+    this.setMode('fly');
+    this.flyCamera.engagePointer();
   }
 
   /**
@@ -430,6 +456,16 @@ export class CameraController {
    * Update loop - call this every frame
    */
   update(deltaTime: number): void {
+    if (this.mode === 'fly' && this.flyCamera) {
+      this.flyCamera.update(deltaTime);
+
+      // Keep the lookAt state coherent so getState(), projections, and the
+      // transition out of fly mode all see where the camera actually points
+      this.camera.getWorldDirection(this.flyDirection);
+      this.currentLookAt.copy(this.camera.position).add(this.flyDirection.multiplyScalar(10));
+      return;
+    }
+
     if (this.mode === 'orbit' && this.orbitConfig) {
       // Update orbit angle
       const speedRad = THREE.MathUtils.degToRad(this.orbitConfig.speed);
@@ -454,8 +490,11 @@ export class CameraController {
 
     this.mode = newMode;
 
-    // Toggle OrbitControls
+    // Exactly one control scheme owns the camera at a time
     this.orbitControls.enabled = newMode === 'manual';
+    if (this.flyCamera) {
+      this.flyCamera.enabled = newMode === 'fly';
+    }
   }
 
   private killActiveTweens(): void {

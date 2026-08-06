@@ -106,6 +106,8 @@ export const CONFIG = {
   controls: {
     enableDamping: true,
     dampingFactor: 0.05,
+    flyMovementSpeed: 10.0, // Scene units per second (throat radius is 3, orbits ~20)
+    flyPointerSpeed: 1.0, // Mouse-look sensitivity multiplier while the pointer is captured
   },
 
   // EHT-style blur effect (replicates telescope diffraction)
@@ -119,6 +121,13 @@ export const CONFIG = {
   noise: {
     textureSize: 64, // 64-256, controls quality/memory tradeoff
     timeScale: 0.02, // Animation speed through Z slices
+  },
+
+  // Ellis wormhole mode
+  wormhole: {
+    enabled: false, // Enable wormhole mode
+    throatRadius: 3.0, // Throat radius b in scene units
+    farSky: 'nebulaBlue' as const, // Starfield key for the far universe
   },
 
   // Binary black hole system
@@ -226,6 +235,8 @@ export function buildLensingParams(): LensingParams {
     // Noise LUT animation
     noiseTimeScale: CONFIG.noise.timeScale,
     // Binary black hole system
+    wormholeEnabled: CONFIG.wormhole.enabled ? 1 : 0,
+    wormholeThroatRadius: CONFIG.wormhole.throatRadius,
     binaryEnabled: CONFIG.binary.enabled ? 1 : 0,
     binaryMass1: CONFIG.binary.mass1,
     binarySeparation: CONFIG.binary.separation,

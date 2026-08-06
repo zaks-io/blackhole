@@ -3,6 +3,7 @@ export interface ToggleState {
   disk: boolean;
   audio: boolean;
   binary: boolean;
+  wormhole: boolean;
 }
 
 export const DEFAULT_TOGGLE_STATE: ToggleState = {
@@ -10,4 +11,5 @@ export const DEFAULT_TOGGLE_STATE: ToggleState = {
   disk: true,
   audio: false,
   binary: false,
+  wormhole: false,
 };
