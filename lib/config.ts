@@ -42,6 +42,12 @@ export const CONFIG = {
     temperatureOuter: 3000, // Circumbinary disk temp at the cavity edge (binary mode only)
     halfThickness: 0.1,
     volumeDensity: 0.15,
+    // Vertical structure: flared scale height H = flare * r (capped by the
+    // active half-thickness), MHD pattern lag at the disk surface, and the
+    // midplane-to-surface temperature drop
+    flare: 0.07,
+    verticalShear: 0.6,
+    atmosphereCool: 0.35,
     // Keep radiance linear through the physical accumulation pass. These
     // artistic controls remain available in /dev, but default to neutral.
     luminanceCompression: 0,
@@ -160,7 +166,9 @@ export const CONFIG = {
     },
     thickDisk: {
       enabled: true,
-      halfThickness: 0.4, // Enhanced thickness
+      // With flare 0.07 this cap only bites at the outer edge (H = 0.84 at
+      // r = 12), so the flared profile shapes the whole disk
+      halfThickness: 0.9,
       puffiness: 0.4, // Gaussian falloff
     },
     lod: {
@@ -226,6 +234,9 @@ export function buildLensingParams(): LensingParams {
     thickDiskEnabled: CONFIG.layers.thickDisk.enabled ? 1 : 0,
     thickDiskHalfThickness: CONFIG.layers.thickDisk.halfThickness,
     thickDiskPuffiness: CONFIG.layers.thickDisk.puffiness,
+    diskFlare: CONFIG.disk.flare,
+    diskVerticalShear: CONFIG.disk.verticalShear,
+    diskAtmosphereCool: CONFIG.disk.atmosphereCool,
     lodEnabled: CONFIG.layers.lod.enabled ? 1 : 0,
     lodNearDistance: CONFIG.layers.lod.nearDistance,
     lodFarDistance: CONFIG.layers.lod.farDistance,

@@ -195,7 +195,16 @@ vec4 traceRay(vec2 uv) {
     // elevated rings the slab bound would miss, so it keeps the sphere bound.
     if (overlayScale < 0.5) {
       float slabH = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
-      float slabDist = max(abs(rayPos.y) - slabH, length(rayPos.xz) - contentRadius);
+      float cylR = length(rayPos.xz);
+      float slabDist = max(abs(rayPos.y) - slabH, cylR - contentRadius);
+      // With a flared disk the volume fits inside the cone |y| = flare * cylR,
+      // whose perpendicular distance is a valid (and near the hole, much
+      // tighter) lower bound than the constant-thickness slab.
+      if (diskFlare > 0.001) {
+        float coneDist = (abs(rayPos.y) - diskFlare * cylR) *
+                         inversesqrt(1.0 + diskFlare * diskFlare);
+        slabDist = max(slabDist, coneDist);
+      }
       float guardR = max(5.0 * rs, coronaEnabled > 0.5 ? coronaRadius * 2.0 : 0.0);
 #ifdef BINARY_MODE
       float strongDist = min(r1, r2) - guardR;
@@ -261,7 +270,7 @@ vec4 traceRay(vec2 uv) {
         // Skip the MHD/blackbody stack once the accumulator is saturated;
         // a sample scaled by remaining < 0.002 is below quantization.
         if (remaining > 0.002) {
-          vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, bz);
+          vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, bz, 0.0);
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
         }
@@ -292,7 +301,7 @@ vec4 traceRay(vec2 uv) {
         if (remaining > 0.002) {
           // bz is conserved through the lensed path, so the g-factor stays
           // exact for photon-ring light; crossingIndex handles demagnification
-          vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, bz);
+          vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, bz, 0.0);
 
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
@@ -385,10 +394,16 @@ vec4 traceRay(vec2 uv) {
     // Volumetric disk sampling with configurable thickness
     // Skip for rays that can't reach the disk based on impact parameter
     if (canHitDisk) {
-      float effectiveThickness = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
+      float maxThickness = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
       float absY = abs(rayPos.y);
-      if (absY < effectiveThickness) {
+      if (absY < maxThickness) {
         float hitR = length(rayPos.xz);
+        // Flared scale height: H grows linearly with radius (H/r roughly
+        // constant for a thin alpha-disk), capped by the thickness slider so
+        // the far-field slab bound above stays valid. flare = 0 restores the
+        // constant-thickness slab.
+        float effectiveThickness =
+          diskFlare > 0.001 ? min(diskFlare * hitR, maxThickness) : maxThickness;
 
         // Check if within disk bounds
 #ifdef BINARY_MODE
@@ -398,7 +413,7 @@ vec4 traceRay(vec2 uv) {
         bool inDiskBounds = hitR > diskInnerRadius && hitR < diskOuterRadius;
 #endif
 
-        if (inDiskBounds) {
+        if (inDiskBounds && absY < effectiveThickness) {
           float normalizedY = absY / effectiveThickness;
 
           // Vertical density profile
@@ -442,7 +457,7 @@ vec4 traceRay(vec2 uv) {
             volColor.rgb = vol1.rgb * vol1.a + vol2.rgb * vol2.a + volCB.rgb * volCB.a;
             volColor.a = min(vol1.a + vol2.a + volCB.a, 0.95);
 #else
-            volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, bz);
+            volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, bz, normalizedY);
 #endif
 
             float opticalDepth = max(

@@ -53,7 +53,10 @@ vec3 sampleBlackbody(float temp) {
   return texture2D(blackbodyLUT, vec2(t, 0.5)).rgb;
 }
 
-vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod, float bz) {
+// nY is normalized altitude |y|/H(r) in [0,1]: 0 for midplane crossings,
+// rising through the volumetric slab. It drives the vertical shear and the
+// midplane-to-atmosphere temperature gradient.
+vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod, float bz, float nY) {
   // Get azimuthal angle for MHD effects
   float phi = atan(hitPos.z, hitPos.x);
 
@@ -91,8 +94,11 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   float dopplerTerm = max(0.15, 1.0 - omega * bz * (1.0 + 0.5 * eccCosF) - radialDoppler);
   float g = sqrt(max(0.0, 1.0 - 1.5 * rs / r)) / dopplerTerm;
 
-  // Get MHD modulations from the per-frame baked LUT (single fetch)
-  MHDResult mhd = sampleMHDLUT(a, phi);
+  // Get MHD modulations from the per-frame baked LUT (single fetch).
+  // Vertical shear parallax: layers above the midplane orbit sub-Keplerian
+  // and trail the midplane pattern, so the turbulence lookup skews with
+  // altitude instead of extruding as vertical columns.
+  MHDResult mhd = sampleMHDLUT(a, phi + diskVerticalShear * nY);
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
@@ -101,6 +107,12 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   // at r = (49/36)*r_in and is normalized to diskTemperatureInner (2.0487 = 1/peak).
   float x = a / diskInnerRadius;
   float thermal = 2.0487 * pow(x, -0.75) * pow(max(0.0, 1.0 - inversesqrt(x)), 0.25);
+
+  // Vertical temperature gradient: the upper layers are a cooler, dimmer
+  // atmosphere over the hot midplane. Folding it into thermal makes both the
+  // color (redder) and the intensity (via thermal^4) respond.
+  thermal *= 1.0 - diskAtmosphereCool * nY * nY;
+
   float temp = diskTemperatureInner * thermal * g * mhdTemp;
 
   vec3 color = sampleBlackbody(temp);

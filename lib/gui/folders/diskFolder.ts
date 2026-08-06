@@ -51,6 +51,20 @@ export function createDiskFolder(gui: GUI, config: DiskFolderConfig): void {
       lensingPass.updateParams({ thickDiskPuffiness: value });
     });
 
+  geomFolder
+    .add(params, 'diskFlare', 0.0, 0.2, 0.005)
+    .name('Flare (H/r)')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ diskFlare: value });
+    });
+
+  geomFolder
+    .add(params, 'diskVerticalShear', 0.0, 2.0, 0.05)
+    .name('Vertical Shear')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ diskVerticalShear: value });
+    });
+
   // Appearance subfolder
   const appearFolder = folder.addFolder('Appearance');
 
@@ -66,6 +80,13 @@ export function createDiskFolder(gui: GUI, config: DiskFolderConfig): void {
     .name('Outer Temp (K, binary)')
     .onChange((value: number) => {
       lensingPass.updateParams({ diskTemperatureOuter: value });
+    });
+
+  appearFolder
+    .add(params, 'diskAtmosphereCool', 0.0, 0.8, 0.05)
+    .name('Atmosphere Cooling')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ diskAtmosphereCool: value });
     });
 
   appearFolder

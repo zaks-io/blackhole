@@ -109,6 +109,10 @@ export interface LensingParams {
   thickDiskEnabled: number;
   thickDiskHalfThickness: number;
   thickDiskPuffiness: number;
+  // Vertical disk structure
+  diskFlare: number;
+  diskVerticalShear: number;
+  diskAtmosphereCool: number;
   // LOD system
   lodEnabled: number;
   lodNearDistance: number;
@@ -212,6 +216,9 @@ const LensingShader = {
     thickDiskEnabled: { value: 0.0 },
     thickDiskHalfThickness: { value: 0.5 },
     thickDiskPuffiness: { value: 0.3 },
+    diskFlare: { value: 0.0 },
+    diskVerticalShear: { value: 0.0 },
+    diskAtmosphereCool: { value: 0.0 },
     // LOD uniforms
     lodEnabled: { value: 1.0 },
     lodNearDistance: { value: 10.0 },
@@ -565,6 +572,16 @@ export class LensingPass extends ShaderPass {
     }
     if (params.thickDiskPuffiness !== undefined) {
       this.uniforms['thickDiskPuffiness'].value = params.thickDiskPuffiness;
+    }
+    // Vertical disk structure parameters
+    if (params.diskFlare !== undefined) {
+      this.uniforms['diskFlare'].value = params.diskFlare;
+    }
+    if (params.diskVerticalShear !== undefined) {
+      this.uniforms['diskVerticalShear'].value = params.diskVerticalShear;
+    }
+    if (params.diskAtmosphereCool !== undefined) {
+      this.uniforms['diskAtmosphereCool'].value = params.diskAtmosphereCool;
     }
     // LOD parameters
     if (params.lodEnabled !== undefined) {

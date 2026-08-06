@@ -71,6 +71,11 @@ uniform float thickDiskEnabled;
 uniform float thickDiskHalfThickness;
 uniform float thickDiskPuffiness;
 
+// Vertical disk structure
+uniform float diskFlare;          // H/r slope of the flared scale height; 0 = constant slab
+uniform float diskVerticalShear;  // Azimuthal lag (radians) of the MHD pattern at the disk surface
+uniform float diskAtmosphereCool; // Fractional temperature drop from midplane to surface
+
 // LOD uniforms
 uniform float lodEnabled;
 uniform float lodNearDistance;
