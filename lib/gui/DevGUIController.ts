@@ -17,6 +17,13 @@ import { createCameraFolder } from './folders/cameraFolder';
 import { createRayMarchingFolder } from './folders/rayMarchingFolder';
 import { createBinaryFolder } from './folders/binaryFolder';
 
+const STORAGE_KEY = 'blackhole-dev-gui-state';
+
+interface GUIState {
+  controllers: Record<string, unknown>;
+  folders: Record<string, GUIState>;
+}
+
 export interface DevGUIConfig {
   renderer: THREE.WebGLRenderer;
   camera: THREE.PerspectiveCamera;
@@ -33,6 +40,7 @@ export interface DevGUIConfig {
 
 export class DevGUIController {
   private gui: GUI;
+  private defaults: GUIState;
 
   constructor(config: DevGUIConfig) {
     this.gui = new GUI({ title: 'Black Hole Controls' });
@@ -91,6 +99,45 @@ export class DevGUIController {
       params: config.params,
       onAutoStepsChange: config.onAutoStepsChange,
     });
+
+    this.defaults = this.captureState();
+    this.restoreState();
+    this.gui.onFinishChange(() => this.persistState());
+    this.gui.add({ reset: () => this.resetToDefaults() }, 'reset').name('Reset to Defaults');
+  }
+
+  // gui.save() but without disabled controllers: the read-only camera info rows
+  // are backed by getter-only properties, so loading them back would throw.
+  private captureState(): GUIState {
+    const state = this.gui.save() as GUIState;
+    const stripDisabled = (gui: GUI, folderState: GUIState) => {
+      gui.controllers.forEach((c) => {
+        if (c._disabled) delete folderState.controllers[c._name];
+      });
+      gui.folders.forEach((f) => stripDisabled(f, folderState.folders[f._title]));
+    };
+    stripDisabled(this.gui, state);
+    return state;
+  }
+
+  private persistState(): void {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.captureState()));
+  }
+
+  private restoreState(): void {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      this.gui.load(JSON.parse(raw));
+    } catch (error) {
+      console.error('Discarding unreadable dev GUI state:', error);
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+
+  private resetToDefaults(): void {
+    this.gui.load(this.defaults);
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   getGUI(): GUI {
