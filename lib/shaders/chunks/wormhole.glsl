@@ -35,6 +35,57 @@ vec3 sampleStarfieldFar(vec3 dir) {
   return textureLod(starfieldFar, uv, lod).rgb * starfieldFarExposure;
 }
 
+// ---------------------------------------------------------------------------
+// Landmark bodies: a sun and a planet pinned into each sky at infinity, so
+// the two universes are tellable apart and the lensing has something legible
+// to distort. Drawn from the escape direction like the star maps, they lens
+// and transit correctly for free. Distinct palettes per side: warm sun and
+// ocean planet near, red sun and violet planet far. Directions are
+// pre-normalized unit vectors in the chart-mapped sky frame.
+const vec3 NEAR_SUN_DIR = vec3(0.7964, 0.3982, 0.4551);
+const vec3 NEAR_SUN_COLOR = vec3(1.0, 0.9, 0.72);
+const vec3 NEAR_PLANET_DIR = vec3(-0.5880, 0.1069, 0.8018);
+const vec3 NEAR_PLANET_ALBEDO = vec3(0.22, 0.45, 0.85);
+const vec3 FAR_SUN_DIR = vec3(-0.6527, 0.2720, -0.7071);
+const vec3 FAR_SUN_COLOR = vec3(1.0, 0.42, 0.2);
+const vec3 FAR_PLANET_DIR = vec3(0.5661, -0.2265, -0.7926);
+const vec3 FAR_PLANET_ALBEDO = vec3(0.62, 0.32, 0.78);
+const float SUN_ANGULAR_RADIUS = 0.04;
+const float PLANET_ANGULAR_RADIUS = 0.12;
+
+// fwidth-based edge AA, clamped because escape directions diverge wildly for
+// near-critical rays (same reason the star samplers clamp their LOD); a huge
+// aa just fades the body there instead of shimmering.
+vec3 drawSun(vec3 color, vec3 dir, vec3 center, vec3 tint) {
+  float angle = acos(clamp(dot(dir, center), -1.0, 1.0));
+  float aa = clamp(fwidth(angle), 1e-4, SUN_ANGULAR_RADIUS);
+  float disc = 1.0 - smoothstep(SUN_ANGULAR_RADIUS - aa, SUN_ANGULAR_RADIUS + aa, angle);
+  float glow = exp(-max(angle - SUN_ANGULAR_RADIUS, 0.0) / (0.75 * SUN_ANGULAR_RADIUS));
+  return color + tint * (6.0 * disc + 0.5 * glow);
+}
+
+// Sphere impostor lit by its own sky's sun: the terminator makes it read as
+// a 3D body, the rim glow keeps the night side visible against the stars.
+vec3 drawPlanet(vec3 color, vec3 dir, vec3 center, vec3 sunDir, vec3 albedo) {
+  float cosA = clamp(dot(dir, center), -1.0, 1.0);
+  float angle = acos(cosA);
+  float aa = clamp(fwidth(angle), 1e-4, 0.5 * PLANET_ANGULAR_RADIUS);
+  float disc = 1.0 - smoothstep(PLANET_ANGULAR_RADIUS - aa, PLANET_ANGULAR_RADIUS + aa, angle);
+  if (disc <= 0.0) return color;
+
+  vec3 e1 = normalize(cross(center, abs(center.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+  vec3 e2 = cross(center, e1);
+  vec3 offset = dir - cosA * center;
+  vec2 p = vec2(dot(offset, e1), dot(offset, e2)) / sin(PLANET_ANGULAR_RADIUS);
+  float r2 = min(dot(p, p), 1.0);
+  vec3 normal = normalize(p.x * e1 + p.y * e2 - sqrt(1.0 - r2) * center);
+
+  float dayside = max(dot(normal, sunDir), 0.0);
+  float rim = pow(r2, 2.5);
+  vec3 surface = albedo * (0.04 + 0.9 * dayside) + albedo * 0.5 * rim * (0.2 + dayside);
+  return mix(color, surface, disc);
+}
+
 // Geodesic RHS for state s = (l, dl/ds, phi)
 vec3 wormholeDeriv(vec3 s, float Lsq, float L, float bSq) {
   float rSq = bSq + s.x * s.x;
@@ -115,7 +166,16 @@ vec4 traceWormholeRay(vec2 uv) {
   vec3 uT = -sin(s.z) * e1 + cos(s.z) * e2;
   vec3 outDir = normalize(sideEnd * s.y * uR + (L / rEnd) * uT);
 
-  vec3 color = sideEnd > 0.0 ? sampleStarfield(outDir) : sampleStarfieldFar(outDir);
+  vec3 color;
+  if (sideEnd > 0.0) {
+    color = sampleStarfield(outDir);
+    color = drawPlanet(color, outDir, NEAR_PLANET_DIR, NEAR_SUN_DIR, NEAR_PLANET_ALBEDO);
+    color = drawSun(color, outDir, NEAR_SUN_DIR, NEAR_SUN_COLOR);
+  } else {
+    color = sampleStarfieldFar(outDir);
+    color = drawPlanet(color, outDir, FAR_PLANET_DIR, FAR_SUN_DIR, FAR_PLANET_ALBEDO);
+    color = drawSun(color, outDir, FAR_SUN_DIR, FAR_SUN_COLOR);
+  }
   return vec4(color, 1.0);
 }
 
