@@ -69,7 +69,7 @@ vec4 traceRay(vec2 uv) {
   // jetsLength) and handled with a distance-to-cone bound in the loop.
   float contentRadius = effectiveDiskOuter * 1.2;
   if (coronaEnabled > 0.5) contentRadius = max(contentRadius, coronaRadius * 2.0);
-  if (anyOverlayEnabled > 0.5) contentRadius = max(contentRadius, 15.5 * rs);
+  if (overlayScale > 0.5) contentRadius = max(contentRadius, 15.5 * rs);
   float jetTan = tan(radians(jetsHalfOpeningAngle));
   float jetBaseR = diskInnerRadius; // matches launchRadius in sampleJet
 
@@ -193,7 +193,7 @@ vec4 traceRay(vec2 uv) {
     // steps. Strong-field structure near each BH (photon ring, corona) keeps
     // a spherical guard so lensing detail is never skipped. Overlay mode has
     // elevated rings the slab bound would miss, so it keeps the sphere bound.
-    if (anyOverlayEnabled < 0.5) {
+    if (overlayScale < 0.5) {
       float slabH = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
       float slabDist = max(abs(rayPos.y) - slabH, length(rayPos.xz) - contentRadius);
       float guardR = max(5.0 * rs, coronaEnabled > 0.5 ? coronaRadius * 2.0 : 0.0);
@@ -302,7 +302,7 @@ vec4 traceRay(vec2 uv) {
 
       // Check disk-plane overlay rings at this crossing (skip if no overlays enabled)
       if (anyOverlayEnabled > 0.5) {
-        float ringThickness = 0.15 * rs;
+        float ringThickness = 0.035 * rs;
 
         // ISCO ring (3rs) - Cyan
         if (overlayIsco > 0.0) {
@@ -367,6 +367,18 @@ vec4 traceRay(vec2 uv) {
         overlayAccum.a = max(overlayAccum.a, max(max(ring5up.a, ring5dn.a), max(max(ring10up.a, ring10dn.a), max(ring15up.a, ring15dn.a))));
       }
     }
+
+#ifdef BINARY_MODE
+    // Gravitational-wave ripple overlay, sampled at every orbital-plane
+    // crossing. Deliberately outside the canHitDisk gate: the ripples extend
+    // past the disk, and rays that can't reach the disk still cross the plane.
+    if (gwRippleStrength > 0.0 && prevY * currY < 0.0) {
+      float tGW = abs(prevY) / (abs(prevY) + abs(currY));
+      vec4 gw = sampleGWRipple(mix(rayPos, newPos, tGW));
+      overlayAccum.rgb += gw.rgb * (1.0 - overlayAccum.a);
+      overlayAccum.a = max(overlayAccum.a, gw.a);
+    }
+#endif
 
     rayPos = newPos;
 

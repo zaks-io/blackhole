@@ -134,6 +134,13 @@ export const CONFIG = {
     blendWidth: 2.0, // Transition smoothness between disk components
     streamWidth: 1.0, // Width of accretion streams
     streamDensity: 1.0, // Brightness of streams
+    // Gravitational waves (quadrupole approximation)
+    gw: {
+      rippleEnabled: false, // Show the strain spiral in the orbital plane
+      rippleIntensity: 0.6, // Ripple overlay brightness
+      waveSpeed: 0.12, // Visual propagation speed in rs per sim-time (exaggerated; real GWs travel at c)
+      inspiralSpeed: 30, // Multiplier on the Peters decay rate so a merger fits a demo timescale
+    },
   },
 
   // Multi-layer disk system
@@ -237,6 +244,10 @@ export function buildLensingParams(): LensingParams {
     binaryBlendWidth: CONFIG.binary.blendWidth,
     streamWidth: CONFIG.binary.streamWidth,
     streamDensity: CONFIG.binary.streamDensity,
+    gwRippleEnabled: CONFIG.binary.gw.rippleEnabled ? 1 : 0,
+    gwRippleIntensity: CONFIG.binary.gw.rippleIntensity,
+    gwWaveSpeed: CONFIG.binary.gw.waveSpeed,
+    gwInspiralSpeed: CONFIG.binary.gw.inspiralSpeed,
   };
 }
 

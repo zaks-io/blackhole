@@ -4,6 +4,15 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { createBlackbodyLUT } from '../utils/blackbodyLUT';
 import { createNoiseLUT3D } from '../utils/noiseLUT';
 import { buildLensingParams } from '../config';
+import {
+  GW_CONTACT_SEPARATION,
+  GW_DECOUPLING_SEPARATION,
+  keplerianOrbitalFrequency,
+  miniDiskStarvationFactor,
+  petersSeparationDecayRate,
+  gwRippleAmplitudeBoost,
+} from '../physics/gravitationalWaves';
+import { GwRippleHistory } from '../physics/gwRippleHistory';
 import { registerLensingChunks } from '../shaders/registerChunks';
 import vertexShader from '../shaders/lensing.vert.glsl';
 import fragmentShader from '../shaders/lensing.frag.glsl';
@@ -17,6 +26,14 @@ registerLensingChunks();
 // bake shader itself so getMHDCombined is evaluated directly.
 const MHD_LUT_WIDTH = 1024;
 const MHD_LUT_HEIGHT = 512;
+
+// GW ripple emission history sizing. Radial coverage is
+// capacity * interval * waveSpeed (~123 rs at the default 0.12 wave speed,
+// well past the default 60 rs overlay outer radius); the per-sample phase
+// step is 2 * omega * interval, at worst ~0.33 rad at the frozen contact
+// rate, ~19 samples per wave cycle.
+const GW_HISTORY_CAPACITY = 4096;
+const GW_HISTORY_INTERVAL = 0.25;
 
 const mhdBakeFragmentShader = /* glsl */ `
 precision highp float;
@@ -111,6 +128,11 @@ export interface LensingParams {
   binaryBlendWidth: number;
   streamWidth: number;
   streamDensity: number;
+  // Gravitational waves (binary mode)
+  gwRippleEnabled: number;
+  gwRippleIntensity: number;
+  gwWaveSpeed: number;
+  gwInspiralSpeed: number;
 }
 
 // Default params built from centralized config
@@ -216,6 +238,15 @@ const LensingShader = {
     binaryBlendWidth: { value: 2.0 },
     streamWidth: { value: 1.0 },
     streamDensity: { value: 1.0 },
+    miniDiskBrightness: { value: 1.0 },
+    // Gravitational wave ripple overlay (retarded-time emission history)
+    gwRippleStrength: { value: 0.0 },
+    gwRippleOuter: { value: 60.0 },
+    gwWaveSpeed: { value: 0.12 },
+    gwHistory: { value: null },
+    gwHistoryHead: { value: -1.0 },
+    gwHistoryHeadTime: { value: 0.0 },
+    gwHistoryInterval: { value: GW_HISTORY_INTERVAL },
   },
   vertexShader,
   fragmentShader,
@@ -238,7 +269,34 @@ export class LensingPass extends ShaderPass {
   // Binary orbital phase for audio sync, integrated incrementally so that
   // changing the separation mid-flight changes the rate without teleporting
   private currentOrbitalPhase = 0;
+  // Unwrapped quadrupole phase, accumulated with the same omega * dt steps as
+  // currentOrbitalPhase so recorded wave crests stay locked to the rendered
+  // pair's axis (the orbital phase itself wraps mod 2π and can't interpolate)
+  private gwQuadPhase = 0;
   private lastBinaryTime: number | null = null;
+
+  // Gravitational wave state. The inspiral shrinks the separation on the
+  // (sped-up) Peters trajectory until horizon contact, then ringdown eases
+  // the separation to zero and decays the ripple; 'merged' holds the end
+  // state so the overlapping horizons render as a single black hole.
+  private gwRippleEnabled = false;
+  private gwRippleIntensity = 0.6;
+  private gwWaveSpeed = 0.12;
+  private gwInspiralSpeed = 30;
+  private inspiralPhase: 'idle' | 'inspiral' | 'ringdown' | 'merged' = 'idle';
+  private ringdownEnvelope = 1;
+  // Orbital frequency frozen at contact; past that point the Keplerian rate
+  // diverges as separation -> 0 while the physical remnant just rings down
+  private frozenOmega: number | null = null;
+  // Cavity edge frozen at disk decoupling (the gas can't follow the GW-driven
+  // plunge), then viscously relaxed toward the ISCO after the merger. Null
+  // while the cavity still tracks the separation.
+  private frozenCavityRadius: number | null = null;
+
+  // Emission history behind the ripple overlay's retarded-time lookup; the
+  // texture shares the history's backing array, so writes only need an upload
+  private gwHistory = new GwRippleHistory(GW_HISTORY_CAPACITY, GW_HISTORY_INTERVAL);
+  private gwHistoryTexture: THREE.DataTexture;
 
   // CPU-side inputs to precomputed uniforms
   private eccentricityPrecessionSpeed = 1.0;
@@ -256,6 +314,20 @@ export class LensingPass extends ShaderPass {
     // Create 3D noise LUT texture
     this.noiseLUT = createNoiseLUT3D(noiseTextureSize);
     this.uniforms['noiseLUT'].value = this.noiseLUT;
+
+    // GW emission history as a 1D ring texture; the shader interpolates
+    // between samples itself, so no filtering
+    this.gwHistoryTexture = new THREE.DataTexture(
+      this.gwHistory.data,
+      GW_HISTORY_CAPACITY,
+      1,
+      THREE.RGBAFormat,
+      THREE.FloatType
+    );
+    this.gwHistoryTexture.minFilter = THREE.NearestFilter;
+    this.gwHistoryTexture.magFilter = THREE.NearestFilter;
+    this.gwHistoryTexture.needsUpdate = true;
+    this.uniforms['gwHistory'].value = this.gwHistoryTexture;
 
     // MHD LUT bake target: phi wraps (RepeatWrapping in u), log-r clamps
     this.mhdLutTarget = new THREE.WebGLRenderTarget(MHD_LUT_WIDTH, MHD_LUT_HEIGHT, {
@@ -530,6 +602,9 @@ export class LensingPass extends ShaderPass {
       if (wantBinary !== hasBinary) {
         if (wantBinary) {
           this.material.defines['BINARY_MODE'] = '';
+          // The pair starts radiating now; any previously recorded emission
+          // belongs to a source that no longer exists
+          this.resetGwHistory();
         } else {
           delete this.material.defines['BINARY_MODE'];
         }
@@ -544,10 +619,27 @@ export class LensingPass extends ShaderPass {
       this.uniforms['binaryMass1'].value = params.binaryMass1;
       this.uniforms['binaryMass2'].value = 1.0 - params.binaryMass1;
       this.updateBinaryDerivedUniforms();
+      this.updateGwRippleStrength();
     }
     if (params.binarySeparation !== undefined) {
+      // A manual separation write is a scrub: derive the phase state from the
+      // new value instead of leaving inspiral leftovers behind (a frozen
+      // cavity/rate or a stale 'merged' flag would disconnect the ripples,
+      // cavity, and speed readouts from the slider). Above contact the binary
+      // exists and radiates; at or below contact it is a merged remnant.
+      const contact = GW_CONTACT_SEPARATION * (this.uniforms['rs'].value as number);
+      this.frozenOmega = null;
+      this.frozenCavityRadius = null;
+      if (params.binarySeparation > contact) {
+        if (this.inspiralPhase !== 'inspiral') this.inspiralPhase = 'idle';
+        this.ringdownEnvelope = 1;
+      } else {
+        this.inspiralPhase = 'merged';
+        this.ringdownEnvelope = 0;
+      }
       this.uniforms['binarySeparation'].value = params.binarySeparation;
       this.updateBinaryDerivedUniforms();
+      this.updateGwRippleStrength();
     }
     if (params.circumbinaryOuterRadius !== undefined) {
       this.explicitCircumbinaryOuter = params.circumbinaryOuterRadius;
@@ -561,6 +653,29 @@ export class LensingPass extends ShaderPass {
     }
     if (params.streamDensity !== undefined) {
       this.uniforms['streamDensity'].value = params.streamDensity;
+    }
+    // Gravitational waves
+    if (params.gwRippleEnabled !== undefined) {
+      const wantRipples = params.gwRippleEnabled > 0.5;
+      if (wantRipples && !this.gwRippleEnabled) {
+        // Emission starts when the overlay turns on: the first wavefront
+        // leaves the binary and travels out, rather than a pre-built field
+        // appearing everywhere at once
+        this.resetGwHistory();
+      }
+      this.gwRippleEnabled = wantRipples;
+      this.updateGwRippleStrength();
+    }
+    if (params.gwRippleIntensity !== undefined) {
+      this.gwRippleIntensity = params.gwRippleIntensity;
+      this.updateGwRippleStrength();
+    }
+    if (params.gwWaveSpeed !== undefined) {
+      this.gwWaveSpeed = params.gwWaveSpeed;
+      this.uniforms['gwWaveSpeed'].value = params.gwWaveSpeed;
+    }
+    if (params.gwInspiralSpeed !== undefined) {
+      this.gwInspiralSpeed = params.gwInspiralSpeed;
     }
   }
 
@@ -576,24 +691,80 @@ export class LensingPass extends ShaderPass {
   private updateBinaryPositions(time: number): void {
     const m1 = this.uniforms['binaryMass1'].value as number;
     const m2 = this.uniforms['binaryMass2'].value as number;
-    const separation = this.uniforms['binarySeparation'].value as number;
     const rs = this.uniforms['rs'].value as number;
+    const dt = this.lastBinaryTime === null ? 0 : time - this.lastBinaryTime;
+
+    // Gravitational-wave driven evolution of the separation
+    if (dt > 0 && this.inspiralPhase === 'inspiral') {
+      const a = this.uniforms['binarySeparation'].value as number;
+      const decayRate = this.gwInspiralSpeed * petersSeparationDecayRate(rs, m1, a);
+      let next = a - decayRate * dt;
+      const contact = GW_CONTACT_SEPARATION * rs;
+      // Disk decoupling: inside this separation the gas can no longer follow
+      // the plunge, so the cavity edge freezes where the binary left it
+      if (next <= GW_DECOUPLING_SEPARATION * rs && this.frozenCavityRadius === null) {
+        this.frozenCavityRadius = 2.5 * GW_DECOUPLING_SEPARATION * rs;
+      }
+      if (next <= contact) {
+        next = contact;
+        this.inspiralPhase = 'ringdown';
+        this.frozenOmega = keplerianOrbitalFrequency(rs, contact);
+      }
+      this.uniforms['binarySeparation'].value = next;
+      this.updateBinaryDerivedUniforms();
+    } else if (dt > 0 && this.inspiralPhase === 'ringdown') {
+      const a = this.uniforms['binarySeparation'].value as number;
+      // Collapse the last bit of separation quickly; the shrinking cavity and
+      // overlapping horizons read as the merger itself
+      this.uniforms['binarySeparation'].value = Math.max(a * Math.exp(-dt / 0.5), 0.02 * rs);
+      this.updateBinaryDerivedUniforms();
+      // Quasi-normal ringing dies off exponentially
+      this.ringdownEnvelope *= Math.exp(-dt / 4.0);
+      if (this.ringdownEnvelope < 0.02) {
+        this.ringdownEnvelope = 0;
+        this.inspiralPhase = 'merged';
+        this.updateGwRippleStrength();
+      }
+    } else if (dt > 0 && this.inspiralPhase === 'merged' && this.frozenCavityRadius !== null) {
+      // Viscous refill: the frozen cavity relaxes toward the remnant's ISCO.
+      // Real refill takes months to years; compressed to ~15 sim-seconds to
+      // match the rest of the sped-up timeline.
+      const isco = this.uniforms['diskInnerRadius'].value as number;
+      const next = isco + (this.frozenCavityRadius - isco) * Math.exp(-dt / 5.0);
+      this.frozenCavityRadius = next - isco < 0.05 ? null : next;
+      this.updateBinaryDerivedUniforms();
+    }
+
+    const separation = this.uniforms['binarySeparation'].value as number;
 
     // Keplerian rate from Kepler's third law: omega = sqrt(GM_tot / a³).
     // Total mass is conserved across the split (rs1 + rs2 = rs), and
-    // rs = 2GM/c² with c=1 gives GM_tot = rs/2.
-    const omega = Math.sqrt((0.5 * rs) / (separation * separation * separation));
+    // rs = 2GM/c² with c=1 gives GM_tot = rs/2. Post-contact the rate is
+    // frozen: the Keplerian formula diverges while the remnant just rings.
+    const omega = this.currentOrbitalOmega(rs, separation);
 
     // Integrate the phase so a separation change adjusts the rate from the
     // current position instead of re-evaluating omega * t (which teleports)
     if (this.lastBinaryTime === null) {
       this.currentOrbitalPhase = (omega * time) % (2 * Math.PI);
+      this.gwQuadPhase = 2 * this.currentOrbitalPhase;
     } else {
-      this.currentOrbitalPhase =
-        (this.currentOrbitalPhase + omega * (time - this.lastBinaryTime)) % (2 * Math.PI);
+      this.currentOrbitalPhase = (this.currentOrbitalPhase + omega * dt) % (2 * Math.PI);
+      this.gwQuadPhase += 2 * omega * dt;
     }
     this.lastBinaryTime = time;
     const phase = this.currentOrbitalPhase;
+
+    // Record the source state into the emission history; the shader reads it
+    // back at each radius's retarded time, so the crests emanate from the
+    // pair's actual axis and chirp tightening and the merger cutoff propagate
+    // outward at the wave speed
+    const written = this.gwHistory.advance(time, this.gwQuadPhase, this.gwSourceAmplitude());
+    if (written > 0) {
+      this.uniforms['gwHistoryHead'].value = this.gwHistory.head;
+      this.uniforms['gwHistoryHeadTime'].value = this.gwHistory.headTime;
+      this.gwHistoryTexture.needsUpdate = true;
+    }
 
     // Distance from center of mass (COM at origin)
     const a1 = separation * m2; // BH1 distance from COM
@@ -610,12 +781,34 @@ export class LensingPass extends ShaderPass {
     );
   }
 
+  // Kepler diverges as the separation vanishes. At or below contact the pair
+  // is a single horizon, so the rate holds at its contact value: the same
+  // value ringdown freezes explicitly, which also covers manually scrubbing
+  // the separation slider down to zero.
+  private currentOrbitalOmega(rs: number, separation: number): number {
+    return (
+      this.frozenOmega ??
+      keplerianOrbitalFrequency(rs, Math.max(separation, GW_CONTACT_SEPARATION * rs))
+    );
+  }
+
   private updateBinaryDerivedUniforms(): void {
     const separation = this.uniforms['binarySeparation'].value as number;
+    const rs = this.uniforms['rs'].value as number;
+    const diskInner = this.uniforms['diskInnerRadius'].value as number;
 
-    // Circumbinary cavity inner edge (~2.5 * separation)
-    const inner = 2.5 * separation;
+    // Circumbinary cavity inner edge (~2.5 * separation), unless the inspiral
+    // has decoupled the disk, in which case the edge is frozen (and later
+    // viscously refilled) by the phase machine. Floored at the single-BH disk
+    // inner radius: the disk temperature profile anchors to this edge, so
+    // letting it collapse with the ringdown separation would turn the whole
+    // disk cold and dark instead of leaving a merged remnant with a disk
+    // truncated at the ISCO.
+    const inner = Math.max(this.frozenCavityRadius ?? 2.5 * separation, diskInner);
     this.uniforms['circumbinaryInnerRadius'].value = inner;
+
+    // Mini-disks starve as the plunge outruns the streams feeding them
+    this.uniforms['miniDiskBrightness'].value = miniDiskStarvationFactor(separation, rs);
 
     // Derive the outer edge from the explicit setting each time so growing
     // the separation pushes the disk out and shrinking it restores the
@@ -625,7 +818,58 @@ export class LensingPass extends ShaderPass {
       1.4 * inner
     );
 
+    // Ripples extend well past the disk before fading out
+    this.uniforms['gwRippleOuter'].value =
+      2.0 * (this.uniforms['circumbinaryOuterRadius'].value as number);
+
     this.updateMhdLutRange();
+  }
+
+  // Display gate: enabled * user intensity. The physical amplitude (mass
+  // factor, 1/a strain growth, ringdown envelope) is recorded per sample in
+  // the emission history so its changes propagate outward with the waves.
+  private updateGwRippleStrength(): void {
+    this.uniforms['gwRippleStrength'].value = this.gwRippleEnabled ? this.gwRippleIntensity : 0;
+  }
+
+  // Drop all recorded emission and silence the shader until the next binary
+  // frame re-primes the history (to silence) and starts recording fresh waves
+  private resetGwHistory(): void {
+    this.gwHistory.clear();
+    this.uniforms['gwHistoryHead'].value = -1.0;
+  }
+
+  // Source-side strain amplitude at emission time: the m1*m2 quadrupole mass
+  // factor (1 at equal mass), 1/a growth through the inspiral, the ringdown
+  // envelope, and silence once merged.
+  private gwSourceAmplitude(): number {
+    if (this.inspiralPhase === 'merged') return 0;
+    const m1 = this.uniforms['binaryMass1'].value as number;
+    const m2 = this.uniforms['binaryMass2'].value as number;
+    const rs = this.uniforms['rs'].value as number;
+    const separation = this.uniforms['binarySeparation'].value as number;
+    const envelope = this.inspiralPhase === 'ringdown' ? this.ringdownEnvelope : 1;
+    return 4 * m1 * m2 * gwRippleAmplitudeBoost(separation, rs) * envelope;
+  }
+
+  startInspiral(): void {
+    this.inspiralPhase = 'inspiral';
+    this.ringdownEnvelope = 1;
+    this.frozenOmega = null;
+    this.frozenCavityRadius = null;
+    this.updateGwRippleStrength();
+  }
+
+  resetInspiral(separation: number): void {
+    this.inspiralPhase = 'idle';
+    this.ringdownEnvelope = 1;
+    this.frozenOmega = null;
+    this.frozenCavityRadius = null;
+    this.updateParams({ binarySeparation: separation });
+  }
+
+  getInspiralPhase(): 'idle' | 'inspiral' | 'ringdown' | 'merged' {
+    return this.inspiralPhase;
   }
 
   setStarfield(texture: THREE.Texture): void {
@@ -697,19 +941,41 @@ export class LensingPass extends ShaderPass {
     mass2: number;
     orbitalPhase: number;
     separation: number;
+    gwChirpEnvelope: number;
+    bh1Speed: number | null;
+    bh2Speed: number | null;
   } | null {
     if (this.uniforms['binaryEnabled'].value < 0.5) return null;
 
     const bh1 = this.uniforms['bh1Pos'].value as THREE.Vector2;
     const bh2 = this.uniforms['bh2Pos'].value as THREE.Vector2;
+    const mass1 = this.uniforms['binaryMass1'].value as number;
+    const mass2 = this.uniforms['binaryMass2'].value as number;
+    const separation = this.uniforms['binarySeparation'].value as number;
+
+    // Chirp gate for audio: silent until an inspiral runs, rings down after
+    let gwChirpEnvelope = 0;
+    if (this.inspiralPhase === 'inspiral') gwChirpEnvelope = 1;
+    else if (this.inspiralPhase === 'ringdown') gwChirpEnvelope = this.ringdownEnvelope;
+
+    // Orbital speeds as fractions of c (v = omega * r_com is already
+    // dimensionless in G = c = 1 units). Uses the same omega as the position
+    // update, so the readout stays honest through ringdown's frozen rate.
+    // Once merged there is a single remnant, so orbital speed is meaningless.
+    const rs = this.uniforms['rs'].value as number;
+    const omega = this.currentOrbitalOmega(rs, separation);
+    const merged = this.inspiralPhase === 'merged';
 
     return {
       bh1Pos: { x: bh1.x, z: bh1.y },
       bh2Pos: { x: bh2.x, z: bh2.y },
-      mass1: this.uniforms['binaryMass1'].value as number,
-      mass2: this.uniforms['binaryMass2'].value as number,
+      mass1,
+      mass2,
       orbitalPhase: this.currentOrbitalPhase,
-      separation: this.uniforms['binarySeparation'].value as number,
+      separation,
+      gwChirpEnvelope,
+      bh1Speed: merged ? null : omega * separation * mass2,
+      bh2Speed: merged ? null : omega * separation * mass1,
     };
   }
 
@@ -717,6 +983,7 @@ export class LensingPass extends ShaderPass {
     super.dispose();
     this.blackbodyLUT.dispose();
     this.noiseLUT.dispose();
+    this.gwHistoryTexture.dispose();
     this.mhdLutTarget.dispose();
     this.mhdBakeMaterial.dispose();
     this.mhdBakeQuad.dispose();

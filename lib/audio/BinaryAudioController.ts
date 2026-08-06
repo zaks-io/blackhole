@@ -4,6 +4,7 @@ import { PadLayer } from './layers/PadLayer';
 import { ShimmerLayer } from './layers/ShimmerLayer';
 import { DiskHumLayer } from './layers/DiskHumLayer';
 import { DistortionRumbleLayer } from './layers/DistortionRumbleLayer';
+import { ChirpLayer } from './layers/ChirpLayer';
 import { createReverb, mapRange } from './utils/effects';
 import {
   noteToMidi,
@@ -25,6 +26,7 @@ export interface AudioState {
   mass1: number; // BH1 mass fraction
   bh1Pos: { x: number; z: number }; // BH1 position for panning
   bh2Pos: { x: number; z: number }; // BH2 position for panning (unused in single mode)
+  gwChirpEnvelope: number; // 0-1 gravitational wave strain envelope; 0 outside an inspiral
   deltaTime: number; // Time since last frame in seconds
 }
 
@@ -40,6 +42,7 @@ export interface BinaryAudioConfig {
   shimmerVolume: number;
   diskHumVolume: number;
   distortionRumbleVolume: number;
+  chirpVolume: number;
 }
 
 const DEFAULT_CONFIG: BinaryAudioConfig = {
@@ -54,6 +57,7 @@ const DEFAULT_CONFIG: BinaryAudioConfig = {
   shimmerVolume: 0.15,
   diskHumVolume: 0.5,
   distortionRumbleVolume: 0.6,
+  chirpVolume: 0.5,
 };
 
 export class BinaryAudioController {
@@ -75,6 +79,7 @@ export class BinaryAudioController {
   private shimmer: ShimmerLayer | null = null;
   private diskHum: DiskHumLayer | null = null;
   private distortionRumble: DistortionRumbleLayer | null = null;
+  private chirp: ChirpLayer | null = null;
 
   private enabled = false;
   private initialized = false;
@@ -184,6 +189,9 @@ export class BinaryAudioController {
     this.distortionRumble = new DistortionRumbleLayer(ctx, mixBus);
     this.distortionRumble.setVolume(this.config.distortionRumbleVolume);
 
+    this.chirp = new ChirpLayer(ctx, mixBus);
+    this.chirp.setVolume(this.config.chirpVolume);
+
     // Set up vector for listener (Y-up)
     const listener = ctx.listener;
     if (listener.upX) {
@@ -210,6 +218,7 @@ export class BinaryAudioController {
     this.shimmer?.setEnabled(enabled);
     this.diskHum?.setEnabled(enabled);
     this.distortionRumble?.setEnabled(enabled);
+    this.chirp?.setEnabled(enabled && this.isBinaryMode);
   }
 
   isEnabled(): boolean {
@@ -229,6 +238,12 @@ export class BinaryAudioController {
     if (state.isBinaryMode !== this.isBinaryMode) {
       this.isBinaryMode = state.isBinaryMode;
       this.bh2Arpeggio?.setEnabled(state.isBinaryMode && this.enabled);
+      this.chirp?.setEnabled(state.isBinaryMode && this.enabled);
+    }
+
+    // Gravitational wave chirp follows the inspiral
+    if (state.isBinaryMode) {
+      this.chirp?.update(state.separation, state.gwChirpEnvelope);
     }
 
     // Update listener position and orientation for proper 3D audio
@@ -487,6 +502,11 @@ export class BinaryAudioController {
     this.distortionRumble?.setVolume(vol);
   }
 
+  setChirpVolume(vol: number): void {
+    this.config.chirpVolume = vol;
+    this.chirp?.setVolume(vol);
+  }
+
   // Audio visualization methods
 
   getFrequencyData(): Uint8Array<ArrayBuffer> | null {
@@ -519,6 +539,7 @@ export class BinaryAudioController {
     this.shimmer?.dispose();
     this.diskHum?.dispose();
     this.distortionRumble?.dispose();
+    this.chirp?.dispose();
 
     this.reverb?.disconnect();
     this.reverbGain?.disconnect();
@@ -546,6 +567,7 @@ export class BinaryAudioController {
     this.shimmer = null;
     this.diskHum = null;
     this.distortionRumble = null;
+    this.chirp = null;
 
     this.initialized = false;
     this.enabled = false;

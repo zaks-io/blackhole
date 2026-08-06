@@ -15,16 +15,13 @@ vec4 renderHorizontalRing(vec3 rayPos, vec3 prevPos, float targetRadius, float t
   vec3 hitPos = mix(prevPos, rayPos, t);
   float hitR = length(hitPos.xz);
 
-  // Distance from ring - use sharp falloff for crisp lines
+  // Derivatives are undefined inside the divergent ray-march loop. Use a
+  // narrow analytic core so the contour stays stable across neighboring rays.
   float dist = abs(hitR - targetRadius);
-  float sharpThickness = thickness * 0.3; // Much thinner line
-  float fade = 1.0 - smoothstep(0.0, sharpThickness, dist);
-  // Add subtle glow around the sharp line
-  float glow = (1.0 - smoothstep(sharpThickness, thickness, dist)) * 0.3;
-  fade = max(fade, glow);
+  float fade = 1.0 - smoothstep(thickness * 0.35, thickness, dist);
 
   if (fade > 0.0) {
-    return vec4(ringColor * fade * intensity, fade * intensity * 0.9);
+    return vec4(ringColor * fade * intensity, fade * intensity);
   }
   return vec4(0.0);
 }
@@ -44,15 +41,12 @@ vec4 renderSphereRing(float currentR, float prevR, float targetRadius, float thi
     return vec4(0.0);
   }
 
-  // We crossed the shell - use sharp falloff for crisp lines
+  // Keep the shell narrow without using derivatives in the loop.
   float dist = min(abs(currentR - targetRadius), abs(prevR - targetRadius));
-  float sharpThickness = thickness * 0.3;
-  float fade = 1.0 - smoothstep(0.0, sharpThickness, dist);
-  float glow = (1.0 - smoothstep(sharpThickness, thickness, dist)) * 0.3;
-  fade = max(fade, glow);
+  float fade = 1.0 - smoothstep(thickness * 0.35, thickness, dist);
 
   if (fade > 0.0) {
-    return vec4(ringColor * fade * intensity, fade * intensity * 0.9);
+    return vec4(ringColor * fade * intensity, fade * intensity);
   }
   return vec4(0.0);
 }

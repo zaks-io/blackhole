@@ -39,3 +39,5 @@ next-env.d.ts
 # Benchmark artifacts
 bench/dist/
 bench/results/
+.vercel
+.env*

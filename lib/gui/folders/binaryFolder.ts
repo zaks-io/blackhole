@@ -17,7 +17,7 @@ export function createBinaryFolder(gui: GUI, config: BinaryFolderConfig): void {
   folder.close();
 
   // Binary toggle
-  folder
+  const enableController = folder
     .add(params, 'binaryEnabled', { Off: 0, On: 1 })
     .name('Enable Approximation')
     .onChange((value: number) => {
@@ -32,13 +32,35 @@ export function createBinaryFolder(gui: GUI, config: BinaryFolderConfig): void {
       lensingPass.updateParams({ binaryMass1: value });
     });
 
-  // Separation
-  folder
-    .add(params, 'binarySeparation', 4.0, 20.0, 0.5)
-    .name('Separation (rs)')
-    .onChange((value: number) => {
+  // Separation: two-way bound. Dragging steers the binary (and sets the
+  // Reset Binary target via params); listen() tracks the live GW-driven
+  // value so the slider follows the inspiral instead of sitting at the
+  // last dragged position.
+  const separationBinding = {
+    get separation() {
+      return lensingPass.getBinaryState()?.separation ?? params.binarySeparation;
+    },
+    set separation(value: number) {
+      params.binarySeparation = value;
       lensingPass.updateParams({ binarySeparation: value });
-    });
+    },
+  };
+  folder.add(separationBinding, 'separation', 0.0, 20.0, 0.1).name('Separation (rs)').listen();
+
+  // Live orbital speeds as fractions of c; lil-gui's listen() polls the
+  // getters every frame, so these track the inspiral without extra wiring
+  const formatSpeed = (speed: number | null | undefined) =>
+    speed == null ? 'n/a' : `${(speed * 100).toFixed(1)}% of c`;
+  const orbitReadout = {
+    get bh1Speed() {
+      return formatSpeed(lensingPass.getBinaryState()?.bh1Speed);
+    },
+    get bh2Speed() {
+      return formatSpeed(lensingPass.getBinaryState()?.bh2Speed);
+    },
+  };
+  folder.add(orbitReadout, 'bh1Speed').name('BH1 Orbital Speed').listen().disable();
+  folder.add(orbitReadout, 'bh2Speed').name('BH2 Orbital Speed').listen().disable();
 
   // Circumbinary outer radius
   folder
@@ -72,6 +94,54 @@ export function createBinaryFolder(gui: GUI, config: BinaryFolderConfig): void {
       lensingPass.updateParams({ streamDensity: value });
     });
 
+  // Gravitational waves: quadrupole ripple overlay and inspiral-to-merger
+  const gwFolder = folder.addFolder('Gravitational Waves');
+
+  gwFolder
+    .add(params, 'gwRippleEnabled', { Off: 0, On: 1 })
+    .name('Wave Ripples')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ gwRippleEnabled: value });
+    });
+
+  gwFolder
+    .add(params, 'gwRippleIntensity', 0, 1, 0.05)
+    .name('Ripple Intensity')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ gwRippleIntensity: value });
+    });
+
+  gwFolder
+    .add(params, 'gwWaveSpeed', 0.05, 0.5, 0.01)
+    .name('Wave Speed')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ gwWaveSpeed: value });
+    });
+
+  gwFolder
+    .add(params, 'gwInspiralSpeed', 1, 200, 1)
+    .name('Inspiral Speed')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ gwInspiralSpeed: value });
+    });
+
+  const inspiralActions = {
+    startInspiral: () => {
+      if (params.binaryEnabled < 0.5) {
+        params.binaryEnabled = 1;
+        lensingPass.updateParams({ binaryEnabled: 1 });
+        enableController.updateDisplay();
+      }
+      lensingPass.startInspiral();
+    },
+    resetBinary: () => {
+      lensingPass.resetInspiral(params.binarySeparation);
+    },
+  };
+
+  gwFolder.add(inspiralActions, 'startInspiral').name('Start Inspiral');
+  gwFolder.add(inspiralActions, 'resetBinary').name('Reset Binary');
+
   // Audio controls
   if (config.audioController) {
     const audioFolder = folder.addFolder('Audio');
@@ -89,6 +159,7 @@ export function createBinaryFolder(gui: GUI, config: BinaryFolderConfig): void {
       shimmerVolume: 0.15,
       diskHumVolume: 0.5,
       distortionRumbleVolume: 0.6,
+      chirpVolume: 0.5,
     };
 
     // Scale options from SCALES constant
@@ -200,6 +271,13 @@ export function createBinaryFolder(gui: GUI, config: BinaryFolderConfig): void {
       .name('Distortion Rumble')
       .onChange((value: number) => {
         config.audioController!.setDistortionRumbleVolume(value);
+      });
+
+    layersFolder
+      .add(audioState, 'chirpVolume', 0, 1, 0.05)
+      .name('GW Chirp')
+      .onChange((value: number) => {
+        config.audioController!.setChirpVolume(value);
       });
 
     // Effects

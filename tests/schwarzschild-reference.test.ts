@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   finiteObserverImpactParameter,
+  schwarzschildCriticalAngularRadius,
   schwarzschildCriticalImpactParameter,
   schwarzschildNullRadialPotential,
   schwarzschildOuterTurningRadius,
@@ -12,6 +13,14 @@ import {
 const RS = 1;
 
 describe('finite static observer', () => {
+  test('critical curve angular radius shrinks with observer distance', () => {
+    const near = schwarzschildCriticalAngularRadius(10, RS);
+    const far = schwarzschildCriticalAngularRadius(20, RS);
+
+    expect(near).toBeGreaterThan(far);
+    expect(far).toBeGreaterThan(0);
+  });
+
   test('converts local angle to the impact parameter measured at infinity', () => {
     const radius = 10;
     const angle = Math.PI / 6;
@@ -56,6 +65,20 @@ describe('capture boundary and turning point', () => {
 });
 
 describe('exact Schwarzschild null-orbit reference', () => {
+  test('optionally samples a bounded ray path', () => {
+    const trace = traceSchwarzschildNullRay({
+      observerRadius: 20,
+      impactParameter: schwarzschildCriticalImpactParameter(RS) * 1.1,
+      rs: RS,
+      angularStep: 0.004,
+      maxAngularSweep: 4 * Math.PI,
+      pathSampleStride: 8,
+    });
+
+    expect(trace.path?.length).toBeGreaterThan(2);
+    expect(trace.path?.length).toBeLessThan(500);
+  });
+
   test('separates capture and escape around the analytic critical impact', () => {
     const criticalImpact = schwarzschildCriticalImpactParameter(RS);
     const common = { observerRadius: 100, rs: RS, angularStep: 0.0005 };

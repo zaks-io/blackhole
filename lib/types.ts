@@ -5,6 +5,8 @@ export interface ToggleState {
   binary: boolean;
 }
 
+export type DiagnosticsMode = 'off' | 'anatomy' | 'lensing';
+
 export const DEFAULT_TOGGLE_STATE: ToggleState = {
   eventHorizon: false,
   disk: true,

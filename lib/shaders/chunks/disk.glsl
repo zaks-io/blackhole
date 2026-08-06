@@ -201,6 +201,11 @@ float computeImpactParameter(vec3 pos, vec3 dir, float rsBH) {
 
 vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
                     int crossingIndex, float lod) {
+  // Starved mini-disks (late inspiral) have drained; skip the work
+  if (miniDiskBrightness <= 0.0) {
+    return vec4(0.0);
+  }
+
   // Transform to BH-local coordinates
   vec2 localPos = hitPos.xz - bhPos;
   float r = length(localPos);
@@ -318,7 +323,10 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
   float emissiveBoost = 1.0 + (mhdDensity - 1.0) * 0.6 + (mhdTemp - 1.0) * 0.8;
   emissiveBoost = clamp(emissiveBoost, 0.3, 2.0);
 
-  return vec4(color * intensity * 2.0 * emissiveBoost, alpha);
+  // Starvation dims the gas and thins it out (alpha) rather than painting
+  // a black disk over the starfield
+  return vec4(color * intensity * 2.0 * emissiveBoost * miniDiskBrightness,
+              alpha * miniDiskBrightness);
 }
 
 // ============================================================================
@@ -335,16 +343,26 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
   float outerR = circumbinaryOuterRadius;
 
   // Warp coordinates for oblong cavity shape
-  // Binary axis direction
-  vec2 binaryAxis = normalize(bh2Pos - bh1Pos);
+  // Binary axis direction. At zero separation both BHs sit at the origin and
+  // the axis is undefined (normalize(0) is NaN); any unit vector works since
+  // the merged disk is circular (compressFactor = 1).
+  vec2 axisDelta = bh2Pos - bh1Pos;
+  vec2 binaryAxis = length(axisDelta) > 1e-6 ? normalize(axisDelta) : vec2(1.0, 0.0);
   vec2 perpAxis = vec2(-binaryAxis.y, binaryAxis.x);
 
   // Project position onto binary coordinate system
   float alongBinary = dot(pos2D, binaryAxis);
   float perpBinary = dot(pos2D, perpAxis);
 
-  // Compress along binary axis - stretches cavity along binary axis
-  float compressFactor = 0.75;
+  // Post-merger relaxation: as the viscous refill brings the cavity edge
+  // down to the ISCO, accretion onto the remnant resumes and the disk
+  // relaxes to the ordinary single-BH profile (same Novikov-Thorne curve
+  // and peak as sampleDisk). 1 = fully relaxed, 0 = binary cavity regime.
+  float ntBlend = 1.0 - smoothstep(diskInnerRadius, 2.0 * diskInnerRadius, innerR);
+
+  // Compress along binary axis - stretches cavity along binary axis.
+  // The oblong cavity is a binary feature; relax it to circular post-merger
+  float compressFactor = mix(0.75, 1.0, ntBlend);
   vec2 warpedPos = binaryAxis * alongBinary * compressFactor + perpAxis * perpBinary;
   float warpedR = length(warpedPos);
   float warpedPhi = atan(warpedPos.y, warpedPos.x);
@@ -380,7 +398,14 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
   // Thin-disk radial slope T ~ r^(-3/4), anchored at the cavity edge.
   // No zero-torque cutoff here: the cavity truncates the disk, not an ISCO.
   float thermalFrac = pow(max(r / innerR, 1.0), -0.75);
-  float baseTemp = diskTemperatureOuter * thermalFrac;
+
+  // Relaxed profile: Novikov-Thorne anchored at the ISCO, peaking at
+  // diskTemperatureInner exactly like the single-BH disk
+  float x = max(r / diskInnerRadius, 1.0);
+  float ntThermal = 2.0487 * pow(x, -0.75) * pow(max(0.0, 1.0 - inversesqrt(x)), 0.25);
+
+  float relThermal = mix(thermalFrac, ntThermal, ntBlend);
+  float baseTemp = mix(diskTemperatureOuter * thermalFrac, diskTemperatureInner * ntThermal, ntBlend);
   float temp = baseTemp * g * mhdTemp;
 
   vec3 color = sampleBlackbody(temp);
@@ -405,7 +430,7 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
     dopplerBoost = mix(dopplerBoost, g, overlayDoppler * 0.7);
   }
 
-  float baseIntensity = dopplerBoost * pow(thermalFrac, 4.0) * 0.8;
+  float baseIntensity = dopplerBoost * pow(relThermal, 4.0) * mix(0.8, 1.0, ntBlend);
 
   // Tonemapping and contrast
   float compressedIntensity = baseIntensity / (1.0 + baseIntensity * diskLuminanceCompression);
@@ -420,7 +445,10 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
 
   // Smooth edge fading - both use warpedR for consistent oblong shape
   float diskRange = outerR - innerR;
-  float innerFade = smoothstep(innerR * 0.4, innerR + diskRange * 0.2, warpedR);
+  // The wide cavity-edge fade suits the binary regime; relax to the tight
+  // inner edge of the single disk so the remnant's hot edge isn't washed out
+  float innerFadeEnd = mix(innerR + diskRange * 0.2, innerR + diskRange * 0.08, ntBlend);
+  float innerFade = smoothstep(innerR * mix(0.4, 0.9, ntBlend), innerFadeEnd, warpedR);
   float outerFade = 1.0 - smoothstep(outerR - diskRange * 0.3, outerR, warpedR);
 
   float alpha = innerFade * outerFade * diskOpacity;

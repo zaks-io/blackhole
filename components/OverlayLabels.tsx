@@ -34,6 +34,8 @@ interface OverlayLabelsProps {
 interface LabelPosition {
   x: number;
   y: number;
+  anchorX: number;
+  anchorY: number;
   visible: boolean;
   label: string;
   color: string;
@@ -172,10 +174,15 @@ export function OverlayLabels({ cameraController, toggleState, show }: OverlayLa
       if (screenPos) {
         // Apply lensing correction
         const offset = computeLensingOffset(worldPos, cameraPos);
+        const anchorX = screenPos.x + offset.dx;
+        const anchorY = screenPos.y + offset.dy;
+        const placeRight = anchorX < screenWidth * 0.68;
 
         positions.push({
-          x: screenPos.x + offset.dx,
-          y: screenPos.y + offset.dy,
+          x: anchorX + (placeRight ? 118 : -118),
+          y: Math.max(72, anchorY - 72),
+          anchorX,
+          anchorY,
           visible: true,
           label: labelConfig.label,
           color: labelConfig.color,
@@ -208,6 +215,18 @@ export function OverlayLabels({ cameraController, toggleState, show }: OverlayLa
 
   return (
     <div className="overlay-labels">
+      <svg className="leader-lines" aria-hidden="true">
+        {labelPositions.map((pos) => (
+          <line
+            key={`line-${pos.label}`}
+            x1={pos.anchorX}
+            y1={pos.anchorY}
+            x2={pos.x}
+            y2={pos.y}
+            stroke={pos.color}
+          />
+        ))}
+      </svg>
       {labelPositions.map((pos, idx) => (
         <div
           key={`${pos.label}-${idx}`}
@@ -252,6 +271,20 @@ export function OverlayLabels({ cameraController, toggleState, show }: OverlayLa
           align-items: center;
           gap: 2px;
           backdrop-filter: blur(4px);
+        }
+
+        .leader-lines {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          overflow: visible;
+        }
+
+        .leader-lines line {
+          stroke-width: 1;
+          stroke-dasharray: 3 3;
+          opacity: 0.75;
         }
 
         .label-text {

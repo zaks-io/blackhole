@@ -231,6 +231,14 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
                   Simulates Event Horizon Telescope diffraction blur
                 </span>
               </div>
+              <div className="control-item">
+                <span className="control-name" style={{ color: '#ffd12a' }}>
+                  Guide
+                </span>
+                <span className="control-desc">
+                  Cycle labeled anatomy, full-screen light paths, and off
+                </span>
+              </div>
             </div>
           </div>
         </div>

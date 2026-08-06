@@ -261,6 +261,7 @@ export class SimulationController {
           mass1: binaryState.mass1,
           bh1Pos: binaryState.bh1Pos,
           bh2Pos: binaryState.bh2Pos,
+          gwChirpEnvelope: binaryState.gwChirpEnvelope,
           deltaTime,
         });
       } else {
@@ -277,6 +278,7 @@ export class SimulationController {
           mass1: 1.0, // Single BH has all mass
           bh1Pos: { x: 0, z: 0 }, // At origin
           bh2Pos: { x: 0, z: 0 }, // Unused but required
+          gwChirpEnvelope: 0, // No inspiral in single mode
           deltaTime,
         });
       }

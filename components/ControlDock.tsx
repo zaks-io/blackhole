@@ -1,6 +1,6 @@
 'use client';
 
-import { ToggleState } from '@/lib/types';
+import { DiagnosticsMode, ToggleState } from '@/lib/types';
 import { CAMERA_PRESETS, CAMERA_SEQUENCES } from './BlackHoleSimulation';
 import {
   DiskIcon,
@@ -21,6 +21,7 @@ import {
   BlurIcon,
   SharpIcon,
   HelpIcon,
+  DiagnosticsIcon,
 } from './icons';
 
 interface ControlDockProps {
@@ -35,6 +36,8 @@ interface ControlDockProps {
   isManualMode: boolean;
   onManualModeToggle: () => void;
   onHelpOpen: () => void;
+  diagnosticsMode: DiagnosticsMode;
+  onDiagnosticsModeChange: (mode: DiagnosticsMode) => void;
   show: boolean;
 }
 
@@ -98,6 +101,8 @@ export function ControlDock({
   isManualMode,
   onManualModeToggle,
   onHelpOpen,
+  diagnosticsMode,
+  onDiagnosticsModeChange,
   show,
 }: ControlDockProps) {
   return (
@@ -191,6 +196,29 @@ export function ControlDock({
         <div className="divider" />
 
         <div className="group">
+          <button
+            className={`dock-btn diagnostics-btn ${diagnosticsMode !== 'off' ? 'active' : ''}`}
+            onClick={() =>
+              onDiagnosticsModeChange(
+                diagnosticsMode === 'off'
+                  ? 'anatomy'
+                  : diagnosticsMode === 'anatomy'
+                    ? 'lensing'
+                    : 'off'
+              )
+            }
+            title="Cycle labeled anatomy, full-screen light paths, and off"
+            data-testid="diagnostics-toggle"
+          >
+            <DiagnosticsIcon size={20} />
+            <span className="label">
+              {diagnosticsMode === 'off'
+                ? 'Guide'
+                : diagnosticsMode === 'anatomy'
+                  ? 'Anatomy'
+                  : 'Rays'}
+            </span>
+          </button>
           <button className="dock-btn help-btn" onClick={onHelpOpen} title="Help">
             <HelpIcon size={20} />
             <span className="label">Help</span>
@@ -317,6 +345,13 @@ export function ControlDock({
           background: rgba(135, 206, 235, 0.12);
           border-color: rgba(135, 206, 235, 0.3);
           box-shadow: 0 0 12px rgba(135, 206, 235, 0.15);
+        }
+
+        .diagnostics-btn.active {
+          color: #ffd12a;
+          background: rgba(255, 209, 42, 0.12);
+          border-color: rgba(255, 209, 42, 0.3);
+          box-shadow: 0 0 12px rgba(255, 209, 42, 0.16);
         }
 
         /* Help — white */

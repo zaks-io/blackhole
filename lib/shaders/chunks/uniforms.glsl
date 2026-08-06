@@ -105,6 +105,18 @@ uniform float circumbinaryOuterRadius;  // Outer disk boundary
 uniform float binaryBlendWidth;     // Blending smoothness between components
 uniform float streamWidth;          // Width of accretion streams
 uniform float streamDensity;        // Density/brightness of streams
+uniform float miniDiskBrightness;   // Starvation dimming (1 fed, 0 drained)
+
+// Gravitational wave ripple overlay (binary mode). The source's emission
+// history is recorded on a fixed time grid so the field at radius r reads the
+// state retarded by the travel time r / gwWaveSpeed.
+uniform float gwRippleStrength;     // Display gate: enabled * user intensity
+uniform float gwRippleOuter;        // Outer fade radius of the ripple overlay
+uniform float gwWaveSpeed;          // Ripple propagation speed, rs per time unit (visual, far below c)
+uniform sampler2D gwHistory;        // Emission history samples: [sin 2Φ, cos 2Φ, amplitude, 0]
+uniform float gwHistoryHead;        // Total index of the newest history sample (ring slot = head mod size)
+uniform float gwHistoryHeadTime;    // Sim time of the newest history sample
+uniform float gwHistoryInterval;    // Time grid spacing of the history
 
 varying vec2 vUv;
 

@@ -10,6 +10,18 @@ export const schwarzschildPhotonSphereRadius = (rs: number): number => {
   return 1.5 * rs;
 };
 
+/** Angular radius of the critical curve for a local static observer. */
+export function schwarzschildCriticalAngularRadius(observerRadius: number, rs: number): number {
+  requirePositive('observerRadius', observerRadius);
+  requirePositive('rs', rs);
+  if (observerRadius <= rs)
+    throw new RangeError('A static observer must be outside the event horizon');
+
+  const criticalImpact = schwarzschildCriticalImpactParameter(rs);
+  const sine = (criticalImpact * Math.sqrt(1 - rs / observerRadius)) / observerRadius;
+  return Math.asin(Math.min(1, sine));
+}
+
 /** Impact parameter measured at infinity for a local static observer. */
 export function finiteObserverImpactParameter(
   observerPosition: Vec3,
@@ -70,6 +82,7 @@ export interface SchwarzschildNullTraceOptions {
   initialDirection?: 'inward' | 'outward';
   angularStep?: number;
   maxAngularSweep?: number;
+  pathSampleStride?: number;
 }
 
 export interface SchwarzschildNullTrace {
@@ -79,6 +92,7 @@ export interface SchwarzschildNullTrace {
   periapsisRadius: number;
   steps: number;
   maxInvariantError: number;
+  path?: readonly Vec3[];
 }
 
 /**
@@ -114,6 +128,11 @@ export function traceSchwarzschildNullRay(
   let periapsisRadius = observerRadius;
   let wasInward = slope >= 0;
   const maxSteps = Math.ceil(maxAngularSweep / angularStep);
+  const pathStride = options.pathSampleStride;
+  if (pathStride !== undefined && (!Number.isInteger(pathStride) || pathStride < 1)) {
+    throw new RangeError('pathSampleStride must be a positive integer');
+  }
+  const path: Vec3[] | undefined = pathStride ? [[observerRadius, 0, 0]] : undefined;
 
   for (let steps = 1; steps <= maxSteps; steps++) {
     [u, slope] = rk4OrbitStep(u, slope, angularStep, rs);
@@ -123,6 +142,9 @@ export function traceSchwarzschildNullRay(
     }
 
     const radius = 1 / u;
+    if (path && steps % pathStride! === 0) {
+      path.push([radius * Math.cos(angle), radius * Math.sin(angle), 0]);
+    }
     periapsisRadius = Math.min(periapsisRadius, radius);
     const currentInvariant = slope * slope + u * u - rs * u * u * u;
     maxInvariantError = Math.max(maxInvariantError, Math.abs(currentInvariant - invariant));
@@ -135,6 +157,7 @@ export function traceSchwarzschildNullRay(
         periapsisRadius,
         steps,
         maxInvariantError,
+        path,
       };
     }
     if (slope < 0) wasInward = false;
@@ -146,6 +169,7 @@ export function traceSchwarzschildNullRay(
         periapsisRadius,
         steps,
         maxInvariantError,
+        path,
       };
     }
   }
@@ -157,6 +181,7 @@ export function traceSchwarzschildNullRay(
     periapsisRadius,
     steps: maxSteps,
     maxInvariantError,
+    path,
   };
 }
 

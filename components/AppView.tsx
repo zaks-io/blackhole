@@ -11,10 +11,11 @@ import { ControlDock } from './ControlDock';
 import { HelpModal } from './HelpModal';
 import { InfoPanel } from './InfoPanel';
 import { OverlayLabels } from './OverlayLabels';
+import { DiagnosticsOverlay } from './DiagnosticsOverlay';
 import { UserMenu } from './UserMenu';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
-import { ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
+import { DiagnosticsMode, ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
 
 /**
  * Wrapper component that contains both the simulation and camera controls.
@@ -32,6 +33,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
   const [cameraDistance, setCameraDistance] = useState(20);
   const [isManualMode, setIsManualMode] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [diagnosticsMode, setDiagnosticsMode] = useState<DiagnosticsMode>('off');
   const animationFrameRef = useRef<number | null>(null);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
@@ -283,6 +285,8 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         isManualMode={isManualMode}
         onManualModeToggle={handleManualModeToggle}
         onHelpOpen={() => setHelpOpen(true)}
+        diagnosticsMode={diagnosticsMode}
+        onDiagnosticsModeChange={setDiagnosticsMode}
         show={introComplete}
       />
 
@@ -293,6 +297,12 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
       />
 
       <InfoPanel cameraDistance={cameraDistance} show={introComplete} />
+
+      <DiagnosticsOverlay
+        cameraController={cameraController}
+        mode={diagnosticsMode}
+        show={introComplete}
+      />
 
       <UserMenu show={introComplete} />
 
