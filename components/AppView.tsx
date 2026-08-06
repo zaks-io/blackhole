@@ -11,6 +11,7 @@ import { ControlDock } from './ControlDock';
 import { HelpModal } from './HelpModal';
 import { InfoPanel } from './InfoPanel';
 import { OverlayLabels } from './OverlayLabels';
+import { TargetIndicator } from './TargetIndicator';
 import { UserMenu } from './UserMenu';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
@@ -296,6 +297,15 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         cameraController={cameraController}
         toggleState={toggleState}
         show={introComplete}
+      />
+
+      <TargetIndicator
+        cameraController={cameraController}
+        show={introComplete && isFlyMode}
+        label={
+          toggleState.wormhole ? 'Wormhole' : toggleState.binary ? 'Black Holes' : 'Black Hole'
+        }
+        color={toggleState.wormhole ? '#66ccff' : toggleState.binary ? '#ff66cc' : '#ff8c42'}
       />
 
       <InfoPanel cameraDistance={cameraDistance} show={introComplete} />

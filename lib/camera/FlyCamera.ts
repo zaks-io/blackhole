@@ -4,6 +4,8 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const _inward = new THREE.Vector3();
 const _next = new THREE.Vector3();
+const _zero = new THREE.Vector3();
+const _levelPose = new THREE.Matrix4();
 
 export interface ThroatCapture {
   active: boolean;
@@ -122,6 +124,15 @@ export class FlyCamera {
     if (this._enabled === value) return;
     this._enabled = value;
     this.look.enabled = value;
+    if (value) {
+      // Level the horizon: pointer-lock look only ever changes yaw and pitch,
+      // so any roll carried in from the previous camera mode would stick for
+      // the whole flight. Rebuild the pose from the current forward direction
+      // with world up.
+      this.camera.getWorldDirection(this.forward);
+      _levelPose.lookAt(_zero, this.forward, WORLD_UP);
+      this.camera.quaternion.setFromRotationMatrix(_levelPose);
+    }
     if (!value) {
       this.moveState = { forward: 0, back: 0, left: 0, right: 0, up: 0, down: 0 };
       if (this.look.isLocked) {
@@ -136,9 +147,14 @@ export class FlyCamera {
 
   /** Request mouse capture. Must be called during a user gesture. */
   engagePointer(): void {
-    if (this._enabled && !this.look.isLocked) {
-      this.look.lock();
-    }
+    if (!this._enabled || this.look.isLocked) return;
+    // Not PointerLockControls.lock(): that leaves the request promise
+    // unhandled, and Chrome rejects it on missing user gesture or the ~1s
+    // cooldown after Esc. Both are retryable (the next click works), so
+    // swallow the rejection; the controls track lock state via the
+    // pointerlockchange event either way.
+    const request = this.domElement.requestPointerLock() as Promise<void> | undefined;
+    request?.catch(() => {});
   }
 
   setWormholeAttractor(radius: number | null): void {

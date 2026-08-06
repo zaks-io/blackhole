@@ -435,6 +435,26 @@ export class CameraController {
   }
 
   /**
+   * Project a world position to NDC without discarding points behind the
+   * camera: behind points get their direction mirrored so the result still
+   * says which way to turn toward them. Used by the fly-mode target
+   * indicator, which must point somewhere for every camera pose.
+   */
+  projectForIndicator(worldPos: { x: number; y: number; z: number }): {
+    x: number;
+    y: number;
+    behind: boolean;
+  } {
+    const vec = new THREE.Vector3(worldPos.x, worldPos.y, worldPos.z);
+    vec.applyMatrix4(this.camera.matrixWorldInverse);
+    const behind = vec.z >= 0;
+    vec.applyMatrix4(this.camera.projectionMatrix);
+    // The perspective divide flips signs behind the camera; mirror back so
+    // x/y point the shortest way around toward the target
+    return behind ? { x: -vec.x, y: -vec.y, behind } : { x: vec.x, y: vec.y, behind };
+  }
+
+  /**
    * Project a 3D world position to screen coordinates (pixels)
    * Returns null if the point is behind the camera
    */
