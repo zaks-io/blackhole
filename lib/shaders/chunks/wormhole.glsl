@@ -250,7 +250,7 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
   float minRadius = 1e3;
   int diskCrossings = 0;
 
-  bool canHitDisk = computeImpactParameter(pos, dir) < contentRadius;
+  bool canHitDisk = computeImpactParameter(pos, dir, rs) < contentRadius;
 
   // The whole remaining pool, not min(stepsLeft, maxSteps): a disk-crossing
   // march to the 48rs escape radius needs more steps than low-end maxSteps
@@ -307,7 +307,7 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
         float remaining = 1.0 - diskAccum.a;
         if (remaining > 0.002) {
-          vec4 newDisk = sampleDisk(hitPos, dir, hitR, diskCrossings, lod, bz);
+          vec4 newDisk = sampleDisk(hitPos, dir, hitR, diskCrossings, lod, bz, 0.0);
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
         }
@@ -325,7 +325,7 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
 
         float remaining = 1.0 - diskAccum.a;
         if (remaining > 0.002) {
-          vec4 newDisk = sampleDisk(virtualHitPos, dir, mappedR, diskCrossings, lod, bz);
+          vec4 newDisk = sampleDisk(virtualHitPos, dir, mappedR, diskCrossings, lod, bz, 0.0);
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
         }
@@ -354,7 +354,7 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
           float remaining = 1.0 - diskAccum.a;
           float weightEst = verticalDensity * diskVolumeDensity * stepSize * remaining;
           if (weightEst > 2e-4) {
-            vec4 volColor = sampleDisk(vec3(pos.x, 0.0, pos.z), dir, hitR, diskCrossings, lod, bz);
+            vec4 volColor = sampleDisk(vec3(pos.x, 0.0, pos.z), dir, hitR, diskCrossings, lod, bz, normalizedY);
             float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * stepSize;
             diskAccum.rgb += volColor.rgb * volAlpha * remaining;
             diskAccum.a += volAlpha * remaining;
