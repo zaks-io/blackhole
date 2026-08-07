@@ -116,6 +116,8 @@ export const CONFIG = {
   controls: {
     enableDamping: true,
     dampingFactor: 0.05,
+    flyMovementSpeed: 10.0, // Scene units per second (throat radius is 3, orbits ~20)
+    flyPointerSpeed: 1.0, // Mouse-look sensitivity multiplier while the pointer is captured
   },
 
   // EHT-style blur effect (replicates telescope diffraction)
@@ -129,6 +131,21 @@ export const CONFIG = {
   noise: {
     textureSize: 64, // 64-256, controls quality/memory tradeoff
     timeScale: 0.02, // Animation speed through Z slices
+  },
+
+  // Static, spherically symmetric ultrastatic wormhole mode
+  wormhole: {
+    enabled: false, // Enable wormhole mode
+    throatRadius: 3.0, // Throat radius b in scene units
+    throatLength: 8.0, // Proper length of the cylindrical neck; 0 recovers Ellis
+    farSky: 'nebulaBlue' as const, // Starfield key for the far universe
+    farSkyExposure: 2.5, // Far sky is intrinsically darker than the near Milky Way texture
+    // Schwarzschild black hole in the far universe, sharing the main scene's
+    // rs and disk parameters. Position is in far-frame coordinates: ~45 units
+    // from the throat keeps the two lenses' influence spheres (a + 8b and 16rs,
+    // see wormhole.glsl) non-overlapping at defaults, and the y offset tilts the disk to a
+    // shallow inclination as seen through the throat.
+    farBlackHolePosition: [18.9, 13.5, -38.5] as [number, number, number],
   },
 
   // Binary black hole system
@@ -248,6 +265,10 @@ export function buildLensingParams(): LensingParams {
     // Noise LUT animation
     noiseTimeScale: CONFIG.noise.timeScale,
     // Binary black hole system
+    wormholeEnabled: CONFIG.wormhole.enabled ? 1 : 0,
+    wormholeThroatRadius: CONFIG.wormhole.throatRadius,
+    wormholeThroatLength: CONFIG.wormhole.throatLength,
+    wormholeFarBhPos: CONFIG.wormhole.farBlackHolePosition,
     binaryEnabled: CONFIG.binary.enabled ? 1 : 0,
     binaryMass1: CONFIG.binary.mass1,
     binarySeparation: CONFIG.binary.separation,

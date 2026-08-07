@@ -16,12 +16,14 @@ import {
   FallInIcon,
   TourIcon,
   ShadowIcon,
-  ManualIcon,
+  FlyIcon,
   EhtIcon,
   BlurIcon,
   SharpIcon,
   HelpIcon,
   DiagnosticsIcon,
+  WormholeIcon,
+  TransitIcon,
 } from './icons';
 
 interface ControlDockProps {
@@ -33,8 +35,8 @@ interface ControlDockProps {
   ehtBlurEnabled: boolean;
   onEhtToggle: () => void;
   onEhtBlurToggle: () => void;
-  isManualMode: boolean;
-  onManualModeToggle: () => void;
+  isFlyMode: boolean;
+  onFlyModeToggle: () => void;
   onHelpOpen: () => void;
   diagnosticsMode: DiagnosticsMode;
   onDiagnosticsModeChange: (mode: DiagnosticsMode) => void;
@@ -62,6 +64,13 @@ const TOGGLE_BUTTONS: {
     label: 'Binary',
     title: 'Illustrative Binary (Approximate)',
     color: '#ff66cc',
+  },
+  {
+    key: 'wormhole',
+    icon: WormholeIcon,
+    label: 'Wormhole',
+    title: 'Traversable Wormhole',
+    color: '#66ccff',
   },
   { key: 'audio', icon: AudioIcon, label: 'Audio', title: 'Binary Audio', color: '#9966ff' },
 ];
@@ -98,8 +107,8 @@ export function ControlDock({
   ehtBlurEnabled,
   onEhtToggle,
   onEhtBlurToggle,
-  isManualMode,
-  onManualModeToggle,
+  isFlyMode,
+  onFlyModeToggle,
   onHelpOpen,
   diagnosticsMode,
   onDiagnosticsModeChange,
@@ -159,6 +168,16 @@ export function ControlDock({
               <span className="label">{label}</span>
             </button>
           ))}
+          {toggleState.wormhole && (
+            <button
+              className={`dock-btn sequence-btn ${activePreset === 'wormholeTransit' ? 'active' : ''}`}
+              onClick={() => onPresetSelect('wormholeTransit')}
+              title={CAMERA_SEQUENCES['wormholeTransit']?.name ?? 'Wormhole Transit'}
+            >
+              <TransitIcon size={20} />
+              <span className="label">Transit</span>
+            </button>
+          )}
         </div>
 
         <div className="divider" />
@@ -166,12 +185,12 @@ export function ControlDock({
         {/* Modes */}
         <div className="group">
           <button
-            className={`dock-btn manual-btn ${isManualMode ? 'active' : ''}`}
-            onClick={onManualModeToggle}
-            title="Manual Camera Control"
+            className={`dock-btn fly-btn ${isFlyMode ? 'active' : ''}`}
+            onClick={onFlyModeToggle}
+            title="Free Flight Camera"
           >
-            <ManualIcon size={20} />
-            <span className="label">Manual</span>
+            <FlyIcon size={20} />
+            <span className="label">Fly</span>
           </button>
           <button
             className={`dock-btn eht-btn ${ehtMode ? 'active' : ''}`}
@@ -323,8 +342,8 @@ export function ControlDock({
           box-shadow: 0 0 12px rgba(167, 139, 250, 0.15);
         }
 
-        /* Manual — green */
-        .manual-btn.active {
+        /* Fly — green */
+        .fly-btn.active {
           color: #4ade80;
           background: rgba(74, 222, 128, 0.12);
           border-color: rgba(74, 222, 128, 0.3);

@@ -107,8 +107,16 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
               <span>Zoom in / out</span>
             </div>
             <div className="key-row">
-              <kbd>Manual</kbd>
-              <span>Enable free camera — WASD to move, mouse to look</span>
+              <kbd>Click</kbd>
+              <span>Fly mode — capture the mouse to look around, Esc releases it</span>
+            </div>
+            <div className="key-row">
+              <kbd>W A S D</kbd>
+              <span>Fly mode — move forward / left / back / right</span>
+            </div>
+            <div className="key-row">
+              <kbd>R / F</kbd>
+              <span>Fly mode — move up / down</span>
             </div>
           </div>
         </div>
@@ -138,6 +146,12 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
                 <span className="control-desc">
                   Approximate two-black-hole visualization; strong-field lensing is not exact
                 </span>
+              </div>
+              <div className="control-item">
+                <span className="control-name" style={{ color: '#66ccff' }}>
+                  Wormhole
+                </span>
+                <span className="control-desc">Long-throat wormhole connecting two universes</span>
               </div>
               <div className="control-item">
                 <span className="control-name" style={{ color: '#9966ff' }}>
@@ -211,6 +225,14 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
                 </span>
                 <span className="control-desc">Explore the black hole shadow at 2.6 r&#x209B;</span>
               </div>
+              <div className="control-item">
+                <span className="control-name" style={{ color: '#a78bfa' }}>
+                  Transit
+                </span>
+                <span className="control-desc">
+                  Dive through the wormhole throat into the far universe
+                </span>
+              </div>
             </div>
           </div>
 
@@ -219,9 +241,11 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
             <div className="control-list">
               <div className="control-item">
                 <span className="control-name" style={{ color: '#4ade80' }}>
-                  Manual
+                  Fly
                 </span>
-                <span className="control-desc">Free camera with WASD + mouse</span>
+                <span className="control-desc">
+                  Free flight with mouse look + WASD — fly through the wormhole
+                </span>
               </div>
               <div className="control-item">
                 <span className="control-name" style={{ color: '#ffa500' }}>

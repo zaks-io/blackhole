@@ -12,6 +12,7 @@ import { HelpModal } from './HelpModal';
 import { InfoPanel } from './InfoPanel';
 import { OverlayLabels } from './OverlayLabels';
 import { DiagnosticsOverlay } from './DiagnosticsOverlay';
+import { TargetIndicator } from './TargetIndicator';
 import { UserMenu } from './UserMenu';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
@@ -31,7 +32,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
   const directViewStartedRef = useRef(false);
   const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
   const [cameraDistance, setCameraDistance] = useState(20);
-  const [isManualMode, setIsManualMode] = useState(false);
+  const [isFlyMode, setIsFlyMode] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [diagnosticsMode, setDiagnosticsMode] = useState<DiagnosticsMode>('off');
   const animationFrameRef = useRef<number | null>(null);
@@ -48,7 +49,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
     const updateState = () => {
       setCameraDistance(cameraController.getDistance());
-      setIsManualMode(cameraController.getMode() === 'manual');
+      setIsFlyMode(cameraController.getMode() === 'fly');
       animationFrameRef.current = requestAnimationFrame(updateState);
     };
 
@@ -93,7 +94,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
       const defaultPreset = CAMERA_PRESETS.default;
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
           { duration: 2, ease: 'power2.inOut' }
         )
@@ -111,7 +112,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
       const ehtPreset = CAMERA_PRESETS.eht;
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: ehtPreset.position, lookAt: ehtPreset.lookAt },
           { duration: ehtPreset.duration, ease: ehtPreset.ease }
         )
@@ -129,16 +130,16 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
     ehtBlurController.setEnabled(newState);
   }, [ehtBlurController, ehtBlurEnabled]);
 
-  const handleManualModeToggle = useCallback(() => {
+  const handleFlyModeToggle = useCallback(() => {
     if (!cameraController) return;
 
-    if (isManualMode) {
-      // Exit manual mode - return to default orbit
+    if (isFlyMode) {
+      // Exit fly mode - return to default orbit
       setActivePreset('default');
 
       const defaultPreset = CAMERA_PRESETS.default;
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
           { duration: 1.5, ease: 'power2.inOut' }
         )
@@ -150,8 +151,8 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
           });
         });
     } else {
-      // Enter manual mode
-      cameraController.returnToManual();
+      // Enter fly mode from the current camera pose
+      cameraController.startFly();
       setActivePreset(null);
 
       // Exit EHT mode if active
@@ -161,7 +162,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         ehtBlurController?.setEnabled(false);
       }
     }
-  }, [cameraController, isManualMode, ehtMode, ehtBlurController]);
+  }, [cameraController, isFlyMode, ehtMode, ehtBlurController]);
 
   const handleReveal = useCallback(() => {
     if (!ehtBlurController || !cameraController) return;
@@ -177,7 +178,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
     setTimeout(() => {
       const defaultPreset = CAMERA_PRESETS.default;
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
           { duration: 2.5, ease: 'power2.inOut' }
         )
@@ -197,7 +198,13 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
   }, [handleReveal]);
 
   const handleToggleChange = useCallback((toggles: Partial<ToggleState>) => {
-    setToggleState((prev) => ({ ...prev, ...toggles }));
+    setToggleState((prev) => {
+      const next = { ...prev, ...toggles };
+      // Wormhole and binary are mutually exclusive scene modes
+      if (toggles.wormhole) next.binary = false;
+      if (toggles.binary) next.wormhole = false;
+      return next;
+    });
   }, []);
 
   const handlePresetSelect = useCallback(
@@ -234,7 +241,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
       // Use moveTo for smooth transition to exact preset position, then start orbit
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: preset.position, lookAt: preset.lookAt },
           { duration: preset.duration, ease: preset.ease }
         )
@@ -282,8 +289,8 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         ehtBlurEnabled={ehtBlurEnabled}
         onEhtToggle={handleEhtToggle}
         onEhtBlurToggle={handleEhtBlurToggle}
-        isManualMode={isManualMode}
-        onManualModeToggle={handleManualModeToggle}
+        isFlyMode={isFlyMode}
+        onFlyModeToggle={handleFlyModeToggle}
         onHelpOpen={() => setHelpOpen(true)}
         diagnosticsMode={diagnosticsMode}
         onDiagnosticsModeChange={setDiagnosticsMode}
@@ -294,6 +301,15 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         cameraController={cameraController}
         toggleState={toggleState}
         show={introComplete}
+      />
+
+      <TargetIndicator
+        cameraController={cameraController}
+        show={introComplete && isFlyMode}
+        label={
+          toggleState.wormhole ? 'Wormhole' : toggleState.binary ? 'Black Holes' : 'Black Hole'
+        }
+        color={toggleState.wormhole ? '#66ccff' : toggleState.binary ? '#ff66cc' : '#ff8c42'}
       />
 
       <InfoPanel cameraDistance={cameraDistance} show={introComplete} />

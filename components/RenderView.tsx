@@ -258,7 +258,7 @@ export function RenderView() {
     if (
       (firstStep?.type === 'snapTo' || firstStep?.type === 'moveTo') &&
       firstStep.position &&
-      firstStep.lookAt
+      typeof firstStep.lookAt === 'object'
     ) {
       camera.position.set(firstStep.position.x, firstStep.position.y, firstStep.position.z);
       camera.lookAt(firstStep.lookAt.x, firstStep.lookAt.y, firstStep.lookAt.z);

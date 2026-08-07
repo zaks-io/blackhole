@@ -3,6 +3,7 @@ export interface ToggleState {
   disk: boolean;
   audio: boolean;
   binary: boolean;
+  wormhole: boolean;
 }
 
 export type DiagnosticsMode = 'off' | 'anatomy' | 'lensing';
@@ -12,4 +13,5 @@ export const DEFAULT_TOGGLE_STATE: ToggleState = {
   disk: true,
   audio: false,
   binary: false,
+  wormhole: false,
 };

@@ -9,6 +9,7 @@ import { STARFIELD_BACKGROUNDS, StarfieldKey } from '@/lib/presets';
 export class StarfieldManager {
   private renderer: THREE.WebGLRenderer;
   private currentTexture: THREE.Texture | null = null;
+  private farTexture: THREE.Texture | null = null;
   private isTransitioning = false;
 
   constructor(renderer: THREE.WebGLRenderer) {
@@ -29,6 +30,16 @@ export class StarfieldManager {
     const texture = await this.loadTexture(bg.path, bg.hdr);
     this.currentTexture = texture;
     return texture;
+  }
+
+  // Sky of the far universe in wormhole mode; kept separate from the
+  // crossfade pair so transitions never dispose it out from under the shader
+  async loadFar(key: StarfieldKey): Promise<{ texture: THREE.Texture; exposure: number }> {
+    const bg = STARFIELD_BACKGROUNDS[key];
+    const texture = await this.loadTexture(bg.path, bg.hdr);
+    this.farTexture?.dispose();
+    this.farTexture = texture;
+    return { texture, exposure: bg.exposure };
   }
 
   private loadTexture(path: string, isHdr: boolean): Promise<THREE.Texture> {
@@ -161,5 +172,7 @@ export class StarfieldManager {
   dispose(): void {
     this.currentTexture?.dispose();
     this.currentTexture = null;
+    this.farTexture?.dispose();
+    this.farTexture = null;
   }
 }

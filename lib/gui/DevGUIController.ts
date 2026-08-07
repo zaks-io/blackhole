@@ -16,6 +16,7 @@ import { createOverlaysFolder } from './folders/overlaysFolder';
 import { createCameraFolder } from './folders/cameraFolder';
 import { createRayMarchingFolder } from './folders/rayMarchingFolder';
 import { createBinaryFolder } from './folders/binaryFolder';
+import { createWormholeFolder } from './folders/wormholeFolder';
 
 const STORAGE_KEY = 'blackhole-dev-gui-state';
 
@@ -62,6 +63,12 @@ export class DevGUIController {
       lensingPass: config.lensingPass,
       params: config.params,
       audioController: config.audioController,
+    });
+
+    createWormholeFolder(this.gui, {
+      lensingPass: config.lensingPass,
+      params: config.params,
+      starfieldManager: config.starfieldManager,
     });
 
     createDiskFolder(this.gui, {

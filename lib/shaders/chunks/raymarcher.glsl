@@ -7,6 +7,12 @@
 
 // Trace a single ray and return the color + TAA mask in alpha
 vec4 traceRay(vec2 uv) {
+#ifdef WORMHOLE_MODE
+  // Wormhole mode replaces the whole march: ultrastatic geodesic legs through the
+  // throat, chained with a Schwarzschild march around the far-universe black
+  // hole (see wormhole.glsl)
+  return traceWormholeRay(uv);
+#else
   // Ray from camera through pixel
   vec2 ndc = uv * 2.0 - 1.0;
   vec4 clip = vec4(ndc, -1.0, 1.0);
@@ -554,6 +560,7 @@ vec4 traceRay(vec2 uv) {
   }
 
   return vec4(color, 1.0);
+#endif // WORMHOLE_MODE
 }
 
 // Simple hash function for jitter
@@ -594,7 +601,21 @@ float traceEdgeDetect(vec2 uv) {
   viewPos = vec4(viewPos.xy, -1.0, 0.0);
   vec3 rayDir = normalize((inverseView * viewPos).xyz);
 
-#ifdef BINARY_MODE
+#ifdef WORMHOLE_MODE
+  // The ultrastatic throat's critical impact parameter is its radius: rays
+  // near it wind around the throat and alias hard. Scale so the critical
+  // curve lands at 2.0, inside the caller's 2-4 supersample threshold.
+  float whEdge = 2.0 * length(cross(cameraPos, rayDir)) / wormholeThroatRadius;
+  // On the far side the black hole's shadow is directly visible too;
+  // supersample its edge with the same metric as the main scene. Seen from
+  // the near side it sits inside the throat's own supersample band.
+  if (wormholeCameraSide < 0.0) {
+    vec3 physPos = wormholeChartBasis * cameraPos - wormholeFarBhPos;
+    float bhEdge = closestApproachNorm(physPos, wormholeChartBasis * rayDir, rs);
+    return min(whEdge, bhEdge);
+  }
+  return whEdge;
+#elif defined(BINARY_MODE)
   // Binary mode has a shadow around each BH; supersample whichever edge the
   // ray passes closest to (in units of that BH's own rs).
   float n1 = closestApproachNorm(cameraPos - getBH1World(), rayDir, getBH1Rs());
