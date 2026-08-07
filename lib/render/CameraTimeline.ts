@@ -97,6 +97,18 @@ export class CameraTimeline {
   }
 
   private buildTimeline(sequence: CameraSequence): void {
+    // Anchor lookAts (e.g. 'farBlackHole') resolve against live scene state
+    // that only exists during interactive playback; a baked timeline has no
+    // way to evaluate them, so refuse the sequence rather than guess a point.
+    for (const step of sequence.steps) {
+      if (typeof step.lookAt === 'string') {
+        throw new Error(
+          `CameraTimeline: sequence '${sequence.name}' uses the '${step.lookAt}' lookAt anchor, ` +
+            'which resolves at runtime and cannot be baked into an offline timeline'
+        );
+      }
+    }
+
     let currentTime = 0;
 
     // Initialize from the first step's position if it's a snapTo or moveTo
@@ -106,7 +118,9 @@ export class CameraTimeline {
     let currentPosition =
       initFromFirst && firstStep.position ? { ...firstStep.position } : { x: 0, y: 10, z: 40 };
     let currentLookAt =
-      initFromFirst && firstStep.lookAt ? { ...firstStep.lookAt } : { x: 0, y: 0, z: 0 };
+      initFromFirst && typeof firstStep.lookAt === 'object'
+        ? { ...firstStep.lookAt }
+        : { x: 0, y: 0, z: 0 };
 
     // Orbit state
     let orbitConfig: {
@@ -120,7 +134,7 @@ export class CameraTimeline {
     for (const step of sequence.steps) {
       switch (step.type) {
         case 'snapTo': {
-          if (!step.position || !step.lookAt) break;
+          if (!step.position || typeof step.lookAt !== 'object') break;
           currentPosition = { ...step.position };
           currentLookAt = { ...step.lookAt };
           orbitConfig = null;
@@ -128,7 +142,7 @@ export class CameraTimeline {
         }
 
         case 'moveTo': {
-          if (!step.position || !step.lookAt) break;
+          if (!step.position || typeof step.lookAt !== 'object') break;
 
           const duration = step.duration || 2;
           const ease = step.ease || 'power2.inOut';

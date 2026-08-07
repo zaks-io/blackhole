@@ -20,7 +20,7 @@ export function createWormholeFolder(gui: GUI, config: WormholeFolderConfig): vo
     farSkyLoad ??= starfieldManager
       .loadFar(CONFIG.wormhole.farSky)
       .then(({ texture, exposure }) => {
-        lensingPass.setStarfieldFar(texture, exposure);
+        lensingPass.setStarfieldFar(texture, exposure * CONFIG.wormhole.farSkyExposure);
       });
     return farSkyLoad;
   };
@@ -38,5 +38,12 @@ export function createWormholeFolder(gui: GUI, config: WormholeFolderConfig): vo
     .name('Throat Radius')
     .onChange((value: number) => {
       lensingPass.updateParams({ wormholeThroatRadius: value });
+    });
+
+  folder
+    .add(params, 'wormholeThroatLength', 0.0, 8.0, 0.25)
+    .name('Throat Length')
+    .onChange((value: number) => {
+      lensingPass.updateParams({ wormholeThroatLength: value });
     });
 }

@@ -78,6 +78,25 @@ export class SimulationController {
       bloomResolutionScale: CONFIG.bloom.resolutionScale,
     });
 
+    // Camera anchors resolve against live scene state every frame; the far
+    // black hole's apparent position shifts as the camera nears the throat
+    // and flips with every crossing
+    const anchorScratch = new THREE.Vector3();
+    this._cameraController.setAnchorResolver(() => {
+      this.pipeline!.lensingPass.updateWormholeCameraChart(this.camera.position);
+      return this.pipeline!.lensingPass.getWormholeFarBhApparentPos(
+        anchorScratch,
+        this.camera.position
+      );
+    });
+
+    // Preset endpoints and sequence snap points are authored in near-universe
+    // coordinates. Re-anchor only when the camera reaches that pose so chart
+    // state and camera state cannot disagree for an intermediate frame.
+    this._cameraController.setNearUniverseReanchorListener(() =>
+      this.pipeline!.lensingPass.resetWormholeChart()
+    );
+
     // Setup stats if enabled
     if (this.config.showStats) {
       this.setupStats();
@@ -358,7 +377,10 @@ export class SimulationController {
       .loadFar(CONFIG.wormhole.farSky)
       .then(({ texture, exposure }) => {
         if (this.disposed) return;
-        this.pipeline?.lensingPass.setStarfieldFar(texture, exposure);
+        this.pipeline?.lensingPass.setStarfieldFar(
+          texture,
+          exposure * CONFIG.wormhole.farSkyExposure
+        );
       });
     return this.wormholeFarSkyLoad;
   }

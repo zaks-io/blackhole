@@ -46,10 +46,19 @@ export type SequenceStepType =
   | 'stopOrbit'
   | 'delay';
 
+/**
+ * Named lookAt targets whose world position is only known at runtime,
+ * resolved when the step starts via the resolver registered with
+ * setAnchorResolver. 'farBlackHole' is the wormhole's far-universe black
+ * hole, whose world position depends on the chart basis composed by
+ * throat crossings (see LensingPass.getWormholeFarBhWorldPos).
+ */
+export type SequenceAnchor = 'farBlackHole';
+
 export interface CameraSequenceStep {
   type: SequenceStepType;
   position?: { x: number; y: number; z: number };
-  lookAt?: { x: number; y: number; z: number };
+  lookAt?: { x: number; y: number; z: number } | SequenceAnchor;
   orbitConfig?: Partial<OrbitConfig>;
   duration?: number;
   ease?: string;
@@ -87,6 +96,25 @@ export class CameraController {
   // Sequence state
   private currentSequenceId = 0;
   private delayTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private anchorResolver: ((anchor: SequenceAnchor) => { x: number; y: number; z: number }) | null =
+    null;
+  private nearUniverseReanchorListener: (() => void) | null = null;
+
+  // Live anchor tracking: while set, update() re-resolves the anchor every
+  // frame and slews the view toward it, so the camera follows a target that
+  // moves mid-step (the far black hole's world position flips at a throat
+  // crossing). Cleared by killActiveTweens() so any new motion takes over.
+  private trackingAnchor: SequenceAnchor | null = null;
+  private trackCurDir = new THREE.Vector3();
+  private trackDesiredDir = new THREE.Vector3();
+  private trackTargetPoint = new THREE.Vector3();
+  private trackFullQuat = new THREE.Quaternion();
+  private trackStepQuat = new THREE.Quaternion();
+  // The anchor handover at a throat crossing is continuous for the aligned
+  // transit, so this only absorbs residual jumps (or future unaligned
+  // sequences): fast enough to complete a large swing within one step, slow
+  // enough to read as a deliberate pan
+  private static readonly TRACK_MAX_SLEW = THREE.MathUtils.degToRad(50);
 
   constructor(camera: THREE.PerspectiveCamera, orbitControls: OrbitControls) {
     this.camera = camera;
@@ -113,6 +141,15 @@ export class CameraController {
     this.currentLookAt.set(state.lookAt.x, state.lookAt.y, state.lookAt.z);
     this.targetLookAt.copy(this.currentLookAt);
     this.camera.lookAt(this.currentLookAt);
+  }
+
+  /**
+   * Complete a non-physical relocation into the near-universe chart. The
+   * camera pose and chart change in the same task, before either can render.
+   */
+  snapToNearUniverse(state: CameraState): void {
+    this.snapTo(state);
+    this.reanchorNearUniverse();
   }
 
   /**
@@ -159,6 +196,22 @@ export class CameraController {
       });
 
       this.activeTweens.push(posTween, lookAtTween);
+    });
+  }
+
+  /**
+   * Animate a preset relocation, then atomically interpret its final pose in
+   * the near universe. Until completion the camera remains in its original
+   * chart, rather than assigning that chart to near-universe coordinates.
+   */
+  moveToNearUniverse(state: CameraState, options: TweenOptions = {}): Promise<void> {
+    const { onComplete, ...tweenOptions } = options;
+    return this.moveTo(state, {
+      ...tweenOptions,
+      onComplete: () => {
+        this.reanchorNearUniverse();
+        onComplete?.();
+      },
     });
   }
 
@@ -317,6 +370,73 @@ export class CameraController {
   }
 
   /**
+   * Register the resolver for named sequence anchors. Owned by whoever knows
+   * the scene state the anchors depend on (the simulation component).
+   */
+  setAnchorResolver(
+    resolver: (anchor: SequenceAnchor) => { x: number; y: number; z: number }
+  ): void {
+    this.anchorResolver = resolver;
+  }
+
+  /** Register the simulation-owned near-universe chart re-anchor. */
+  setNearUniverseReanchorListener(listener: () => void): void {
+    this.nearUniverseReanchorListener = listener;
+  }
+
+  private reanchorNearUniverse(): void {
+    if (!this.nearUniverseReanchorListener) {
+      throw new Error('CameraController: no near-universe re-anchor registered');
+    }
+    this.nearUniverseReanchorListener();
+  }
+
+  private resolveAnchor(anchor: SequenceAnchor): { x: number; y: number; z: number } {
+    if (!this.anchorResolver) {
+      throw new Error(`CameraController: no anchor resolver registered for '${anchor}'`);
+    }
+    return this.anchorResolver(anchor);
+  }
+
+  /**
+   * Tween the camera position while the view continuously pursues a live
+   * anchor: update() re-resolves the anchor every frame and slews toward it.
+   * Tracking persists after the tween so consecutive tracked steps (and the
+   * sequence's end) hold the target; any other camera motion clears it.
+   */
+  private moveToTracking(
+    position: { x: number; y: number; z: number },
+    anchor: SequenceAnchor,
+    options: TweenOptions = {}
+  ): Promise<void> {
+    const { duration = 2, ease = 'power2.inOut', onComplete } = options;
+
+    this.killActiveTweens();
+    this.setMode('cinematic');
+
+    // Fail loud at step start, not on some mid-tween frame
+    this.resolveAnchor(anchor);
+    this.trackingAnchor = anchor;
+
+    return new Promise((resolve) => {
+      const posTween = gsap.to(this.camera.position, {
+        x: position.x,
+        y: position.y,
+        z: position.z,
+        duration,
+        ease,
+        onComplete: () => {
+          this.cleanupTween(posTween);
+          onComplete?.();
+          resolve();
+        },
+      });
+
+      this.activeTweens.push(posTween);
+    });
+  }
+
+  /**
    * Run a multi-step camera sequence
    * Each step executes sequentially, with smooth transitions between them
    */
@@ -335,12 +455,27 @@ export class CameraController {
 
       switch (step.type) {
         case 'snapTo':
+          if (step.position && step.lookAt) {
+            if (typeof step.lookAt === 'string') {
+              throw new Error('CameraController: snapTo requires a concrete lookAt target');
+            }
+            this.snapToNearUniverse({ position: step.position, lookAt: step.lookAt });
+          }
+          break;
+
         case 'moveTo':
           if (step.position && step.lookAt) {
-            await this.moveTo(
-              { position: step.position, lookAt: step.lookAt },
-              { duration: step.duration ?? 2, ease: step.ease }
-            );
+            if (typeof step.lookAt === 'string') {
+              await this.moveToTracking(step.position, step.lookAt, {
+                duration: step.duration ?? 2,
+                ease: step.ease,
+              });
+            } else {
+              await this.moveTo(
+                { position: step.position, lookAt: step.lookAt },
+                { duration: step.duration ?? 2, ease: step.ease }
+              );
+            }
           }
           break;
 
@@ -476,6 +611,30 @@ export class CameraController {
    * Update loop - call this every frame
    */
   update(deltaTime: number): void {
+    if (this.mode === 'cinematic' && this.trackingAnchor) {
+      const target = this.resolveAnchor(this.trackingAnchor);
+      this.trackTargetPoint.set(target.x, target.y, target.z);
+      this.trackDesiredDir.copy(this.trackTargetPoint).sub(this.camera.position);
+      const targetDist = this.trackDesiredDir.length();
+      if (targetDist > 1e-6) {
+        this.trackDesiredDir.divideScalar(targetDist);
+        this.camera.getWorldDirection(this.trackCurDir);
+        const angle = this.trackCurDir.angleTo(this.trackDesiredDir);
+        if (angle > 1e-6) {
+          // Slew-rate limit: the anchor can jump a large angle in one frame
+          // (the chart flip at a throat crossing); a capped rotation turns
+          // that into a steady pan instead of a whip
+          const stepFraction = Math.min(1, (CameraController.TRACK_MAX_SLEW * deltaTime) / angle);
+          this.trackFullQuat.setFromUnitVectors(this.trackCurDir, this.trackDesiredDir);
+          this.trackStepQuat.identity().slerp(this.trackFullQuat, stepFraction);
+          this.trackCurDir.applyQuaternion(this.trackStepQuat);
+        }
+        this.currentLookAt.copy(this.camera.position).addScaledVector(this.trackCurDir, targetDist);
+        this.targetLookAt.copy(this.trackTargetPoint);
+        this.camera.lookAt(this.currentLookAt);
+      }
+    }
+
     if (this.mode === 'fly' && this.flyCamera) {
       this.flyCamera.update(deltaTime);
 
@@ -522,6 +681,7 @@ export class CameraController {
       tween.kill();
     }
     this.activeTweens = [];
+    this.trackingAnchor = null;
   }
 
   private cleanupTween(tween: gsap.core.Tween): void {

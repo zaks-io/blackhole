@@ -59,7 +59,7 @@ export function createCameraFolder(gui: GUI, config: CameraFolderConfig): void {
   const presetFolder = folder.addFolder('Presets');
   const presets = {
     accretionDisk: () => {
-      cameraController.moveTo(
+      cameraController.moveToNearUniverse(
         {
           position: CAMERA_PRESETS.accretionDisk.position,
           lookAt: CAMERA_PRESETS.accretionDisk.lookAt,
@@ -68,7 +68,7 @@ export function createCameraFolder(gui: GUI, config: CameraFolderConfig): void {
       );
     },
     topDown: () => {
-      cameraController.moveTo(
+      cameraController.moveToNearUniverse(
         {
           position: CAMERA_PRESETS.topDown.position,
           lookAt: CAMERA_PRESETS.topDown.lookAt,
@@ -77,7 +77,7 @@ export function createCameraFolder(gui: GUI, config: CameraFolderConfig): void {
       );
     },
     edgeOn: () => {
-      cameraController.moveTo(
+      cameraController.moveToNearUniverse(
         {
           position: CAMERA_PRESETS.edgeOn.position,
           lookAt: CAMERA_PRESETS.edgeOn.lookAt,
@@ -86,7 +86,7 @@ export function createCameraFolder(gui: GUI, config: CameraFolderConfig): void {
       );
     },
     eht: () => {
-      cameraController.moveTo(
+      cameraController.moveToNearUniverse(
         {
           position: CAMERA_PRESETS.eht.position,
           lookAt: CAMERA_PRESETS.eht.lookAt,
@@ -99,7 +99,7 @@ export function createCameraFolder(gui: GUI, config: CameraFolderConfig): void {
     },
     resetDefault: () => {
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           {
             position: {
               x: 0,

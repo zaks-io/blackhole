@@ -92,7 +92,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
       const defaultPreset = CAMERA_PRESETS.default;
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
           { duration: 2, ease: 'power2.inOut' }
         )
@@ -110,7 +110,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
       const ehtPreset = CAMERA_PRESETS.eht;
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: ehtPreset.position, lookAt: ehtPreset.lookAt },
           { duration: ehtPreset.duration, ease: ehtPreset.ease }
         )
@@ -137,7 +137,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
       const defaultPreset = CAMERA_PRESETS.default;
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
           { duration: 1.5, ease: 'power2.inOut' }
         )
@@ -176,7 +176,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
     setTimeout(() => {
       const defaultPreset = CAMERA_PRESETS.default;
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: defaultPreset.position, lookAt: defaultPreset.lookAt },
           { duration: 2.5, ease: 'power2.inOut' }
         )
@@ -239,7 +239,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
 
       // Use moveTo for smooth transition to exact preset position, then start orbit
       cameraController
-        .moveTo(
+        .moveToNearUniverse(
           { position: preset.position, lookAt: preset.lookAt },
           { duration: preset.duration, ease: preset.ease }
         )

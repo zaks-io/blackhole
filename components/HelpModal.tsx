@@ -149,7 +149,7 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
                 <span className="control-name" style={{ color: '#66ccff' }}>
                   Wormhole
                 </span>
-                <span className="control-desc">Ellis wormhole connecting two universes</span>
+                <span className="control-desc">Long-throat wormhole connecting two universes</span>
               </div>
               <div className="control-item">
                 <span className="control-name" style={{ color: '#9966ff' }}>

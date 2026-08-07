@@ -60,7 +60,7 @@ const TOGGLE_BUTTONS: {
     key: 'wormhole',
     icon: WormholeIcon,
     label: 'Wormhole',
-    title: 'Ellis Wormhole',
+    title: 'Traversable Wormhole',
     color: '#66ccff',
   },
   { key: 'audio', icon: AudioIcon, label: 'Audio', title: 'Binary Audio', color: '#9966ff' },
