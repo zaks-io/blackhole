@@ -53,6 +53,12 @@ vec3 sampleBlackbody(float temp) {
   return texture2D(blackbodyLUT, vec2(t, 0.5)).rgb;
 }
 
+// diskOuterRadius marks the end of the bright disk, not a geometric cutoff.
+// The ray marcher follows the exponential tail until it is visually negligible.
+float getSingleDiskRenderOuterRadius() {
+  return diskOuterRadius * 1.8;
+}
+
 // nY is normalized altitude |y|/H(r) in [0,1]: 0 for midplane crossings,
 // rising through the volumetric slab. It drives the vertical shear and the
 // midplane-to-atmosphere temperature gradient.
@@ -182,9 +188,13 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   // Inner edge: fairly sharp at ISCO
   float innerEdgeWidth = diskRadiusRange * 0.05;
   float innerFade = smoothstep(diskInnerRadius, diskInnerRadius + innerEdgeWidth, a);
-  // Outer edge: much wider/smoother fade for natural falloff
-  float outerEdgeWidth = diskRadiusRange * 0.25;
-  float outerFade = smoothstep(diskOuterRadius, diskOuterRadius - outerEdgeWidth, a);
+  // The outer disk fades beyond its characteristic bright radius instead of
+  // ending at a visible circular boundary. Emission and opacity share the
+  // same tail so it cannot become a translucent shell.
+  float outerDistance = max(a - diskOuterRadius, 0.0);
+  // At the 1.8R render limit this reaches exp(-10), below 0.005%.
+  float outerFade = exp(-outerDistance / (0.08 * diskOuterRadius));
+  intensity *= outerFade;
 
   float alpha = innerFade * outerFade * diskOpacity;
 

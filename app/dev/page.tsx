@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { OverlayLabels } from '@/components/OverlayLabels';
 import { SoundToggleButton } from '@/components/SoundToggleButton';
 import { CameraController } from '@/lib/camera';
@@ -77,5 +76,5 @@ function DevContent() {
 }
 
 export default function DevPage() {
-  return <ProtectedRoute component={DevContent} requiredRole="admin" />;
+  return <DevContent />;
 }

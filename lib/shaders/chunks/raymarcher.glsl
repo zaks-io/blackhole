@@ -38,9 +38,7 @@ vec4 traceRay(vec2 uv) {
 #ifdef BINARY_MODE
   float effectiveDiskOuter = circumbinaryOuterRadius;
 #else
-  // The eccentric mode tapers to circular at both disk edges (see
-  // sampleDisk), so streamlines never leave [diskInnerRadius, diskOuterRadius]
-  float effectiveDiskOuter = diskOuterRadius;
+  float effectiveDiskOuter = getSingleDiskRenderOuterRadius();
 #endif
   bool canHitDisk = impactParam < effectiveDiskOuter * 1.2;
   float stepMultiplier = canHitDisk ? 1.0 : 1.5;
@@ -265,11 +263,13 @@ vec4 traceRay(vec2 uv) {
       }
 #else
       // For direct disk hits (first crossing or within disk bounds)
-      if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
+      if (hitR > diskInnerRadius && hitR < getSingleDiskRenderOuterRadius()) {
         float remaining = 1.0 - diskAccum.a;
         // Skip the MHD/blackbody stack once the accumulator is saturated;
         // a sample scaled by remaining < 0.002 is below quantization.
-        if (remaining > 0.002) {
+        // Thick disks are integrated continuously below. Rendering a separate
+        // midplane surface would add a second translucent sheet.
+        if (remaining > 0.002 && thickDiskEnabled < 0.5) {
           vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, bz, 0.0);
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
@@ -410,7 +410,8 @@ vec4 traceRay(vec2 uv) {
         // For binary, check against circumbinary outer radius
         bool inDiskBounds = hitR < circumbinaryOuterRadius;
 #else
-        bool inDiskBounds = hitR > diskInnerRadius && hitR < diskOuterRadius;
+        bool inDiskBounds =
+          hitR > diskInnerRadius && hitR < getSingleDiskRenderOuterRadius();
 #endif
 
         if (inDiskBounds && absY < effectiveThickness) {

@@ -25,7 +25,7 @@ export function createDiskFolder(gui: GUI, config: DiskFolderConfig): void {
 
   geomFolder
     .add(params, 'diskOuterRadius', 6.0, 20.0, 0.5)
-    .name('Outer Radius (rs)')
+    .name('Bright Radius (rs)')
     .onChange((value: number) => {
       lensingPass.updateParams({ diskOuterRadius: value });
     });
