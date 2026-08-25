@@ -8,6 +8,7 @@ import { VerticalBlurShader } from 'three/examples/jsm/shaders/VerticalBlurShade
 import gsap from 'gsap';
 import { LensingPass, LensingParams } from '@/lib/passes/LensingPass';
 import { CONFIG } from '@/lib/config';
+import { getEhtScreenBlur } from '@/lib/physics/eht';
 import { EhtBlurController, PostProcessingConfig } from './types';
 
 export class PostProcessingPipeline {
@@ -18,8 +19,10 @@ export class PostProcessingPipeline {
   private blurPasses: { h: ShaderPass; v: ShaderPass }[] = [];
   private ehtBlurState = { intensity: 0 };
   private ehtBlurEnabled: boolean;
-  private ehtBlurStrength: number;
+  private ehtBlurStrengthScale: number;
+  private ehtPhysicalBlurStrength = 1;
   private renderer: THREE.WebGLRenderer;
+  private drawingBufferSize = new THREE.Vector2();
 
   constructor(
     renderer: THREE.WebGLRenderer,
@@ -29,7 +32,7 @@ export class PostProcessingPipeline {
   ) {
     this.renderer = renderer;
     this.ehtBlurEnabled = config.ehtBlurEnabled;
-    this.ehtBlurStrength = config.ehtBlurStrength;
+    this.ehtBlurStrengthScale = config.ehtBlurStrength;
     this.ehtBlurState.intensity = config.ehtBlurEnabled ? 1.0 : 0.0;
 
     const width = window.innerWidth;
@@ -93,7 +96,8 @@ export class PostProcessingPipeline {
       const hBlurPass = new ShaderPass(HorizontalBlurShader);
       const vBlurPass = new ShaderPass(VerticalBlurShader);
 
-      const blurAmount = this.ehtBlurStrength * this.ehtBlurState.intensity;
+      const blurAmount =
+        this.ehtPhysicalBlurStrength * this.ehtBlurStrengthScale * this.ehtBlurState.intensity;
       hBlurPass.uniforms['h'].value = blurAmount / deviceWidth;
       vBlurPass.uniforms['v'].value = blurAmount / deviceHeight;
 
@@ -130,7 +134,7 @@ export class PostProcessingPipeline {
     const pixelRatio = this.renderer.getPixelRatio();
     const deviceWidth = Math.floor(window.innerWidth * pixelRatio);
     const deviceHeight = Math.floor(window.innerHeight * pixelRatio);
-    const blurAmount = this.ehtBlurStrength * intensity;
+    const blurAmount = this.ehtPhysicalBlurStrength * this.ehtBlurStrengthScale * intensity;
     const enabled = intensity > 0;
 
     this.blurPasses.forEach(({ h, v }) => {
@@ -153,8 +157,29 @@ export class PostProcessingPipeline {
     });
   }
 
-  setEhtBlurStrength(strength: number): void {
-    this.ehtBlurStrength = strength;
+  setEhtBlurStrength(strengthScale: number): void {
+    this.ehtBlurStrengthScale = strengthScale;
+    this.updateBlurStrength(this.ehtBlurState.intensity);
+  }
+
+  updateEhtBlurForCamera(camera: THREE.PerspectiveCamera): void {
+    if (!this.ehtBlurEnabled && this.ehtBlurState.intensity <= 0) return;
+
+    this.renderer.getDrawingBufferSize(this.drawingBufferSize);
+    const cameraDistanceRs = camera.position.length() / CONFIG.rs;
+    const blur = getEhtScreenBlur(
+      cameraDistanceRs,
+      camera.getEffectiveFOV(),
+      this.drawingBufferSize.y,
+      {
+        angularResolutionMicroarcseconds: CONFIG.ehtBlur.angularResolutionMicroarcseconds,
+        referenceRingDiameterMicroarcseconds: CONFIG.ehtBlur.referenceRingDiameterMicroarcseconds,
+        iterations: CONFIG.ehtBlur.iterations,
+      }
+    );
+
+    if (Math.abs(blur.shaderStrength - this.ehtPhysicalBlurStrength) < 0.01) return;
+    this.ehtPhysicalBlurStrength = blur.shaderStrength;
     this.updateBlurStrength(this.ehtBlurState.intensity);
   }
 
@@ -178,7 +203,8 @@ export class PostProcessingPipeline {
 
     this.fxaaPass.uniforms['resolution'].value.set(1 / deviceWidth, 1 / deviceHeight);
 
-    const blurAmount = this.ehtBlurStrength * this.ehtBlurState.intensity;
+    const blurAmount =
+      this.ehtPhysicalBlurStrength * this.ehtBlurStrengthScale * this.ehtBlurState.intensity;
     this.blurPasses.forEach(({ h, v }) => {
       h.uniforms['h'].value = blurAmount / deviceWidth;
       v.uniforms['v'].value = blurAmount / deviceHeight;

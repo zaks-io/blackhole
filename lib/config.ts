@@ -41,7 +41,9 @@ export const CONFIG = {
     temperatureInner: 10000, // Peak temp of the Novikov-Thorne profile (mini-disks scale by mass^-1/4)
     temperatureOuter: 3000, // Circumbinary disk temp at the cavity edge (binary mode only)
     halfThickness: 0.1,
-    volumeDensity: 0.15,
+    // Multiplier on the face-on optical depth. At 1, the integrated volume
+    // reaches disk.opacity without needing a second midplane surface.
+    volumeDensity: 1,
     // Vertical structure: flared scale height H = flare * r (capped by the
     // active half-thickness), MHD pattern lag at the disk surface, and the
     // midplane-to-surface temperature drop
@@ -123,7 +125,12 @@ export const CONFIG = {
   // EHT-style blur effect (replicates telescope diffraction)
   ehtBlur: {
     enabled: false,
-    strength: 1.8,
+    // 2017 EHT observations at 1.3 mm had a nominal 25 microarcsecond
+    // resolution and measured M87*'s ring at 42 microarcseconds. The renderer
+    // preserves that beam-to-ring ratio as the camera zoom changes.
+    angularResolutionMicroarcseconds: 25,
+    referenceRingDiameterMicroarcseconds: 42,
+    strength: 1,
     iterations: 6,
   },
 

@@ -267,6 +267,7 @@ export class SimulationController {
       this.pipeline.lensingPass.updateTime(this.scaledTime);
       this.camera.updateMatrixWorld();
       this.pipeline.lensingPass.updateCamera(this.camera);
+      this.pipeline.updateEhtBlurForCamera(this.camera);
 
       // Update audio with full simulation state
       const binaryState = this.pipeline.lensingPass.getBinaryState();

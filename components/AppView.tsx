@@ -26,8 +26,8 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(initialView ?? 'default');
   const [ehtBlurController, setEhtBlurController] = useState<EhtBlurController | null>(null);
-  const [ehtMode, setEhtMode] = useState(false);
-  const [ehtBlurEnabled, setEhtBlurEnabled] = useState(true);
+  const [ehtMode, setEhtMode] = useState(initialView === 'eht');
+  const [ehtBlurEnabled, setEhtBlurEnabled] = useState(initialView === 'eht');
   const [introComplete, setIntroComplete] = useState(!!initialView);
   const directViewStartedRef = useRef(false);
   const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
@@ -263,7 +263,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         showDevControls={false}
         showStats={false}
         initialCameraPreset={initialView ?? 'far'}
-        initialEhtBlurEnabled={false}
+        initialEhtBlurEnabled={initialView === 'eht'}
         toggleState={toggleState}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
@@ -312,7 +312,11 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         color={toggleState.wormhole ? '#66ccff' : toggleState.binary ? '#ff66cc' : '#ff8c42'}
       />
 
-      <InfoPanel cameraDistance={cameraDistance} show={introComplete} />
+      <InfoPanel
+        cameraDistance={cameraDistance}
+        ehtBlurEnabled={ehtBlurEnabled}
+        show={introComplete}
+      />
 
       <DiagnosticsOverlay
         cameraController={cameraController}

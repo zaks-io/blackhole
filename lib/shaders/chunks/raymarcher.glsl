@@ -448,7 +448,19 @@ vec4 traceRay(vec2 uv) {
           // blended alpha. Covers the Gaussian fringe of the thick disk and
           // saturated accumulators.
           float remaining = 1.0 - diskAccum.a;
-          float weightEst = verticalDensity * diskVolumeDensity * stepSize * skipMultiplier * remaining;
+          float columnDepth;
+          if (thickDiskEnabled > 0.5) {
+            // Integral of the Gaussian vertical profile. Treating the tails
+            // beyond the slab cap as negligible keeps the face-on opacity
+            // stable as H flares with radius.
+            columnDepth = 2.506628 * thickDiskPuffiness * effectiveThickness;
+          } else {
+            // Integral from -H to H of (1 - |y| / H)^2.
+            columnDepth = (2.0 / 3.0) * effectiveThickness;
+          }
+          float weightEst =
+            verticalDensity * diskVolumeDensity * stepSize * skipMultiplier * remaining /
+            max(columnDepth, 1e-4);
 
           if (shouldSample && weightEst > 2e-4) {
             vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
@@ -467,8 +479,14 @@ vec4 traceRay(vec2 uv) {
             volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, bz, normalizedY);
 #endif
 
+            // diskOpacity describes the target face-on column opacity. Convert
+            // it to optical depth, distribute it through the normalized
+            // vertical profile, then let inclined rays accumulate naturally
+            // over their longer path through the volume.
+            float targetOpticalDepth = -log(max(1.0 - volColor.a, 1e-4));
             float opticalDepth = max(
-              volColor.a * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier,
+              targetOpticalDepth * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier /
+                max(columnDepth, 1e-4),
               0.0
             );
             float volAlpha = 1.0 - exp(-opticalDepth);

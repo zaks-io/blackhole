@@ -200,16 +200,14 @@ export function ControlDock({
             <EhtIcon size={20} />
             <span className="label">EHT</span>
           </button>
-          {ehtMode && (
-            <button
-              className={`dock-btn blur-btn ${ehtBlurEnabled ? 'active' : ''}`}
-              onClick={onEhtBlurToggle}
-              title={ehtBlurEnabled ? 'Show Sharp View' : 'Show Blurred View'}
-            >
-              {ehtBlurEnabled ? <BlurIcon size={20} /> : <SharpIcon size={20} />}
-              <span className="label">{ehtBlurEnabled ? 'Blur' : 'Sharp'}</span>
-            </button>
-          )}
+          <button
+            className={`dock-btn blur-btn ${ehtBlurEnabled ? 'active' : ''}`}
+            onClick={onEhtBlurToggle}
+            title={ehtBlurEnabled ? 'Show Sharp View' : 'Show Blurred View'}
+          >
+            {ehtBlurEnabled ? <BlurIcon size={20} /> : <SharpIcon size={20} />}
+            <span className="label">{ehtBlurEnabled ? 'Blur' : 'Sharp'}</span>
+          </button>
         </div>
 
         <div className="divider" />

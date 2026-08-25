@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CONFIG } from '@/lib/config';
+import { EhtObservationInfo } from './EhtObservationInfo';
 
 // Black hole mass presets with their Schwarzschild radius in km
 const MASS_PRESETS = [
@@ -13,6 +14,7 @@ const MASS_PRESETS = [
 
 interface InfoPanelProps {
   cameraDistance: number; // Distance in simulation units (rs)
+  ehtBlurEnabled?: boolean;
   show?: boolean;
 }
 
@@ -35,7 +37,7 @@ function formatDistance(km: number): string {
   }
 }
 
-export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
+export function InfoPanel({ cameraDistance, ehtBlurEnabled = false, show = true }: InfoPanelProps) {
   const [selectedMassIndex, setSelectedMassIndex] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -126,6 +128,8 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
             </span>
           </div>
         </div>
+
+        <EhtObservationInfo schwarzschildRadiusKm={rsInKm} show={ehtBlurEnabled} />
       </div>
 
       <style jsx>{`
@@ -217,7 +221,7 @@ export function InfoPanel({ cameraDistance, show = true }: InfoPanelProps) {
         }
 
         .panel-content.expanded {
-          max-height: 400px;
+          max-height: 500px;
           padding: 12px 14px;
           opacity: 1;
         }

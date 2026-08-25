@@ -77,8 +77,8 @@ export function createPostProcessingFolder(gui: GUI, config: PostProcessingFolde
     });
 
   ehtFolder
-    .add(params, 'ehtBlurStrength', 0.5, 5.0, 0.25)
-    .name('Strength')
+    .add(params, 'ehtBlurStrength', 0.5, 2.0, 0.05)
+    .name('Beam Scale')
     .onChange((value: number) => {
       pipeline.setEhtBlurStrength(value);
     });

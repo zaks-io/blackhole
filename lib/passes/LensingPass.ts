@@ -171,7 +171,7 @@ const LensingShader = {
     time: { value: 0.0 },
     // Volumetric disk uniforms
     diskHalfThickness: { value: 0.2 },
-    diskVolumeDensity: { value: 0.15 },
+    diskVolumeDensity: { value: 1.0 },
     // Luminance compression uniform
     diskLuminanceCompression: { value: 0.0 },
     // Texture contrast uniform
