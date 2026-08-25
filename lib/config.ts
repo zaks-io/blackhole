@@ -41,19 +41,16 @@ export const CONFIG = {
     temperatureInner: 10000, // Peak temp of the Novikov-Thorne profile (mini-disks scale by mass^-1/4)
     temperatureOuter: 3000, // Circumbinary disk temp at the cavity edge (binary mode only)
     halfThickness: 0.1,
-    // Multiplier on the face-on optical depth. At 1, the integrated volume
-    // reaches disk.opacity without needing a second midplane surface.
-    volumeDensity: 1,
+    volumeDensity: 0.15,
     // Vertical structure: flared scale height H = flare * r (capped by the
     // active half-thickness), MHD pattern lag at the disk surface, and the
     // midplane-to-surface temperature drop
     flare: 0.07,
     verticalShear: 0.6,
     atmosphereCool: 0.35,
-    // Keep radiance linear through the physical accumulation pass. These
-    // artistic controls remain available in /dev, but default to neutral.
-    luminanceCompression: 0,
-    textureContrast: 0,
+    // Preserve local MHD structure through the display tone map and bloom.
+    luminanceCompression: 0.2,
+    textureContrast: 1,
     materialSpeed: 15.0,
     opacity: 0.4,
     // m=1 eccentric mode (single-BH only): nested elliptical streamlines

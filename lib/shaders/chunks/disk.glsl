@@ -156,13 +156,17 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
     }
   }
 
-  // The screen represents specific intensity rather than total bolometric
-  // flux. At 230 GHz, h*nu/k is about 11 K, far below the disk temperature,
-  // so the Rayleigh-Jeans brightness is linear in observed temperature. The
-  // previous thermal^4 mapping collapsed emission into a narrow annulus that
-  // lensing repeated as hard concentric bands. The quarter-scale preserves
-  // roughly the former peak luminance while spreading light across the flow.
-  float baseIntensity = 0.25 * g * thermal * mhdTemp;
+  // A boosted blackbody is a blackbody at T_obs = g * T_emit, so bolometric
+  // intensity scales as (g * thermal)^4 relative to the profile peak.
+  float dopplerBoost = pow(g, 4.0);
+
+  // Reduce intensity boost when Doppler overlay is active to preserve colors
+  if (overlayDoppler > 0.0) {
+    // Mix from quartic to linear g for clearer color visualization
+    dopplerBoost = mix(dopplerBoost, g, overlayDoppler * 0.7);
+  }
+
+  float baseIntensity = dopplerBoost * pow(thermal, 4.0);
 
   // Apply Reinhard tonemapping to compress dynamic range while preserving local contrast
   // This prevents the bright Doppler-boosted side from washing out texture detail
