@@ -5,6 +5,19 @@
 // LensingPass when the binary toggle flips). Keeping the per-BH math out of
 // the single-BH shader cuts register pressure in the hot loop measurably.
 
+// Return the [entry, exit] interval where a straight ray segment lies inside
+// a horizontal slab. An inverted interval means the segment misses the slab.
+vec2 segmentSlabInterval(float startY, float endY, float halfThickness) {
+  float deltaY = endY - startY;
+  if (abs(deltaY) < 1e-6) {
+    return abs(startY) < halfThickness ? vec2(0.0, 1.0) : vec2(1.0, 0.0);
+  }
+
+  float lowerT = (-halfThickness - startY) / deltaY;
+  float upperT = (halfThickness - startY) / deltaY;
+  return vec2(max(min(lowerT, upperT), 0.0), min(max(lowerT, upperT), 1.0));
+}
+
 // Trace a single ray and return the color + TAA mask in alpha
 vec4 traceRay(vec2 uv) {
 #ifdef WORMHOLE_MODE
@@ -395,21 +408,36 @@ vec4 traceRay(vec2 uv) {
     }
 #endif
 
+    vec3 volumeSegmentStart = rayPos;
     rayPos = newPos;
 
     // Volumetric disk sampling with configurable thickness
     // Skip for rays that can't reach the disk based on impact parameter
     if (canHitDisk) {
       float maxThickness = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
-      float absY = abs(rayPos.y);
-      if (absY < maxThickness) {
-        float hitR = length(rayPos.xz);
-        // Flared scale height: H grows linearly with radius (H/r roughly
-        // constant for a thin alpha-disk), capped by the thickness slider so
-        // the far-field slab bound above stays valid. flare = 0 restores the
-        // constant-thickness slab.
-        float effectiveThickness =
-          diskFlare > 0.001 ? min(diskFlare * hitR, maxThickness) : maxThickness;
+      vec3 volumeProbe = mix(volumeSegmentStart, rayPos, 0.5);
+      float probeR = length(volumeProbe.xz);
+      float effectiveThickness =
+        diskFlare > 0.001 ? min(diskFlare * probeR, maxThickness) : maxThickness;
+      vec2 volumeInterval = segmentSlabInterval(prevY, currY, effectiveThickness);
+
+      if (volumeInterval.y > volumeInterval.x) {
+        // Refine the flared scale height at the center of the portion that is
+        // actually inside the disk. This makes opacity depend on path length,
+        // not on which ray-march endpoint happens to land inside the slab.
+        float volumeT = 0.5 * (volumeInterval.x + volumeInterval.y);
+        volumeProbe = mix(volumeSegmentStart, rayPos, volumeT);
+        probeR = length(volumeProbe.xz);
+        effectiveThickness =
+          diskFlare > 0.001 ? min(diskFlare * probeR, maxThickness) : maxThickness;
+        volumeInterval = segmentSlabInterval(prevY, currY, effectiveThickness);
+
+        float segmentFraction = max(volumeInterval.y - volumeInterval.x, 0.0);
+        volumeT = 0.5 * (volumeInterval.x + volumeInterval.y);
+        vec3 volumePos = mix(volumeSegmentStart, rayPos, volumeT);
+        float hitR = length(volumePos.xz);
+        float absY = abs(volumePos.y);
+        float segmentLength = stepSize * segmentFraction;
 
         // Check if within disk bounds
 #ifdef BINARY_MODE
@@ -420,7 +448,7 @@ vec4 traceRay(vec2 uv) {
           hitR > diskInnerRadius && hitR < getSingleDiskRenderOuterRadius();
 #endif
 
-        if (inDiskBounds && absY < effectiveThickness) {
+        if (inDiskBounds && segmentLength > 0.0 && absY < effectiveThickness) {
           float normalizedY = absY / effectiveThickness;
 
           // Vertical density profile
@@ -459,11 +487,11 @@ vec4 traceRay(vec2 uv) {
             columnDepth = (2.0 / 3.0) * effectiveThickness;
           }
           float weightEst =
-            verticalDensity * diskVolumeDensity * stepSize * skipMultiplier * remaining /
+            verticalDensity * diskVolumeDensity * segmentLength * skipMultiplier * remaining /
             max(columnDepth, 1e-4);
 
           if (shouldSample && weightEst > 2e-4) {
-            vec3 projectedPos = vec3(rayPos.x, 0.0, rayPos.z);
+            vec3 projectedPos = vec3(volumePos.x, 0.0, volumePos.z);
             vec4 volColor;
 
 #ifdef BINARY_MODE
@@ -485,7 +513,7 @@ vec4 traceRay(vec2 uv) {
             // over their longer path through the volume.
             float targetOpticalDepth = -log(max(1.0 - volColor.a, 1e-4));
             float opticalDepth = max(
-              targetOpticalDepth * verticalDensity * diskVolumeDensity * stepSize * skipMultiplier /
+              targetOpticalDepth * verticalDensity * diskVolumeDensity * segmentLength * skipMultiplier /
                 max(columnDepth, 1e-4),
               0.0
             );

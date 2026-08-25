@@ -53,6 +53,12 @@ vec3 sampleBlackbody(float temp) {
   return texture2D(blackbodyLUT, vec2(t, 0.5)).rgb;
 }
 
+// Higher-order images are demagnified as their rays wind around the hole.
+float higherOrderAttenuation(int imageOrder) {
+  int orbits = max(imageOrder, 0) / 2;
+  return pow(0.25, float(orbits));
+}
+
 // diskOuterRadius marks the end of the bright disk, not a geometric cutoff.
 // The ray marcher follows the exponential tail until it is visually negligible.
 float getSingleDiskRenderOuterRadius() {
@@ -150,18 +156,13 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
     }
   }
 
-  // A boosted blackbody is a blackbody at T_obs = g * T_emit, so bolometric
-  // intensity scales as (g * thermal)^4 relative to the profile peak. The
-  // thermal^4 term replaces the old artistic radial falloff.
-  float dopplerBoost = pow(g, 4.0);
-
-  // Reduce intensity boost when Doppler overlay is active to preserve colors
-  if (overlayDoppler > 0.0) {
-    // Mix from quartic to linear g for clearer color visualization
-    dopplerBoost = mix(dopplerBoost, g, overlayDoppler * 0.7);
-  }
-
-  float baseIntensity = dopplerBoost * pow(thermal, 4.0);
+  // The screen represents specific intensity rather than total bolometric
+  // flux. At 230 GHz, h*nu/k is about 11 K, far below the disk temperature,
+  // so the Rayleigh-Jeans brightness is linear in observed temperature. The
+  // previous thermal^4 mapping collapsed emission into a narrow annulus that
+  // lensing repeated as hard concentric bands. The quarter-scale preserves
+  // roughly the former peak luminance while spreading light across the flow.
+  float baseIntensity = 0.25 * g * thermal * mhdTemp;
 
   // Apply Reinhard tonemapping to compress dynamic range while preserving local contrast
   // This prevents the bright Doppler-boosted side from washing out texture detail
@@ -175,13 +176,7 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   // MHD modulation with boosted contrast
   float intensity = compressedIntensity * boostedDensity;
 
-  // Higher-order images (photon rings) are exponentially demagnified
-  // Each full orbit around BH loses ~e^(-2*pi) of brightness
-  // crossingIndex counts disk plane crossings; 2 crossings ≈ 1 orbit
-  // Using 0.25 per half-orbit as a compromise between physical accuracy and visibility
-  int orbits = crossingIndex / 2;  // Full orbits (2 crossings = 1 orbit)
-  float higherOrderDecay = pow(0.25, float(orbits));
-  intensity *= higherOrderDecay;
+  intensity *= higherOrderAttenuation(crossingIndex);
 
   // Alpha: smooth edge fading (in streamline label a, so the disk edges
   // follow the eccentric flow instead of cutting circular holes in it)
@@ -327,10 +322,7 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
   float boostedDensity = 1.0 + (mhdDensity - 1.0) * contrastMult;
   float intensity = compressedIntensity * boostedDensity;
 
-  // Higher-order image decay
-  int orbits = crossingIndex / 2;
-  float higherOrderDecay = pow(0.25, float(orbits));
-  intensity *= higherOrderDecay;
+  intensity *= higherOrderAttenuation(crossingIndex);
 
   // Edge fading
   float diskRange = outerR - innerR;
@@ -460,10 +452,7 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
   float boostedDensity = 1.0 + (mhdDensity - 1.0) * contrastMult;
   float intensity = compressedIntensity * boostedDensity;
 
-  // Higher-order decay
-  int orbits = crossingIndex / 2;
-  float higherOrderDecay = pow(0.25, float(orbits));
-  intensity *= higherOrderDecay;
+  intensity *= higherOrderAttenuation(crossingIndex);
 
   // Smooth edge fading - both use warpedR for consistent oblong shape
   float diskRange = outerR - innerR;
