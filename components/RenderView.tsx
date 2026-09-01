@@ -20,7 +20,6 @@ import {
 import { RenderControlPanel } from './RenderControlPanel';
 import { CAMERA_SEQUENCES } from './BlackHoleSimulation';
 import type { RenderProgress, RenderStatus } from '@/lib/render/types';
-import { UserMenu } from './UserMenu';
 
 function createProceduralStarfield(): THREE.Texture {
   const canvas = document.createElement('canvas');
@@ -344,8 +343,6 @@ export function RenderView() {
   return (
     <div className="render-view">
       <div ref={containerRef} className="canvas-container" />
-
-      <UserMenu />
 
       {isReady && (
         <RenderControlPanel

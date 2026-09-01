@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Analytics } from '@vercel/analytics/react';
-import { Auth0ProviderWrapper } from '@/components/Auth0ProviderWrapper';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -37,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <Auth0ProviderWrapper>{children}</Auth0ProviderWrapper>
+        {children}
         <Analytics />
       </body>
     </html>

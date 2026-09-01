@@ -13,7 +13,6 @@ import { InfoPanel } from './InfoPanel';
 import { OverlayLabels } from './OverlayLabels';
 import { DiagnosticsOverlay } from './DiagnosticsOverlay';
 import { TargetIndicator } from './TargetIndicator';
-import { UserMenu } from './UserMenu';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
 import { DiagnosticsMode, ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
@@ -324,11 +323,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         show={introComplete}
       />
 
-      <UserMenu show={introComplete} />
-
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
-
-      {/* TODO: Voice agent UI temporarily removed — will be re-integrated */}
 
       <style jsx>{`
         .intro-overlay {

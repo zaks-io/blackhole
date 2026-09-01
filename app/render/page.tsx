@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 const RenderView = dynamic(() => import('@/components/RenderView').then((mod) => mod.RenderView), {
   ssr: false,
@@ -29,10 +28,6 @@ const RenderView = dynamic(() => import('@/components/RenderView').then((mod) =>
   ),
 });
 
-function RenderContent() {
-  return <RenderView />;
-}
-
 export default function RenderPage() {
-  return <ProtectedRoute component={RenderContent} requiredRole="admin" />;
+  return <RenderView />;
 }

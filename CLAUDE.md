@@ -32,7 +32,7 @@ This is a Next.js 16 + React 19 app with a real-time WebGL2 gravitational lensin
 - `/` - Landing page
 - `/app` - Main simulation with toggle controls and info panel
 - `/dev` - Development view with lil-gui controls and FPS stats
-- `/render` - Offline high-quality video frame export (admin protected)
+- `/render` - Offline high-quality video frame export
 
 ### Key Libraries
 
@@ -50,8 +50,6 @@ This is a Next.js 16 + React 19 app with a real-time WebGL2 gravitational lensin
 - `RenderView.tsx` - Offline rendering interface with quality presets and progress tracking
 - `ToggleControlBar.tsx` - UI toggles for overlays (ISCO, event horizon, Doppler, jets)
 - `CameraPresetBar.tsx` - Camera preset buttons and sequence triggers
-- Auth components (`Auth0ProviderWrapper`, `ProtectedRoute`, `UserMenu`) - Role-based access
-- Voice components (`VoiceAgentPopup`, `VoiceLoginPrompt`, `AudioVisualizer`) - ElevenLabs integration
 
 ### Rendering Pipeline
 

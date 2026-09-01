@@ -2,7 +2,7 @@
 
 A real-time gravitational lensing simulation of a Schwarzschild (non-rotating) black hole with an accretion disk, built with Three.js and WebGL2.
 
-![Black Hole Simulation](https://github.com/user-attachments/assets/placeholder.png)
+![Black Hole Simulation](public/blackhole-warp.webp)
 
 ## Features
 
@@ -12,7 +12,7 @@ A real-time gravitational lensing simulation of a Schwarzschild (non-rotating) b
 - **Doppler Shift**: Color shift based on disk rotation velocity relative to observer
 - **Relativistic Beaming**: Intensity variation due to relativistic motion
 - **HDR Starfield**: 4K equirectangular star map background with proper lensing
-- **Real-time Performance**: 60+ FPS at 1440p with adaptive ray march step scaling
+- **Real-time Performance**: Adaptive ray-march quality based on display resolution
 - **Interactive Controls**: Orbit camera with zoom, plus GUI for simulation parameters
 
 ## Quick Start
@@ -25,10 +25,10 @@ bun install
 bun dev
 
 # Build for production
-bun build
+bun run build
 ```
 
-Open `http://localhost:3001` in your browser.
+Open `http://localhost:3000` in your browser.
 
 ## Controls
 
@@ -89,15 +89,17 @@ Rays that cross inside the Schwarzschild radius (r < rs) are absorbed and render
 ### Architecture
 
 ```
-src/
-├── main.ts              # Application entry, scene setup, animation loop
-├── shaders/
-│   ├── lensing.vert.glsl   # Fullscreen quad vertex shader
-│   └── lensing.frag.glsl   # Ray marching + lensing fragment shader
-├── passes/
-│   └── LensingPass.ts      # Custom Three.js post-processing pass
-└── utils/
-    └── blackbodyLUT.ts     # Blackbody color lookup table generation
+app/                      # Next.js routes and global styles
+components/               # Simulation controls and React views
+lib/
+├── camera/               # Camera presets, movement, and sequences
+├── passes/               # Three.js post-processing passes
+├── physics/              # CPU reference physics
+├── render/               # Offline frame rendering
+├── shaders/              # GLSL lensing and disk shaders
+├── simulation/           # Renderer and simulation lifecycle
+└── utils/                # Texture and sampling utilities
+tests/                    # Physics and rendering reference tests
 ```
 
 ### Rendering Pipeline
@@ -115,13 +117,18 @@ src/
 ### Dependencies
 
 - [Three.js](https://threejs.org/) - 3D rendering
+- [Next.js](https://nextjs.org/) - Application framework
+- [React](https://react.dev/) - User interface
+- [GSAP](https://gsap.com/) - Camera and background transitions
 - [lil-gui](https://lil-gui.georgealways.com/) - Parameter controls
 - [stats.js](https://github.com/mrdoob/stats.js/) - FPS monitoring
-- [Vite](https://vitejs.dev/) - Build tool
 
-## Starfield Asset
+## Assets
 
-The simulation uses `starmap_2020_4k.exr`, a 4K HDR equirectangular star map from [NASA's Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851/). Place this file in `/public/textures/`.
+The simulation includes a NASA Deep Star Maps 2020 background and additional backgrounds from
+Space Spheremaps. These files have separate source terms and are not covered by the repository's
+MIT license. See [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md) for the verified sources, terms,
+and attribution.
 
 ## Browser Support
 
@@ -134,7 +141,8 @@ Requires WebGL2 support:
 
 ## License
 
-MIT
+The source code is available under the [MIT License](LICENSE). Third-party image assets are
+excluded; see [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md).
 
 ## References
 
