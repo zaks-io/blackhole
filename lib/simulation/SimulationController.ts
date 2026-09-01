@@ -4,7 +4,7 @@ import Stats from 'stats.js';
 import { CameraController, FlyCamera } from '@/lib/camera';
 import { defaultLensingParams, LensingParams } from '@/lib/passes/LensingPass';
 import { CONFIG } from '@/lib/config';
-import { ToggleState } from '@/lib/types';
+import { DiagnosticsMode, ToggleState } from '@/lib/types';
 import { detectHDRSupport, HDRSupport } from '@/lib/display';
 import { CAMERA_PRESETS } from '@/lib/presets';
 import { BinaryAudioController } from '@/lib/audio';
@@ -359,8 +359,14 @@ export class SimulationController {
     return this.pipeline;
   }
 
-  updateToggleState(state: ToggleState): void {
+  updateToggleState(state: ToggleState, diagnosticsMode?: DiagnosticsMode): void {
+    const diagnosticsParams =
+      diagnosticsMode === undefined
+        ? {}
+        : { overlayIsco: diagnosticsMode === 'anatomy' ? 1.0 : 0.0 };
+
     this.pipeline?.lensingPass.updateParams({
+      ...diagnosticsParams,
       overlayEventHorizon: state.eventHorizon ? 1.0 : 0.0,
       diskOpacity: state.disk ? CONFIG.disk.opacity : 0.0,
       binaryEnabled: state.binary && !state.wormhole ? 1.0 : 0.0,

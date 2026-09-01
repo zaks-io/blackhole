@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
-import { ToggleState } from '@/lib/types';
+import { DiagnosticsMode, ToggleState } from '@/lib/types';
 import { SimulationController, EhtBlurController } from '@/lib/simulation';
 import { DevGUIController } from '@/lib/gui';
 import { BinaryAudioController } from '@/lib/audio';
@@ -26,6 +26,7 @@ export interface BlackHoleSimulationProps {
   initialCameraPreset?: keyof typeof CAMERA_PRESETS;
   initialEhtBlurEnabled?: boolean;
   toggleState?: ToggleState;
+  diagnosticsMode?: DiagnosticsMode;
   onCameraReady?: (controller: CameraController) => void;
   onEhtBlurReady?: (controller: EhtBlurController) => void;
   onAudioControllerReady?: (controller: BinaryAudioController) => void;
@@ -37,6 +38,7 @@ export default function BlackHoleSimulation({
   initialCameraPreset = 'far',
   initialEhtBlurEnabled = CONFIG.ehtBlur.enabled,
   toggleState,
+  diagnosticsMode,
   onCameraReady,
   onEhtBlurReady,
   onAudioControllerReady,
@@ -46,6 +48,10 @@ export default function BlackHoleSimulation({
   const currentInitIdRef = useRef(0);
   const controllerRef = useRef<SimulationController | null>(null);
   const guiRef = useRef<DevGUIController | null>(null);
+  const toggleStateRef = useRef(toggleState);
+  const diagnosticsModeRef = useRef(diagnosticsMode);
+  toggleStateRef.current = toggleState;
+  diagnosticsModeRef.current = diagnosticsMode;
 
   useEffect(() => {
     if (!containerRef.current || initRef.current) return;
@@ -77,6 +83,12 @@ export default function BlackHoleSimulation({
       if (currentInitIdRef.current !== thisInitId) {
         controller.dispose();
         return;
+      }
+
+      const currentToggleState = toggleStateRef.current;
+      if (currentToggleState) {
+        controller.updateToggleState(currentToggleState, diagnosticsModeRef.current);
+        controller.enableAudio(currentToggleState.audio);
       }
 
       // Setup dev GUI if enabled
@@ -135,10 +147,10 @@ export default function BlackHoleSimulation({
   // Sync toggle state to shader and audio
   useEffect(() => {
     if (controllerRef.current && toggleState) {
-      controllerRef.current.updateToggleState(toggleState);
+      controllerRef.current.updateToggleState(toggleState, diagnosticsMode);
       controllerRef.current.enableAudio(toggleState.audio);
     }
-  }, [toggleState]);
+  }, [toggleState, diagnosticsMode]);
 
   return (
     <>

@@ -264,6 +264,7 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
         initialCameraPreset={initialView ?? 'far'}
         initialEhtBlurEnabled={initialView === 'eht'}
         toggleState={toggleState}
+        diagnosticsMode={diagnosticsMode}
         onCameraReady={handleCameraReady}
         onEhtBlurReady={handleEhtBlurReady}
       />

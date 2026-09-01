@@ -319,9 +319,10 @@ vec4 traceRay(vec2 uv) {
       if (anyOverlayEnabled > 0.5) {
         float ringThickness = 0.035 * rs;
 
-        // ISCO ring (3rs) - Cyan
+        // Ray-traced ISCO ring. Using the same disk-plane crossings as the
+        // emission keeps every direct and higher-order image aligned.
         if (overlayIsco > 0.0) {
-          vec4 ring = renderDiskPlaneRing(newPos, rayPos, 3.0 * rs, ringThickness, vec3(0.0, 0.85, 0.85), overlayIsco);
+          vec4 ring = renderDiskPlaneRing(newPos, rayPos, diskInnerRadius, ringThickness, vec3(0.0, 0.85, 0.85), overlayIsco);
           overlayAccum.rgb += ring.rgb * (1.0 - overlayAccum.a);
           overlayAccum.a = max(overlayAccum.a, ring.a);
         }
