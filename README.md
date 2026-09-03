@@ -2,7 +2,7 @@
 
 A real-time gravitational lensing simulation of a Schwarzschild (non-rotating) black hole with an accretion disk, built with Three.js and WebGL2.
 
-[blackhole.zaks.io](https://blackhole.zaks.io) is operated by [Zaks.io](https://zaks.io).
+Built by [Isaac Suttell](https://github.com/isuttell). [blackhole.zaks.io](https://blackhole.zaks.io) is operated by [Zaks.io](https://zaks.io).
 
 ![Black Hole Simulation](public/blackhole-warp.webp)
 
