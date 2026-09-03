@@ -17,6 +17,9 @@ import { CameraController } from '@/lib/camera';
 import { CONFIG } from '@/lib/config';
 import { DiagnosticsMode, ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
 
+// Distance readout and mode buttons only need to track the camera at a readable rate
+const CAMERA_READOUT_INTERVAL_MS = 100;
+
 /**
  * Wrapper component that contains both the simulation and camera controls.
  * This is dynamically imported so everything is in the same module scope.
@@ -34,31 +37,24 @@ export default function AppView({ initialView }: { initialView?: keyof typeof CA
   const [isFlyMode, setIsFlyMode] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [diagnosticsMode, setDiagnosticsMode] = useState<DiagnosticsMode>('off');
-  const animationFrameRef = useRef<number | null>(null);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
-    // Initial distance
-    setCameraDistance(controller.getDistance());
   }, []);
 
-  // Update camera distance and manual mode state on each frame
+  // Polling per frame re-rendered the whole view every frame because the
+  // distance is a float that changes continuously
   useEffect(() => {
     if (!cameraController) return;
 
-    const updateState = () => {
+    const syncCameraState = () => {
       setCameraDistance(cameraController.getDistance());
       setIsFlyMode(cameraController.getMode() === 'fly');
-      animationFrameRef.current = requestAnimationFrame(updateState);
     };
 
-    animationFrameRef.current = requestAnimationFrame(updateState);
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
+    syncCameraState();
+    const interval = window.setInterval(syncCameraState, CAMERA_READOUT_INTERVAL_MS);
+    return () => window.clearInterval(interval);
   }, [cameraController]);
 
   // Direct-view deep link: snap to the preset and start orbiting immediately,
