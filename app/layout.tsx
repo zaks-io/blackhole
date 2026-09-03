@@ -4,6 +4,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://blackhole.zaks.io'),
+  authors: [{ name: 'Zaks.io', url: 'https://zaks.io' }],
+  publisher: 'Zaks.io',
   title: 'Schwarzschild Black Hole Lensing',
   description:
     'Interactive visualization of gravitational lensing around a Schwarzschild black hole with accretion disk',

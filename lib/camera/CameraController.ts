@@ -39,12 +39,7 @@ export interface OrbitConfig {
 // ============================================================================
 
 export type SequenceStepType =
-  | 'snapTo'
-  | 'moveTo'
-  | 'transitionOrbit'
-  | 'startOrbit'
-  | 'stopOrbit'
-  | 'delay';
+  'snapTo' | 'moveTo' | 'transitionOrbit' | 'startOrbit' | 'stopOrbit' | 'delay';
 
 /**
  * Named lookAt targets whose world position is only known at runtime,

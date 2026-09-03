@@ -277,8 +277,14 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
 
         <div className="section contact">
           <p className="desc">
-            A side project I&apos;ve been tinkering with — built for fun, not profit. Sorry about
-            your fans.
+            <a href="https://blackhole.zaks.io" className="operator-link">
+              blackhole.zaks.io
+            </a>{' '}
+            is operated by{' '}
+            <a href="https://zaks.io" className="operator-link">
+              Zaks.io
+            </a>
+            . Built for fun, not profit. Sorry about your fans.
           </p>
           <a href={contactHref} className="contact-link">
             {contactLabel}
@@ -484,6 +490,16 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
           color: rgba(255, 255, 255, 0.25);
           text-decoration: none;
           transition: color 0.2s;
+        }
+
+        .operator-link {
+          color: rgba(255, 255, 255, 0.55);
+          text-decoration: none;
+          transition: color 0.2s;
+        }
+
+        .operator-link:hover {
+          color: rgba(255, 255, 255, 0.8);
         }
 
         .contact-link:hover {

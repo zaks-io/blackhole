@@ -2,6 +2,8 @@
 
 A real-time gravitational lensing simulation of a Schwarzschild (non-rotating) black hole with an accretion disk, built with Three.js and WebGL2.
 
+[blackhole.zaks.io](https://blackhole.zaks.io) is operated by [Zaks.io](https://zaks.io).
+
 ![Black Hole Simulation](public/blackhole-warp.webp)
 
 ## Features
@@ -127,8 +129,8 @@ tests/                    # Physics and rendering reference tests
 
 The simulation includes a NASA Deep Star Maps 2020 background and additional backgrounds from
 Space Spheremaps. These files have separate source terms and are not covered by the repository's
-MIT license. See [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md) for the verified sources, terms,
-and attribution.
+Apache 2.0 license. See [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md) for the verified sources,
+terms, and attribution.
 
 ## Browser Support
 
@@ -141,8 +143,9 @@ Requires WebGL2 support:
 
 ## License
 
-The source code is available under the [MIT License](LICENSE). Third-party image assets are
-excluded; see [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md).
+The source code is available under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for
+copyright and attribution notices. Third-party image assets are excluded; see
+[THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md).
 
 ## References
 

@@ -1,8 +1,8 @@
 # Third-Party Assets
 
-The MIT license in [LICENSE](LICENSE) applies to the source code in this repository. The asset
-files listed here are excluded from that license and remain subject to their respective source
-terms.
+The Apache License 2.0 in [LICENSE](LICENSE) applies to the source code in this repository. The
+asset files listed here are excluded from that license and remain subject to their respective
+source terms.
 
 Source and licensing terms were verified on September 1, 2026.
 
