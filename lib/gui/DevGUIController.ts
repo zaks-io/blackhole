@@ -36,6 +36,7 @@ export interface DevGUIConfig {
   audioController: BinaryAudioController;
   hdrSupport: HDRSupport;
   params: SimulationParams;
+  ensureWormholeFarSky: () => Promise<void>;
   onAutoStepsChange: () => void;
 }
 
@@ -68,7 +69,7 @@ export class DevGUIController {
     createWormholeFolder(this.gui, {
       lensingPass: config.lensingPass,
       params: config.params,
-      starfieldManager: config.starfieldManager,
+      ensureFarSky: config.ensureWormholeFarSky,
     });
 
     createDiskFolder(this.gui, {

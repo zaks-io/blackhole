@@ -333,24 +333,6 @@ export class CameraController {
   }
 
   /**
-   * Get current camera state (useful for LLM context)
-   */
-  getState(): CameraState {
-    return {
-      position: {
-        x: this.camera.position.x,
-        y: this.camera.position.y,
-        z: this.camera.position.z,
-      },
-      lookAt: {
-        x: this.currentLookAt.x,
-        y: this.currentLookAt.y,
-        z: this.currentLookAt.z,
-      },
-    };
-  }
-
-  /**
    * Get current control mode
    */
   getMode(): ControlMode {
@@ -633,7 +615,7 @@ export class CameraController {
     if (this.mode === 'fly' && this.flyCamera) {
       this.flyCamera.update(deltaTime);
 
-      // Keep the lookAt state coherent so getState(), projections, and the
+      // Keep the lookAt state coherent so projections and the
       // transition out of fly mode all see where the camera actually points
       this.camera.getWorldDirection(this.flyDirection);
       this.currentLookAt.copy(this.camera.position).add(this.flyDirection.multiplyScalar(10));

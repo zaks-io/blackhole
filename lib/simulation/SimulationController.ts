@@ -49,7 +49,6 @@ export class SimulationController {
 
     // Detect HDR support
     this.hdrSupport = detectHDRSupport();
-    console.log('HDR Support:', this.hdrSupport.details.join(', '));
 
     this.setupRenderer();
     this.setupCamera();
@@ -137,7 +136,6 @@ export class SimulationController {
     if (this.hdrSupport.hdr) {
       this.renderer.toneMapping = THREE.NoToneMapping;
       this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-      console.log('HDR output enabled automatically');
     } else {
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
       this.renderer.toneMappingExposure = CONFIG.renderer.toneMappingExposure;
@@ -226,10 +224,6 @@ export class SimulationController {
 
     this.params.maxSteps = steps;
     this.pipeline?.lensingPass.updateParams({ maxSteps: steps });
-
-    console.log(
-      `Resolution: ${width}x${height} (${(pixels / 1_000_000).toFixed(1)}M pixels) → ${steps} steps`
-    );
   }
 
   private onWindowResize(): void {
@@ -381,7 +375,7 @@ export class SimulationController {
   // Loaded on first wormhole enable so black-hole sessions never pay for it
   private wormholeFarSkyLoad: Promise<void> | null = null;
 
-  private ensureWormholeFarSky(): Promise<void> {
+  ensureWormholeFarSky(): Promise<void> {
     this.wormholeFarSkyLoad ??= this.starfieldManager
       .loadFar(CONFIG.wormhole.farSky)
       .then(({ texture, exposure }) => {

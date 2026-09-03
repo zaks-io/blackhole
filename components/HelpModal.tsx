@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback } from 'react';
 import { CloseIcon } from './icons';
+
+const CONTACT_EMAIL = 'isaac@zaks.io';
 
 interface HelpModalProps {
   open: boolean;
@@ -9,58 +11,6 @@ interface HelpModalProps {
 }
 
 export function HelpModal({ open, onClose }: HelpModalProps) {
-  const contactHref = useMemo(
-    () =>
-      [
-        'm',
-        'a',
-        'i',
-        'l',
-        't',
-        'o',
-        ':',
-        'i',
-        's',
-        'a',
-        'a',
-        'c',
-        '@',
-        'z',
-        'a',
-        'k',
-        's',
-        '.',
-        'i',
-        'o',
-      ].join(''),
-    []
-  );
-
-  const contactLabel = useMemo(
-    () =>
-      [
-        'i',
-        's',
-        'a',
-        'a',
-        'c',
-        ' ',
-        '[',
-        'a',
-        't',
-        ']',
-        ' ',
-        'z',
-        'a',
-        'k',
-        's',
-        '.',
-        'i',
-        'o',
-      ].join(''),
-    []
-  );
-
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -286,8 +236,8 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
             </a>
             . Built for fun, not profit. Sorry about your fans.
           </p>
-          <a href={contactHref} className="contact-link">
-            {contactLabel}
+          <a href={`mailto:${CONTACT_EMAIL}`} className="contact-link">
+            {CONTACT_EMAIL}
           </a>
         </div>
       </div>

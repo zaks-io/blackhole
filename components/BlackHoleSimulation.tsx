@@ -104,6 +104,7 @@ export default function BlackHoleSimulation({
           audioController: controller.getAudioController(),
           hdrSupport: controller.getHdrSupport(),
           params: controller.getParams(),
+          ensureWormholeFarSky: () => controller.ensureWormholeFarSky(),
           onAutoStepsChange: () => {
             // Trigger auto step count recalculation
             const params = controller.getParams();

@@ -110,10 +110,12 @@ Rays crossing r < rs are absorbed (render black). The photon sphere at r = 1.5rs
 │     │   ├── Check disk intersection                     │
 │     │   └── Sample starfield if escaped                 │
 │     └── Output: HDR color                               │
-│  3. UnrealBloomPass                                     │
+│  3. FXAA (optional)                                     │
+│  4. UnrealBloomPass                                     │
 │     └── Threshold, blur, composite                      │
-│  4. Tone mapping (ACES Filmic)                          │
-│  5. Output to screen                                    │
+│  5. EHT diffraction blur passes (optional)              │
+│  6. Tone mapping (ACES Filmic, or HDR passthrough)      │
+│  7. Output to screen                                    │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -201,34 +203,39 @@ const steps = lerp(150, 64, t);
 
 ```
 /
-├── index.html              # Entry HTML
-├── package.json            # Dependencies
-├── vite.config.ts          # Vite configuration
-├── tsconfig.json           # TypeScript config
-├── public/
-│   └── textures/
-│       └── starmap_2020_4k.exr  # HDR starfield
-└── src/
-    ├── main.ts             # App initialization, render loop
-    ├── shaders/
-    │   ├── lensing.vert.glsl   # Vertex shader
-    │   └── lensing.frag.glsl   # Fragment shader (ray marching)
-    ├── passes/
-    │   └── LensingPass.ts      # Three.js ShaderPass wrapper
-    └── utils/
-        └── blackbodyLUT.ts     # Blackbody LUT generation
+├── app/                      # Next.js routes: /, /app, /dev, /render, /[view]
+├── components/               # React UI and the simulation lifecycle wrapper
+├── lib/
+│   ├── config.ts             # Single source of truth for every parameter
+│   ├── passes/               # LensingPass, the ShaderPass around the ray marcher
+│   ├── shaders/              # GLSL entry shaders and chunks (raymarcher, disk, mhd, ...)
+│   ├── simulation/           # Renderer, post-processing pipeline, animation loop
+│   ├── camera/               # GSAP camera controller and fly mode
+│   ├── presets/              # Camera presets and scripted sequences
+│   ├── render/               # Offline frame export
+│   ├── audio/                # Sonification of the binary system
+│   ├── gui/                  # lil-gui folders for the /dev view
+│   ├── physics/              # CPU reference geodesics used by the tests
+│   └── utils/                # Blackbody and noise LUT generation
+├── public/textures/          # HDR/SDR starfield backgrounds
+├── tests/                    # Bun tests against the reference physics
+└── bench/                    # Shader performance harness
 ```
 
 ## Dependencies
 
-| Package          | Version  | Purpose             |
-| ---------------- | -------- | ------------------- |
-| three            | ^0.164.1 | 3D rendering, WebGL |
-| lil-gui          | ^0.19.2  | Parameter GUI       |
-| stats.js         | ^0.17.0  | FPS counter         |
-| vite             | ^5.2.0   | Dev server, bundler |
-| typescript       | ^5.2.2   | Type safety         |
-| vite-plugin-glsl | ^1.3.0   | GLSL imports        |
+| Package           | Version  | Purpose                            |
+| ----------------- | -------- | ---------------------------------- |
+| next              | ^16.3.4  | App framework, dev server, bundler |
+| react / react-dom | ^19.2.8  | UI                                 |
+| three             | ^0.170.0 | 3D rendering, WebGL2               |
+| gsap              | ^3.15.0  | Camera animation                   |
+| lil-gui           | ^0.20.0  | Parameter GUI (/dev)               |
+| stats.js          | ^0.17.0  | FPS counter (/dev)                 |
+| raw-loader        | ^4.0.2   | GLSL imports                       |
+| typescript        | ^5.9.3   | Type safety                        |
+
+Bun is the package manager, script runner, and test runner.
 
 ## Browser Requirements
 
@@ -241,14 +248,12 @@ const steps = lerp(150, 64, t);
 1. **Non-rotating black hole**: Does not model Kerr (spinning) black holes
 2. **Thin disk approximation**: No volumetric disk effects
 3. **No gravitational time dilation**: Disk emission not corrected for time dilation
-4. **No higher-order images**: Limited to ~3 disk crossings
+4. **Capped higher-order images**: Only the first few disk-plane crossings are traced
 5. **Approximate geodesics**: Not exact Schwarzschild integration
 
 ## Future Enhancements
 
 - [ ] Kerr (rotating) black hole support
 - [ ] Volumetric accretion disk with density falloff
-- [ ] Jet emission
-- [ ] Multiple photon ring rendering
 - [ ] VR support
 - [ ] GPU compute shader optimization

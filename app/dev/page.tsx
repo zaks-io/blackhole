@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { OverlayLabels } from '@/components/OverlayLabels';
 import { SoundToggleButton } from '@/components/SoundToggleButton';
 import { CameraController } from '@/lib/camera';
+import type { BinaryAudioController } from '@/lib/audio';
 import { ToggleState, DEFAULT_TOGGLE_STATE } from '@/lib/types';
 
 const BlackHoleSimulation = dynamic(() => import('@/components/BlackHoleSimulation'), {
@@ -35,10 +36,15 @@ const BlackHoleSimulation = dynamic(() => import('@/components/BlackHoleSimulati
 
 function DevContent() {
   const [cameraController, setCameraController] = useState<CameraController | null>(null);
+  const [audioController, setAudioController] = useState<BinaryAudioController | null>(null);
   const [toggleState, setToggleState] = useState<ToggleState>(DEFAULT_TOGGLE_STATE);
 
   const handleCameraReady = useCallback((controller: CameraController) => {
     setCameraController(controller);
+  }, []);
+
+  const handleAudioReady = useCallback((controller: BinaryAudioController) => {
+    setAudioController(controller);
   }, []);
 
   const handleSoundToggle = useCallback((enabled: boolean) => {
@@ -66,11 +72,12 @@ function DevContent() {
         initialEhtBlurEnabled={false}
         toggleState={toggleState}
         onCameraReady={handleCameraReady}
+        onAudioControllerReady={handleAudioReady}
       />
       <div id="dev-overlay-labels" style={{ display: 'none' }}>
         <OverlayLabels cameraController={cameraController} toggleState={toggleState} show={true} />
       </div>
-      <SoundToggleButton onToggle={handleSoundToggle} />
+      <SoundToggleButton onToggle={handleSoundToggle} audioController={audioController} />
     </>
   );
 }

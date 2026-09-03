@@ -67,11 +67,30 @@ export function RenderView() {
   const [progress, setProgress] = useState<RenderProgress | null>(null);
   const [isReady, setIsReady] = useState(false);
 
+  // Preview loop reads through refs so the same loop serves initial setup,
+  // render completion, and cancellation
+  const startPreview = useCallback(() => {
+    const animate = () => {
+      animationIdRef.current = requestAnimationFrame(animate);
+      const lensingPass = lensingPassRef.current;
+      const camera = cameraRef.current;
+      const composer = composerRef.current;
+      if (!lensingPass || !camera || !composer) return;
+      lensingPass.updateTime(clockRef.current.getElapsedTime() * DEFAULT_SIMULATION_SPEED);
+      lensingPass.updateCamera(camera);
+      composer.render();
+    };
+    animate();
+  }, []);
+
   // Initialize Three.js scene
   useEffect(() => {
     if (!containerRef.current) return;
 
     const container = containerRef.current;
+    // Texture loading is async; if the effect is torn down first (StrictMode
+    // double-mount), the continuation must not build passes on a disposed renderer
+    let cancelled = false;
 
     // Create renderer - match BlackHoleSimulation setup exactly
     const renderer = new THREE.WebGLRenderer({
@@ -112,6 +131,10 @@ export function RenderView() {
       } catch {
         // Fallback to procedural starfield
         starfieldTexture = createProceduralStarfield();
+      }
+      if (cancelled) {
+        starfieldTexture.dispose();
+        return;
       }
       // Mips + anisotropy keep the lensed sky from aliasing (star shimmer)
       starfieldTexture.minFilter = THREE.LinearMipmapLinearFilter;
@@ -164,22 +187,15 @@ export function RenderView() {
       );
       composer.addPass(bloomPass);
 
-      // EHT blur passes - controlled by preset
+      // EHT blur passes start disabled; the preset effect configures them once ready
       const iterations = CONFIG.ehtBlur.iterations;
       const blurPasses: { h: ShaderPass; v: ShaderPass }[] = [];
-      const preset = RENDER_PRESETS[selectedPreset];
-      const ehtBlurEnabled = preset.ehtBlur?.enabled ?? false;
-      const ehtBlurAmount = preset.ehtBlur?.amount ?? 0;
 
       for (let i = 0; i < iterations; i++) {
         const hBlurPass = new ShaderPass(HorizontalBlurShader);
         const vBlurPass = new ShaderPass(VerticalBlurShader);
-
-        hBlurPass.uniforms['h'].value = ehtBlurAmount / container.clientWidth;
-        vBlurPass.uniforms['v'].value = ehtBlurAmount / container.clientHeight;
-
-        hBlurPass.enabled = ehtBlurEnabled;
-        vBlurPass.enabled = ehtBlurEnabled;
+        hBlurPass.enabled = false;
+        vBlurPass.enabled = false;
 
         composer.addPass(hBlurPass);
         composer.addPass(vBlurPass);
@@ -188,48 +204,33 @@ export function RenderView() {
       blurPassesRef.current = blurPasses;
 
       setIsReady(true);
-
-      // Start preview animation loop
-      const animate = () => {
-        animationIdRef.current = requestAnimationFrame(animate);
-
-        if (status === 'rendering') return; // Don't update during render
-
-        const deltaTime = clockRef.current.getDelta();
-        lensingPass.updateTime(clockRef.current.getElapsedTime() * DEFAULT_SIMULATION_SPEED);
-        lensingPass.updateCamera(camera);
-        composer.render();
-      };
-
-      animate();
+      startPreview();
     };
 
     setupScene();
 
-    // Cleanup
     return () => {
+      cancelled = true;
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current);
+        animationIdRef.current = null;
       }
-      if (renderControllerRef.current) {
-        renderControllerRef.current.dispose();
-      }
-      if (lensingPassRef.current) {
-        lensingPassRef.current.dispose();
-      }
-      if (composerRef.current) {
-        composerRef.current.dispose();
-      }
-      if (rendererRef.current) {
-        rendererRef.current.dispose();
-        container.removeChild(rendererRef.current.domElement);
-      }
+      renderControllerRef.current?.dispose();
+      renderControllerRef.current = null;
+      lensingPassRef.current?.dispose();
+      lensingPassRef.current = null;
+      composerRef.current?.dispose();
+      composerRef.current = null;
+      blurPassesRef.current = [];
+      renderer.dispose();
+      container.removeChild(renderer.domElement);
+      rendererRef.current = null;
     };
-  }, []);
+  }, [startPreview]);
 
-  // Update blur passes when preset changes
+  // Apply the preset's blur settings once the scene exists and whenever it changes
   useEffect(() => {
-    if (!containerRef.current || blurPassesRef.current.length === 0) return;
+    if (!isReady || !containerRef.current) return;
 
     const preset = RENDER_PRESETS[selectedPreset];
     const ehtBlurEnabled = preset.ehtBlur?.enabled ?? false;
@@ -243,7 +244,7 @@ export function RenderView() {
       h.enabled = ehtBlurEnabled;
       v.enabled = ehtBlurEnabled;
     });
-  }, [selectedPreset]);
+  }, [selectedPreset, isReady]);
 
   // Update camera preview when sequence changes
   useEffect(() => {
@@ -295,21 +296,11 @@ export function RenderView() {
       {
         onProgress: setProgress,
         onStatusChange: setStatus,
-        onRenderComplete: () => {
-          // Restart preview animation
-          const animate = () => {
-            animationIdRef.current = requestAnimationFrame(animate);
-            lensingPassRef.current?.updateTime(
-              clockRef.current.getElapsedTime() * DEFAULT_SIMULATION_SPEED
-            );
-            lensingPassRef.current?.updateCamera(cameraRef.current!);
-            composerRef.current?.render();
-          };
-          animate();
-        },
+        onRenderComplete: startPreview,
         onError: (error) => {
           console.error('Render error:', error);
           setStatus('idle');
+          startPreview();
         },
       }
     );
@@ -321,24 +312,14 @@ export function RenderView() {
     } catch (error) {
       console.error('Render failed:', error);
     }
-  }, [selectedSequence, selectedPreset]);
+  }, [selectedSequence, selectedPreset, startPreview]);
 
   const handleCancelRender = useCallback(() => {
     if (renderControllerRef.current) {
       renderControllerRef.current.cancel();
-
-      // Restart preview animation
-      const animate = () => {
-        animationIdRef.current = requestAnimationFrame(animate);
-        lensingPassRef.current?.updateTime(
-          clockRef.current.getElapsedTime() * DEFAULT_SIMULATION_SPEED
-        );
-        lensingPassRef.current?.updateCamera(cameraRef.current!);
-        composerRef.current?.render();
-      };
-      animate();
+      startPreview();
     }
-  }, []);
+  }, [startPreview]);
 
   return (
     <div className="render-view">

@@ -327,9 +327,11 @@ export class BinaryAudioController {
 
     // Calculate approach velocity for Doppler-like effects (positive = approaching camera)
     const dt = Math.max(state.deltaTime, 0.001); // Avoid division by zero
-    const bh1Velocity = (this.lastBh1Dist - distToBh1) / dt;
-    const bh2Velocity = state.isBinaryMode ? (this.lastBh2Dist - distToBh2) / dt : bh1Velocity;
-    const velocityScale = 2; // rs/second for max effect
+    const bh1ApproachSpeed = (this.lastBh1Dist - distToBh1) / dt;
+    const bh2ApproachSpeed = state.isBinaryMode
+      ? (this.lastBh2Dist - distToBh2) / dt
+      : bh1ApproachSpeed;
+    const approachSpeedScale = 2; // rs/second for max effect
 
     // Doppler-like FILTER effect on arpeggios: brighter when approaching, darker when receding
     // (Pitch Doppler sounds dissonant on melodic voices, filter Doppler sounds natural)
@@ -337,23 +339,25 @@ export class BinaryAudioController {
     const filterModRange = 800; // Hz of modulation range
     const bh1FilterMod = Math.max(
       -filterModRange,
-      Math.min(filterModRange, (bh1Velocity / velocityScale) * filterModRange)
+      Math.min(filterModRange, (bh1ApproachSpeed / approachSpeedScale) * filterModRange)
     );
     this.bh1Arpeggio?.setFilterCutoff(baseFilterCutoff + bh1FilterMod);
     if (state.isBinaryMode) {
       const bh2FilterMod = Math.max(
         -filterModRange,
-        Math.min(filterModRange, (bh2Velocity / velocityScale) * filterModRange)
+        Math.min(filterModRange, (bh2ApproachSpeed / approachSpeedScale) * filterModRange)
       );
       this.bh2Arpeggio?.setFilterCutoff(baseFilterCutoff * 1.2 + bh2FilterMod);
     }
 
     // Doppler pitch effect on SUB-BASS (drones can pitch-shift without sounding melodically wrong)
-    const combinedVelocity = state.isBinaryMode ? (bh1Velocity + bh2Velocity) / 2 : bh1Velocity;
+    const combinedApproachSpeed = state.isBinaryMode
+      ? (bh1ApproachSpeed + bh2ApproachSpeed) / 2
+      : bh1ApproachSpeed;
     const subBassDoppler = 30; // Max cents for sub-bass
     const subBassDetune = Math.max(
       -subBassDoppler,
-      Math.min(subBassDoppler, (combinedVelocity / velocityScale) * subBassDoppler)
+      Math.min(subBassDoppler, (combinedApproachSpeed / approachSpeedScale) * subBassDoppler)
     );
     this.subBass?.setDetune(subBassDetune);
 
@@ -387,8 +391,8 @@ export class BinaryAudioController {
     this.pad?.setVolume(this.config.padVolume * state.diskOpacity);
     this.pad?.setFilterCutoff(200 + state.diskOpacity * 600);
 
-    // Calculate orbital period for sub-bass pulse
-    // From Kepler: P = 2π√(a³/rs) where a = separation
+    // Sub-bass pulse follows the Keplerian P ∝ a^(3/2) scaling with the
+    // total mass normalized to one; only the shape matters for the sound
     const orbitalPeriod = 2 * Math.PI * Math.sqrt(Math.pow(state.separation, 3));
     this.subBass?.setPulseRate(orbitalPeriod);
 

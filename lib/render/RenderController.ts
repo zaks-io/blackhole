@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import type { LensingPass } from '../passes/LensingPass';
+import type { LensingPass, LensingParams } from '../passes/LensingPass';
 import { CameraTimeline } from './CameraTimeline';
 import type { RenderQualityPreset, RenderProgress, RenderStatus } from './types';
 import type { CameraSequence } from '../camera/CameraController';
@@ -33,9 +33,10 @@ export class RenderController {
   // Original state to restore after rendering
   private originalRendererSize: { width: number; height: number } = { width: 0, height: 0 };
   private originalPixelRatio: number = 1;
-  private originalMaxSteps: number = 100;
-  private originalSupersampleLevel: number = 1;
-  private originalLodEnabled: number = 1;
+  private originalLensingParams: Pick<
+    LensingParams,
+    'maxSteps' | 'supersampleLevel' | 'lodEnabled'
+  > | null = null;
 
   constructor(
     renderer: THREE.WebGLRenderer,
@@ -85,9 +86,12 @@ export class RenderController {
     this.lensingPass.updateResolution(width, height);
 
     // Save original lensing params and set high quality rendering params
-    this.originalMaxSteps = 100;
-    this.originalSupersampleLevel = 1;
-    this.originalLodEnabled = 1;
+    const uniforms = this.lensingPass.uniforms;
+    this.originalLensingParams = {
+      maxSteps: uniforms['maxSteps'].value as number,
+      supersampleLevel: uniforms['supersampleLevel'].value as number,
+      lodEnabled: uniforms['lodEnabled'].value as number,
+    };
 
     this.lensingPass.updateParams({
       maxSteps: this.preset.rayMarching.maxSteps,
@@ -230,12 +234,10 @@ export class RenderController {
       this.camera.updateProjectionMatrix();
     }
 
-    // Restore original lensing params
-    this.lensingPass.updateParams({
-      maxSteps: this.originalMaxSteps,
-      supersampleLevel: this.originalSupersampleLevel,
-      lodEnabled: this.originalLodEnabled,
-    });
+    if (this.originalLensingParams) {
+      this.lensingPass.updateParams(this.originalLensingParams);
+      this.originalLensingParams = null;
+    }
 
     this.timeline = null;
   }

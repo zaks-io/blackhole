@@ -11,7 +11,6 @@ interface LabelConfig {
   radius: number;
   color: string;
   description?: string;
-  angleOffset: number; // Radians offset from camera direction to spread labels
 }
 
 const LABELS: LabelConfig[] = [
@@ -21,7 +20,6 @@ const LABELS: LabelConfig[] = [
     radius: CONFIG.rs,
     color: '#ff2626',
     description: '1 rs',
-    angleOffset: 0,
   },
 ];
 
@@ -156,10 +154,8 @@ export function OverlayLabels({ cameraController, toggleState, show }: OverlayLa
       // Skip if this overlay is not enabled
       if (!toggleState[labelConfig.key]) continue;
 
-      // Find a good position on the ring to place the label
-      // Base angle from camera direction, plus offset to spread labels apart
-      const baseAngle = Math.atan2(cameraPos.z, cameraPos.x);
-      const angle = baseAngle + labelConfig.angleOffset;
+      // Place the label on the ring point nearest the camera
+      const angle = Math.atan2(cameraPos.z, cameraPos.x);
 
       // Position on the ring at the offset angle (in disk plane)
       const worldPos = {

@@ -3,16 +3,16 @@ node_modules/
 
 # Build output
 dist/
+.next/
 
 # Environment files
-.env
-.env.local
-.env.*.local
+.env*
 
 # Editor directories and files
 .idea/
 .vscode/
 .codex/
+.playwright-mcp
 *.swp
 *.swo
 *~
@@ -30,14 +30,10 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.next/
-.playwright-mcp
+# Screenshots and benchmark artifacts
 *.png
-
-.env
-.env.*
-# Benchmark artifacts
 bench/dist/
 bench/results/
+
+# Deployment
 .vercel
-.env*
