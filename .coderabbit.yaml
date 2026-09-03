@@ -1,0 +1,176 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+# https://docs.coderabbit.ai/reference/yaml-template
+
+language: en-US
+
+# Public repos get Pro-level reviews at no cost; this keeps them on for any
+# contributor who isn't on a paid plan.
+enable_free_tier: true
+
+tone_instructions: >-
+  Lead with correctness bugs, then what would confuse a reader of the code or
+  a user of the UI. Be direct, cite file and line, skip praise. Do not propose
+  architectural rewrites or feature removal; assume a feature exists for a
+  reason.
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+
+  high_level_summary: true
+  changed_files_summary: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+
+  # Noise reduction: no ASCII art, no poems, no filler status chatter.
+  poem: false
+  in_progress_fortune: false
+
+  review_status: true
+  commit_status: true
+  fail_commit_status: false
+
+  # Lets a local coding agent consume findings verbatim.
+  enable_prompt_for_ai_agents: true
+
+  suggested_labels: true
+  auto_apply_labels: false
+  suggested_reviewers: false
+
+  # Off for now: review on demand with `@coderabbitai review` on a PR.
+  auto_review:
+    enabled: false
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - main
+    ignore_title_keywords:
+      - WIP
+      - DO NOT MERGE
+
+  # Binary assets and generated output carry no reviewable signal.
+  path_filters:
+    - '!bun.lock'
+    - '!public/textures/**'
+    - '!public/**/*.webp'
+    - '!bench/dist/**'
+    - '!bench/results/**'
+    - '!.next/**'
+
+  path_instructions:
+    - path: 'lib/shaders/**/*.glsl'
+      instructions: >-
+        GLSL for a fullscreen ray-marching pass. Flag: reads of uninitialized
+        varyings or uniforms; division or sqrt without a guard against zero or
+        negative operands; `pow`/`exp` on values that can go negative or NaN;
+        loops whose trip count depends on a non-constant expression; precision
+        mismatches between vertex and fragment stages; and branches inside the
+        march loop that could be hoisted. Watch for uniforms declared here but
+        never set from TypeScript, and for uniform names that drifted from the
+        `uniforms` object in lib/passes/LensingPass.ts. Do not suggest
+        restructuring the ray-march for style.
+    - path: 'lib/physics/**/*.ts'
+      instructions: >-
+        Schwarzschild geodesic and accretion-disk math. Verify units and
+        coordinate conventions are consistent (Schwarzschild radius rs, ISCO at
+        3rs, photon sphere at 1.5rs), that integrators cannot divide by r=0 or
+        step past the horizon without terminating, and that any change to a
+        constant is reflected in tests/. Check numeric edge cases: r near rs,
+        very large r, and grazing impact parameters.
+    - path: 'lib/config.ts'
+      instructions: >-
+        Single source of truth for simulation parameters. Any new parameter
+        must be threaded through the matching `build*Params` helper and its
+        shader uniform, not defaulted at the read site. Flag values that are
+        silently defaulted or clamped without an explanation of why.
+    - path: 'components/**/*.tsx'
+      instructions: >-
+        React 19 / Next 16 client components. Flag: Three.js resources
+        (geometries, materials, textures, render targets) created without a
+        matching dispose on unmount; event listeners or rAF loops not torn
+        down; state updates after unmount; and `useEffect` dependency arrays
+        that omit values the effect reads. For user-facing copy, flag emojis in
+        UI, and any internal id, slug, or plumbing vocabulary leaking into
+        labels.
+    - path: 'lib/**/*.ts'
+      instructions: >-
+        Fail fast and loud. Flag any place a missing or malformed value is
+        replaced with a plausible default instead of throwing. Flag swallowed
+        errors (empty catch, catch that only logs and continues).
+    - path: 'tests/**/*.test.ts'
+      instructions: >-
+        Bun test suites asserting physics against analytic references. Check
+        that tolerances are tight enough to catch regressions and that a test
+        would actually fail if the code under test were wrong.
+    - path: '.github/workflows/**'
+      instructions: >-
+        Flag unpinned third-party actions, secrets exposed to fork-triggered
+        events, and overly broad `permissions` blocks.
+
+  finishing_touches:
+    # This codebase is deliberately comment-light; code should be
+    # self-documenting. Don't auto-generate docstrings.
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: true
+
+  pre_merge_checks:
+    docstrings:
+      mode: 'off'
+    title:
+      mode: warning
+      requirements: >-
+        Imperative mood, under 72 characters, describes the user-visible or
+        behavioral change rather than the files touched. No ticket-number-only
+        titles.
+    description:
+      mode: warning
+    issue_assessment:
+      mode: warning
+
+  tools:
+    eslint:
+      enabled: true
+    # Redundant with ESLint here; the repo has no biome/oxlint config.
+    biome:
+      enabled: false
+    oxc:
+      enabled: false
+    gitleaks:
+      enabled: true
+    semgrep:
+      enabled: true
+    actionlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    github-checks:
+      enabled: true
+    reactDoctor:
+      enabled: true
+    # Prose linting on README/SPEC generates more noise than signal here.
+    languagetool:
+      enabled: false
+
+chat:
+  art: false
+  auto_reply: true
+  # Public repo: let outside contributors talk to the reviewer on their own PRs.
+  allow_non_org_members: true
+
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - '**/AGENTS.md'
+      - '**/CLAUDE.md'

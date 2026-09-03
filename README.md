@@ -9,13 +9,16 @@ A real-time gravitational lensing simulation of a Schwarzschild (non-rotating) b
 ## Features
 
 - **Accurate Gravitational Lensing**: Ray-traced light bending using the Schwarzschild metric geodesic equations
-- **Einstein Ring / Photon Ring**: Visible light bending around the event horizon shadow
-- **Accretion Disk**: Analytical disk with temperature gradient and relativistic effects
-- **Doppler Shift**: Color shift based on disk rotation velocity relative to observer
-- **Relativistic Beaming**: Intensity variation due to relativistic motion
-- **HDR Starfield**: 4K equirectangular star map background with proper lensing
+- **Photon Ring**: Higher-order images produced by traced disk-plane crossings, not a painted-on ring
+- **Accretion Disk**: Flared, vertically resolved disk with a temperature gradient, a hot corona, and optional relativistic jets
+- **Relativistic Effects**: Doppler shift, beaming as the cube of the Doppler factor, and gravitational redshift
+- **MHD Turbulence**: Spiral arms and orbiting hotspots baked per frame into a log-polar lookup
+- **EHT Mode**: Optional telescope-diffraction blur matched to the 2017 Event Horizon Telescope beam-to-ring ratio
+- **Alternate Spacetimes**: Traversable wormhole mode, and a binary system with a circumbinary disk, accretion streams, and gravitational waves
+- **HDR Starfield**: 4K equirectangular star maps, with automatic HDR display detection
 - **Real-time Performance**: Adaptive ray-march quality based on display resolution
-- **Interactive Controls**: Orbit camera with zoom, plus GUI for simulation parameters
+- **Interactive Controls**: Orbit and free-flight cameras, camera presets and sequences, plus a full parameter GUI
+- **Offline Rendering**: Frame-by-frame export at higher quality for video
 
 ## Quick Start
 
@@ -34,17 +37,31 @@ Open `http://localhost:3000` in your browser.
 
 ## Controls
 
+Orbit mode (default):
+
 - **Left Mouse Drag**: Orbit camera around black hole
 - **Scroll Wheel**: Zoom in/out
 - **Right Mouse Drag**: Pan camera
 
+Fly mode:
+
+- **Click**: Capture the mouse for direct look control; **Esc** releases it
+- **W / A / S / D**: Move along the view direction
+- **R / F**: Move vertically
+
+Camera presets are also reachable directly by URL, for example `/photon-sphere`
+or `/edge-on`.
+
 ### GUI Parameters
+
+A selection; `lib/config.ts` is the source of truth for every parameter and its
+current default.
 
 | Parameter            | Description                                   | Default  |
 | -------------------- | --------------------------------------------- | -------- |
 | Schwarzschild Radius | Size of the event horizon                     | 1.0      |
 | Auto Ray Steps       | Automatically scale steps based on resolution | On       |
-| Ray March Steps      | Number of integration steps per ray           | 64-150   |
+| Ray March Steps      | Number of integration steps per ray           | 64-200   |
 | Inner Radius         | Accretion disk inner edge (ISCO)              | 3.0 rs   |
 | Outer Radius         | Accretion disk outer edge                     | 12.0 rs  |
 | Inner Temp           | Temperature at disk inner edge                | 10,000 K |
@@ -73,14 +90,16 @@ This creates the characteristic bending where light passing close to the black h
 
 ### Accretion Disk
 
-The disk is modeled analytically with:
+The disk is modeled with:
 
 - **Inner edge** at the Innermost Stable Circular Orbit (ISCO = 3rs)
+- **Vertical structure**: a flared scale height with Gaussian falloff, not an infinitely thin plane
 - **Keplerian rotation**: v = √(GM/r)
 - **Temperature gradient**: Hotter near the center, cooler at edges
 - **Blackbody radiation**: Color based on temperature using a precomputed LUT
 - **Doppler shift**: Frequency/color shift based on disk velocity relative to observer
 - **Relativistic beaming**: Intensity ∝ (Doppler factor)³
+- **Gravitational redshift**: √(1 - rs/r) at the emission radius, combined with the Doppler term
 
 ### Event Horizon
 
@@ -92,29 +111,42 @@ Rays that cross inside the Schwarzschild radius (r < rs) are absorbed and render
 
 ```
 app/                      # Next.js routes and global styles
-components/               # Simulation controls and React views
+components/               # React views and simulation controls
 lib/
-├── camera/               # Camera presets, movement, and sequences
-├── passes/               # Three.js post-processing passes
-├── physics/              # CPU reference physics
+├── audio/                # Web Audio layers for binary mode
+├── camera/               # Orbit and free-flight camera controllers
+├── config.ts             # Every tunable simulation parameter
+├── display/              # HDR display detection
+├── gui/                  # lil-gui dev controls
+├── particles/            # Particle system types
+├── passes/               # LensingPass, the ray-marching shader pass
+├── physics/              # CPU reference physics used to validate the shader
+├── presets/              # Camera presets, sequences, starfield backgrounds
 ├── render/               # Offline frame rendering
-├── shaders/              # GLSL lensing and disk shaders
-├── simulation/           # Renderer and simulation lifecycle
-└── utils/                # Texture and sampling utilities
-tests/                    # Physics and rendering reference tests
+├── shaders/              # GLSL entry points and included chunks
+├── simulation/           # Renderer, lifecycle, post-processing composition
+└── utils/                # Blackbody and noise LUTs, blur, sampling
+tests/                    # Physics reference tests
+bench/                    # Standalone performance harness
 ```
 
 ### Rendering Pipeline
 
-1. **LensingPass**: Fullscreen shader that traces rays from camera through each pixel
-2. **UnrealBloomPass**: HDR bloom for the bright accretion disk glow
+1. **LensingPass**: Fullscreen shader that traces rays from the camera through each pixel
+2. **FXAA**: Anti-aliasing (optional)
+3. **UnrealBloomPass**: HDR bloom for the bright accretion disk glow
+4. **EHT blur**: Paired separable blur passes simulating telescope diffraction (optional, off by default)
+
+Tone mapping depends on the display: HDR displays receive linear sRGB with no
+tone mapping, everything else gets ACES Filmic.
 
 ### Performance Optimization
 
-- **Adaptive step count**: Fewer steps at higher resolutions (4K: 64 steps, 1080p: 150 steps)
-- **Adaptive step size**: Smaller steps near the black hole for accuracy, larger steps far away
-- **Early ray termination**: Rays exit loop when absorbed or escaped
-- **No geometry rendering**: Everything computed analytically in the fragment shader
+- **Adaptive step count**: Steps scale down as pixel count rises, from 200 at 1080p to 64 at 4K
+- **Adaptive step size**: Smaller steps near the black hole for accuracy, larger steps far away, with extra refinement near the photon sphere
+- **Early ray termination**: Rays exit the loop when absorbed or escaped
+- **No geometry rendering**: Everything computed in the fragment shader
+- **Precomputed lookups**: Blackbody colors, noise, and per-frame MHD turbulence come from textures rather than being evaluated per ray step
 
 ### Dependencies
 
@@ -124,6 +156,9 @@ tests/                    # Physics and rendering reference tests
 - [GSAP](https://gsap.com/) - Camera and background transitions
 - [lil-gui](https://lil-gui.georgealways.com/) - Parameter controls
 - [stats.js](https://github.com/mrdoob/stats.js/) - FPS monitoring
+
+For architecture and contribution conventions, see [AGENTS.md](AGENTS.md). For
+the physical model and its approximations, see [SPEC.md](SPEC.md).
 
 ## Assets
 

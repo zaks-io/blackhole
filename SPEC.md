@@ -2,253 +2,176 @@
 
 ## Overview
 
-This document specifies a real-time WebGL2 gravitational lensing simulation of a Schwarzschild (non-rotating, uncharged) black hole with an accretion disk and starfield background.
+A real-time WebGL2 gravitational lensing simulation of a Schwarzschild
+(non-rotating, uncharged) black hole with an accretion disk and starfield
+background, plus optional wormhole and binary black hole spacetimes.
+
+This document specifies the physical model and the approximations it makes.
+It deliberately does not mirror the code: file layout, dependency versions,
+uniform names, and default values live in the repository and drift the moment
+they are copied here. For architecture and conventions, see `AGENTS.md`. For
+tunable parameters and their current defaults, read `lib/config.ts`.
 
 ## Goals
 
-1. **Visual Accuracy**: Reproduce the characteristic appearance of a black hole as seen in scientific visualizations (e.g., Interstellar, Event Horizon Telescope)
-2. **Real-time Performance**: Maintain 60 FPS at 1440p resolution, 30+ FPS at 4K
-3. **Interactive**: Allow camera orbit/zoom and parameter adjustment
-4. **Educational**: Demonstrate gravitational lensing, Doppler shift, and relativistic effects
+1. **Visual accuracy**: reproduce the appearance of a black hole as seen in
+   scientific visualizations and Event Horizon Telescope imagery
+2. **Real-time performance**: 60 FPS at 1440p, 30+ FPS at 4K
+3. **Interactive**: camera orbit, fly, and live parameter adjustment
+4. **Educational**: demonstrate lensing, Doppler shift, and relativistic beaming
+5. **Verifiable**: the real-time approximation is tested against high-accuracy
+   CPU reference implementations rather than judged by eye
 
-## Physics Model
+## Physics model
 
-### Schwarzschild Metric
+### Schwarzschild metric
 
-The simulation uses the Schwarzschild solution to Einstein's field equations for a non-rotating black hole. In geometric units (G = c = 1):
+The simulation uses the Schwarzschild solution to Einstein's field equations for
+a non-rotating black hole. In geometric units (G = c = 1):
 
 ```
 ds² = -(1 - rs/r)dt² + (1 - rs/r)⁻¹dr² + r²dΩ²
 ```
 
-Where `rs = 2GM/c²` is the Schwarzschild radius (event horizon).
+`rs = 2GM/c²` is the Schwarzschild radius. The simulation works in units where
+`rs = 1`.
 
-### Light Ray Tracing
+### Light ray tracing
 
-Photon trajectories are computed by integrating the null geodesic equations. For real-time performance, we use an approximate integration:
-
-**Deflection Formula:**
-
-```glsl
-vec3 rHat = pos / r;
-float vDotR = dot(rayDir, rHat);
-float vPerpSq = 1.0 - vDotR * vDotR;
-float accel = -1.5 * rs * vPerpSq / (r * r);
-rayDir = normalize(rayDir + accel * rHat * stepSize);
-```
-
-This approximation captures:
-
-- 1/r² radial dependence
-- Stronger bending for tangential rays (v_perp² term)
-- Correct weak-field limit deflection angle α ≈ 4GM/bc² = 2rs/b
-
-### Event Horizon
-
-Rays crossing r < rs are absorbed (render black). The photon sphere at r = 1.5rs creates the bright ring where light can orbit.
-
-### Accretion Disk Model
-
-**Geometry:**
-
-- Infinitely thin disk in the y=0 plane
-- Inner edge: ISCO (Innermost Stable Circular Orbit) = 3rs
-- Outer edge: Configurable, default 12rs
-
-**Kinematics:**
-
-- Keplerian circular orbits: v = √(GM/r) = √(0.5rs/r)
-- Counter-clockwise rotation when viewed from +Y
-
-**Emission:**
-
-- Blackbody spectrum based on temperature
-- Temperature profile: T(r) = T_inner at ISCO, decreasing to T_outer at disk edge
-- Default: 10,000K (inner) to 3,000K (outer)
-
-**Relativistic Effects:**
-
-1. **Doppler Shift:**
-
-   ```glsl
-   float vRadial = dot(diskVelocity, -rayDir);
-   float doppler = sqrt((1.0 + vRadial) / (1.0 - vRadial));
-   float shiftedTemp = baseTemp * doppler;
-   ```
-
-2. **Relativistic Beaming:**
-
-   ```glsl
-   float intensity = pow(doppler, 3.0);
-   ```
-
-3. **Gravitational Redshift** (optional):
-   ```glsl
-   float gravRedshift = sqrt(1.0 - rs / r);
-   ```
-
-### Starfield Background
-
-- Equirectangular HDR texture (4096x2048 recommended)
-- Sampled using final ray direction after gravitational deflection
-- Rays escaping to r > max(100, 2\*cameraDist) sample the starfield
-
-## Rendering Architecture
-
-### Pipeline
+Photon trajectories follow the null geodesic equations. For real-time
+performance the shader integrates an approximation rather than the exact
+equations:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Per Frame                             │
-├─────────────────────────────────────────────────────────┤
-│  1. Update camera matrices                              │
-│  2. LensingPass (fullscreen fragment shader)            │
-│     ├── For each pixel:                                 │
-│     │   ├── Reconstruct world ray from NDC              │
-│     │   ├── Ray march with gravitational deflection     │
-│     │   ├── Check event horizon absorption              │
-│     │   ├── Check disk intersection                     │
-│     │   └── Sample starfield if escaped                 │
-│     └── Output: HDR color                               │
-│  3. UnrealBloomPass                                     │
-│     └── Threshold, blur, composite                      │
-│  4. Tone mapping (ACES Filmic)                          │
-│  5. Output to screen                                    │
-└─────────────────────────────────────────────────────────┘
+v_perp² = 1 - (v · r̂)²
+a       = -1.5 * rs * v_perp² / r²
 ```
 
-### Shader Uniforms
+applied along `r̂` at each march step. This captures the 1/r² radial dependence,
+stronger bending for tangential rays, and the correct weak-field deflection
+`α ≈ 4GM/bc² = 2rs/b`.
 
-| Uniform                | Type      | Description                    |
-| ---------------------- | --------- | ------------------------------ |
-| `starfield`            | sampler2D | Equirectangular HDR starfield  |
-| `blackbodyLUT`         | sampler2D | 1D temperature-to-color lookup |
-| `cameraPos`            | vec3      | Camera world position          |
-| `inverseProjection`    | mat4      | Inverse projection matrix      |
-| `inverseView`          | mat4      | Camera world matrix            |
-| `rs`                   | float     | Schwarzschild radius           |
-| `maxSteps`             | int       | Ray march iteration limit      |
-| `resolution`           | vec2      | Viewport resolution            |
-| `diskInnerRadius`      | float     | Disk inner edge (ISCO)         |
-| `diskOuterRadius`      | float     | Disk outer edge                |
-| `diskTemperatureInner` | float     | Temperature at inner edge      |
-| `diskTemperatureOuter` | float     | Temperature at outer edge      |
+Impact parameters for a camera at finite radius include the Schwarzschild lapse
+correction, so the shadow subtends the correct angle at any camera distance
+rather than only in the far field.
 
-### Ray March Algorithm
+The approximation is validated against an RK4 null geodesic tracer in
+`lib/physics/`. Tests assert critical impact parameter, photon sphere radius,
+turning points, and shadow angular size. Any change to the marching scheme
+should be checked there first.
 
-```glsl
-for (int i = 0; i < maxSteps; i++) {
-    float r = length(rayPos);
+### Event horizon and photon sphere
 
-    // Event horizon check
-    if (r < rs) {
-        absorbed = true;
-        break;
-    }
+Rays reaching `r < rs` are absorbed and render black. The photon sphere at
+`r = 1.5 rs` produces the bright ring, and the shadow diameter for a distant
+observer is `3√3 rs`.
 
-    // Escape check
-    if (r > escapeRadius && movingAway) {
-        color = sampleStarfield(rayDir);
-        break;
-    }
+Higher-order images are physical: they come from successive traced crossings of
+the disk plane, with an attenuation factor applied per crossing. An optional
+synthetic photon-ring remap and glow exist as cinematic controls and default to
+off.
 
-    // Gravitational deflection
-    vec3 rHat = rayPos / r;
-    float vPerpSq = 1.0 - dot(rayDir, rHat)²;
-    float accel = -1.5 * rs * vPerpSq / (r * r);
-    rayDir = normalize(rayDir + accel * rHat * stepSize);
+### Accretion disk
 
-    // Disk intersection (y=0 plane crossing)
-    if (crossedDiskPlane && withinDiskBounds) {
-        color = sampleDiskWithDoppler(hitPos);
-    }
+**Geometry.** Inner edge at the ISCO, `3 rs`. Outer edge configurable. The disk
+is not infinitely thin: it has a flared scale height `H = flare * r`, capped by
+a half-thickness, with a Gaussian vertical falloff.
 
-    // Adaptive step size
-    stepSize = baseStep * clamp(r / (3 * rs), 0.15, 2.0);
+**Kinematics.** Keplerian circular orbits, `v = √(GM/r) = √(0.5 rs / r)`,
+counter-clockwise viewed from +Y. Vertical shear lags the MHD pattern at the
+disk surface relative to the midplane.
 
-    rayPos += rayDir * stepSize;
-}
-```
+**Emission.** Blackbody spectrum from a temperature profile peaking at the ISCO
+and falling outward, sampled from a precomputed lookup texture.
 
-## Performance Specifications
+**Relativistic effects.**
 
-### Target Frame Rates
+- Doppler shift from the line-of-sight component of orbital velocity,
+  `D = √((1 + v_r) / (1 - v_r))`
+- Relativistic beaming, intensity scaling as `D³`
+- Gravitational redshift at the emission radius, `√(1 - rs/r)`, combined with
+  the Doppler term into a single frequency shift factor
 
-| Resolution        | Target FPS | Ray March Steps |
-| ----------------- | ---------- | --------------- |
-| 4K (3840x2160)    | 60         | 64              |
-| 1440p (2560x1440) | 60         | 100             |
-| 1080p (1920x1080) | 60         | 150             |
+**Additional structure.** A hot corona near the ISCO (on by default),
+relativistic jets (off by default), and MHD turbulence with spiral arms and
+hotspots.
 
-### Adaptive Scaling
+### Starfield background
 
-Step count scales inversely with pixel count:
+Equirectangular HDR or SDR texture sampled using the final ray direction after
+deflection. Rays that escape past a distance threshold scaled to camera
+distance sample the starfield. Falls back to a procedural starfield if no
+texture is present.
 
-```typescript
-const t = (pixels - 2M) / (8.3M - 2M);  // 0 at 1080p, 1 at 4K
-const steps = lerp(150, 64, t);
-```
+### Alternate spacetimes
 
-### Optimization Techniques
+**Wormhole mode.** A static, spherically symmetric ultrastatic wormhole with a
+configurable throat radius and neck length; zero length recovers the Ellis
+metric. A Schwarzschild black hole is placed in the far universe, positioned so
+the two lensing regions do not overlap at default parameters.
 
-1. **Adaptive step size**: 0.1rs near BH, up to 0.5rs far away
-2. **Early termination**: Exit loop on absorption or escape
-3. **No geometry**: All rendering in fragment shader
-4. **Precomputed LUT**: Blackbody colors from 1D texture
-5. **Fixed loop count**: Helps GPU branch prediction
+**Binary mode.** Two black holes with a mass ratio, a circumbinary disk with a
+central cavity, accretion streams, and mini-disks. Gravitational waves use the
+quadrupole approximation with Peters inspiral decay, exaggerated in propagation
+speed and inspiral rate so a merger fits a demo timescale.
 
-## File Structure
+Binary mode superposes the two deflection fields. This is illustrative and is
+not an exact binary black hole spacetime.
 
-```
-/
-├── index.html              # Entry HTML
-├── package.json            # Dependencies
-├── vite.config.ts          # Vite configuration
-├── tsconfig.json           # TypeScript config
-├── public/
-│   └── textures/
-│       └── starmap_2020_4k.exr  # HDR starfield
-└── src/
-    ├── main.ts             # App initialization, render loop
-    ├── shaders/
-    │   ├── lensing.vert.glsl   # Vertex shader
-    │   └── lensing.frag.glsl   # Fragment shader (ray marching)
-    ├── passes/
-    │   └── LensingPass.ts      # Three.js ShaderPass wrapper
-    └── utils/
-        └── blackbodyLUT.ts     # Blackbody LUT generation
-```
+## Rendering architecture
 
-## Dependencies
+Every frame renders as a single fullscreen fragment shader pass. There is no
+scene geometry. Per pixel: reconstruct the world ray, march with gravitational
+deflection, test for horizon absorption, accumulate disk and volumetric
+contributions at plane crossings, and sample the starfield on escape.
 
-| Package          | Version  | Purpose             |
-| ---------------- | -------- | ------------------- |
-| three            | ^0.164.1 | 3D rendering, WebGL |
-| lil-gui          | ^0.19.2  | Parameter GUI       |
-| stats.js         | ^0.17.0  | FPS counter         |
-| vite             | ^5.2.0   | Dev server, bundler |
-| typescript       | ^5.2.2   | Type safety         |
-| vite-plugin-glsl | ^1.3.0   | GLSL imports        |
+The lensing pass feeds a post-processing chain: optional FXAA, bloom, then
+optional EHT blur pass pairs that reproduce telescope diffraction at the 2017
+EHT beam-to-ring ratio.
 
-## Browser Requirements
+Output is display-dependent. HDR displays receive linear sRGB with no tone
+mapping; everything else gets ACES Filmic at a configured exposure.
 
-- WebGL2 support
-- EXT_color_buffer_float extension (for HDR render targets)
-- Minimum 4GB GPU memory recommended for 4K
+## Performance
 
-## Known Limitations
+Targets are 60 FPS at 1080p and 1440p and 30+ FPS at 4K, on a discrete GPU.
 
-1. **Non-rotating black hole**: Does not model Kerr (spinning) black holes
-2. **Thin disk approximation**: No volumetric disk effects
-3. **No gravitational time dilation**: Disk emission not corrected for time dilation
-4. **No higher-order images**: Limited to ~3 disk crossings
-5. **Approximate geodesics**: Not exact Schwarzschild integration
+Techniques:
 
-## Future Enhancements
+1. **Adaptive step size** — finer near the black hole, coarser far away, with
+   extra refinement near the photon sphere where curvature is highest
+2. **Automatic step count** — scales down as pixel count rises, between a
+   configured floor and ceiling, so 4K stays interactive
+3. **Early termination** — the march exits on absorption or escape
+4. **No geometry** — everything happens in the fragment shader
+5. **Precomputed lookups** — blackbody colors and noise come from textures
+6. **Per-frame MHD bake** — turbulence is baked into a log-polar lookup once per
+   frame rather than evaluated at every ray step
+7. **Half-resolution bloom**
+
+## Browser requirements
+
+- WebGL2
+- `EXT_color_buffer_float` for HDR render targets
+- A discrete GPU is recommended for 4K
+
+## Known limitations
+
+1. **Non-rotating only**: no Kerr (spinning) black holes, and therefore no
+   frame dragging or ergosphere
+2. **Approximate geodesics**: the shader integrates an approximation, not the
+   exact Schwarzschild null geodesic equations. The CPU reference in
+   `lib/physics/` is the accurate one
+3. **Bounded higher-order images**: disk crossings are capped, so the infinite
+   sequence of photon-ring images terminates
+4. **No emission-side time dilation**: gravitational redshift is applied to the
+   observed color, but disk emission is not corrected for time dilation
+5. **Binary is superposition**: see above
+6. **Illustrative gravitational waves**: propagation speed and inspiral rate are
+   exaggerated for visibility
+
+## Future enhancements
 
 - [ ] Kerr (rotating) black hole support
-- [ ] Volumetric accretion disk with density falloff
-- [ ] Jet emission
-- [ ] Multiple photon ring rendering
 - [ ] VR support
 - [ ] GPU compute shader optimization

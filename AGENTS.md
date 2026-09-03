@@ -1,96 +1,143 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+Guidance for coding agents working in this repository. This is the single source
+of truth; `CLAUDE.md` and `.cursor/rules` point here.
+
+Prefer reading the code over trusting any description of it. This file covers
+the things the code does not say out loud: conventions, invariants, and the
+reasons behind choices that look arbitrary.
 
 ## Commands
 
 ```bash
-bun dev          # Start Next.js dev server (port 3000)
-bun run build    # Production build (`bun build` invokes Bun's bundler instead)
-bun start        # Start production server
-bun lint         # Run ESLint
-bun lint:fix     # Run ESLint with auto-fix
-bun format       # Format all files with Prettier
-bun format:check # Check formatting without changes
-bun typecheck    # Run TypeScript type checking
-bun test         # Run Bun tests
+bun dev          # Next.js dev server (port 3000)
+bun run build    # Production build (`bun build` invokes Bun's own bundler instead)
+bun start        # Serve the production build
+bun lint         # ESLint
+bun lint:fix     # ESLint with auto-fix
+bun format       # Prettier write
+bun format:check # Prettier check
+bun typecheck    # tsc --noEmit
+bun test         # Bun test runner
 ```
 
-## Code Quality
+CI (`.github/workflows/ci.yml`) runs a gitleaks secret scan plus format:check,
+lint, typecheck, test, and build. Husky and lint-staged run ESLint and Prettier
+on staged files. Never bypass either.
 
-- **ESLint** - Configured via `eslint.config.mjs` with Next.js, TypeScript, and Prettier rules
-- **Prettier** - Code formatting configured in `.prettierrc`
-- **Husky** - Git hooks in `.husky/` directory
-- **lint-staged** - Runs ESLint + Prettier on staged files before commit
-- **CI** - GitHub Actions workflow in `.github/workflows/ci.yml` runs format:check, lint, typecheck, test, and build on PRs
+## What this is
 
-## Architecture
+A real-time WebGL2 gravitational lensing renderer built on Next.js and Three.js.
+Everything visible is produced by a single fullscreen fragment shader that ray
+marches through curved spacetime. There is no scene geometry.
 
-This is a Next.js 16 + React 19 app with a real-time WebGL2 gravitational lensing simulation of a Schwarzschild black hole.
+The default subject is a Schwarzschild (non-rotating, uncharged) black hole.
+Wormhole and binary modes are alternate spacetimes selected by config, not
+separate applications.
 
-### App Routes
+## Where things live
 
-- `/` - Landing page
-- `/app` - Main simulation with toggle controls and info panel
-- `/dev` - Development view with lil-gui controls and FPS stats
-- `/render` - Offline high-quality video frame export
-- `/[view]` - Direct camera-preset URLs such as `/far` and `/photon-sphere`
+Directory-level only, because individual files move.
 
-### Key Libraries
+| Path              | Contents                                                                   |
+| ----------------- | -------------------------------------------------------------------------- |
+| `app/`            | Next.js App Router routes                                                  |
+| `components/`     | React components, one per file                                             |
+| `lib/config.ts`   | Every tunable simulation parameter, and the `build*Params` helpers         |
+| `lib/shaders/`    | GLSL entry points and `chunks/` included via Three's shader chunk registry |
+| `lib/passes/`     | `LensingPass`, the Three.js post-processing pass that owns the shader      |
+| `lib/simulation/` | Renderer, camera, animation loop, post-processing composition, starfield   |
+| `lib/physics/`    | CPU reference implementations used to validate the shader                  |
+| `lib/camera/`     | Orbit and fly camera controllers, GSAP-driven                              |
+| `lib/presets/`    | Camera presets, camera sequences, starfield backgrounds                    |
+| `lib/render/`     | Offline frame export for video                                             |
+| `lib/gui/`        | lil-gui dev controls, one module per folder                                |
+| `lib/audio/`      | Web Audio layers for binary mode                                           |
+| `lib/utils/`      | Blackbody LUT, noise LUT, blur, Halton sequence                            |
+| `tests/`          | Bun tests, mostly physics assertions                                       |
+| `bench/`          | Standalone performance harness                                             |
 
-- `lib/config.ts` - Centralized configuration (physics, rendering, disk, MHD effects) with helper functions (`buildLensingParams`, `buildParticleParams`)
-- `lib/passes/LensingPass.ts` - Custom Three.js post-processing pass for ray marching
-- `lib/simulation/SimulationController.ts` - Renderer, camera, animation-loop, audio, and simulation lifecycle orchestration
-- `lib/simulation/PostProcessingPipeline.ts` - Lensing, FXAA, bloom, and EHT blur composition
-- `lib/camera/CameraController.ts` - GSAP-powered camera animation with orbit mode, presets, and sequences
-- `lib/render/RenderController.ts` - Offline rendering system for video frame export
-- `lib/physics/schwarzschild.ts` - High-accuracy CPU reference calculations used to validate the real-time approximation
-- `lib/shaders/` - GLSL vertex and fragment shaders (imported via raw-loader)
-- `lib/utils/` - Blackbody LUT, noise textures, texture blur utilities
+Routes: `/` landing, `/app` main simulation, `/dev` simulation plus lil-gui and
+FPS stats, `/render` offline export, and `/[view]` for direct camera-preset URLs
+such as `/photon-sphere`. Valid slugs come from `VIEW_SLUGS` in `lib/presets/`;
+anything else is a 404.
 
-### Component Architecture
+## Conventions
 
-- `BlackHoleSimulation.tsx` - React lifecycle wrapper around `SimulationController` and the optional dev GUI
-- `AppView.tsx` - Main app wrapper with simulation, toggle controls, and info panel
-- `RenderView.tsx` - Offline rendering interface with quality presets and progress tracking
-- `ControlDock.tsx` - Simulation toggles, camera presets, sequences, and mode controls
-- `OverlayLabels.tsx` - Screen-space labels and educational overlay projection
+**Parameters live in `lib/config.ts`.** A new tunable is added to `CONFIG`,
+threaded through the relevant `build*Params` helper, and consumed as a shader
+uniform. Do not default a value at the read site. If data is missing, throw.
 
-### Rendering Pipeline
+**Shaders are strings.** `.glsl` files are imported via raw-loader, configured
+for both Turbopack and webpack in `next.config.ts`. Fragments in
+`lib/shaders/chunks/` are registered as Three.js shader chunks and `#include`d
+by the entry point; adding a chunk means registering it.
 
-1. **LensingPass** - Fullscreen fragment shader ray-marching through curved spacetime
-2. **FXAA Pass** - Anti-aliasing (optional)
-3. **UnrealBloomPass** - HDR bloom for accretion disk glow
-4. **EHT Blur Passes** - Multiple blur iterations to simulate telescope diffraction (optional)
+**Uniform names are a contract** between the GLSL and the `uniforms` object in
+`LensingPass`. There is no compiler check across that boundary. A rename in one
+place and not the other fails silently at runtime, usually as a black screen.
 
-### Key Patterns
+**Three.js components load client-side only,** via dynamic import with
+`ssr: false`. Anything touching WebGL, `window`, or `document` must not run
+during SSR.
 
-- All simulation parameters centralized in `lib/config.ts`
-- Three.js components use dynamic imports with `ssr: false` to avoid SSR issues
-- GLSL shaders imported as strings via raw-loader configured in `next.config.ts`
-- Camera presets and sequences live in `lib/presets/`
-- Toggle state synced to shader uniforms via `updateParams()`
-- Starfield backgrounds support crossfade transitions with GSAP animation
-- MHD turbulence is baked once per frame into a log-polar LUT instead of recomputed per ray step
+**GPU resources are owned by whoever creates them.** Geometries, materials,
+textures, and render targets get disposed on unmount. Listeners and
+`requestAnimationFrame` loops get torn down.
 
-### Physics Model
+**Fail fast and loud.** No silent fallbacks, no empty catch blocks. A plausible
+wrong value in a physics renderer looks like a real result, which is worse than
+a crash.
 
-The real-time shader numerically approximates Schwarzschild null geodesics. Tests compare it against a high-accuracy RK4 reference implementation.
+**No emojis in UI.** No internal ids, slugs, or plumbing vocabulary in
+user-facing copy.
 
-- Deflection: `a = -1.5 * rs * v_perp² / r²`
-- Finite-camera impact parameters include the Schwarzschild lapse correction
-- Event horizon at r < rs renders black
-- Physical higher-order images come from traced disk-plane crossings
-- Optional synthetic photon-ring remapping and glow are cinematic controls and default off
-- Accretion disk with Keplerian rotation, Doppler shift, and relativistic beaming
-- Thick-disk and corona opacity use Beer-Lambert transfer
-- Corona and relativistic jets (configurable)
-- MHD turbulence patterns with spiral arms and hotspots
-- Binary mode is illustrative. Its superposed deflection fields are not an exact binary spacetime.
+## Physics invariants
 
-### Starfield Assets
+Hold these constant unless you are deliberately changing the model, and update
+`tests/` when you do.
 
-Multiple HDR/SDR backgrounds in `public/textures/` (EXR/WebP). Auto-detects HDR display support and adjusts tone mapping. Falls back to procedural starfield if textures missing.
+- Geometric units, `rs = 1.0` by default. `rs` is the Schwarzschild radius.
+- Event horizon at `r = rs`; rays that cross it are absorbed and render black.
+- Photon sphere at `r = 1.5 rs`. ISCO, the accretion disk inner edge, at `3 rs`.
+- Shader deflection: `a = -1.5 * rs * v_perp² / r²`, integrated along the march.
+- Finite-camera impact parameters include the Schwarzschild lapse correction.
+- Disk kinematics are Keplerian, with Doppler shift and relativistic beaming.
+- Photon rings are physical, produced by traced disk-plane crossings. The
+  synthetic photon-ring remap and glow are cinematic controls, default off.
+
+`lib/physics/` holds high-accuracy CPU implementations, including an RK4 null
+geodesic tracer. Tests assert the real-time approximation against them, which is
+the mechanism that catches shader regressions. A change to the march that shifts
+ring position or shadow diameter should show up there first.
+
+Binary mode superposes deflection fields. It is illustrative, not an exact
+binary spacetime, and the code says so where it matters.
+
+## Performance notes
+
+These exist for a reason; check before undoing one.
+
+- Ray march step size is adaptive, finer near the horizon.
+- Step count scales down as pixel count rises, so 4K stays interactive.
+- MHD turbulence is baked once per frame into a log-polar LUT rather than
+  evaluated per ray step.
+- Blackbody and noise lookups come from precomputed textures.
+- The composer's render targets drop depth and stencil attachments; the
+  fullscreen passes never use them.
+
+## Rendering pipeline
+
+Composed in `lib/simulation/PostProcessingPipeline.ts`: lensing pass, then FXAA
+(optional), then bloom, then EHT blur pass pairs (optional, off by default).
+
+Output handling is display-dependent. On an HDR display the renderer uses no
+tone mapping and a linear sRGB output space; otherwise ACES Filmic with an
+exposure from config. HDR support is detected at runtime.
+
+Starfields are equirectangular EXR or WebP textures in `public/textures/`,
+sampled by the ray direction after deflection, with a procedural fallback if a
+texture is missing. Background changes crossfade via GSAP.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
