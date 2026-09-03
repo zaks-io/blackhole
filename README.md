@@ -141,6 +141,11 @@ Requires WebGL2 support:
 - Safari 15+
 - Edge 79+
 
+## Contributing
+
+Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup,
+checks, and conventions.
+
 ## License
 
 The source code is available under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for
