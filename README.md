@@ -74,19 +74,26 @@ current default.
 
 ### Gravitational Lensing
 
-Light rays are traced using the Schwarzschild geodesic equation. The deflection acceleration is:
+The single black hole and the wormhole's far black hole use the spatial
+Schwarzschild null-geodesic equation, with affine energy normalized to one:
 
 ```
-a = -1.5 * rs * v_perp² / r²
+a_vec = -1.5 * rs * L² * position / r⁵
 ```
 
 Where:
 
 - `rs` is the Schwarzschild radius (event horizon)
-- `v_perp` is the velocity component perpendicular to the radial direction
+- `L = |position × velocity|` is conserved angular momentum
 - `r` is the distance from the black hole center
 
-This creates the characteristic bending where light passing close to the black hole is deflected more strongly, producing the Einstein ring effect.
+Velocity Verlet advances the ray without renormalizing its affine velocity.
+Local camera directions are converted to affine velocities using the Schwarzschild
+lapse. The analytic capture boundary prevents exhausted sampling budgets from
+showing sky through the shadow. Binary mode still uses illustrative superposed
+deflection fields, not an exact binary spacetime.
+
+The force formulation follows [Belbruno and Pretorius (2011)](https://arxiv.org/abs/1103.0585).
 
 ### Accretion Disk
 
@@ -94,12 +101,16 @@ The disk is modeled with:
 
 - **Inner edge** at the Innermost Stable Circular Orbit (ISCO = 3rs)
 - **Vertical structure**: a flared scale height with Gaussian falloff, not an infinitely thin plane
-- **Keplerian rotation**: v = √(GM/r)
-- **Temperature gradient**: Hotter near the center, cooler at edges
+- **Keplerian rotation**: coordinate angular frequency Ω = √(GM/r³)
+- **Temperature gradient**: Newtonian zero-torque profile, vanishing at the inner edge
 - **Blackbody radiation**: Color based on temperature using a precomputed LUT
 - **Doppler shift**: Frequency/color shift based on disk velocity relative to observer
-- **Relativistic beaming**: Intensity ∝ (Doppler factor)³
-- **Gravitational redshift**: √(1 - rs/r) at the emission radius, combined with the Doppler term
+- **Relativistic beaming**: bolometric intensity scales as g⁴; observed temperature scales as g
+- **Gravitational redshift**: circular-orbit time dilation and the finite static observer's lapse enter g
+
+The eccentric disk and binary emission are approximations. This is not a GRMHD
+evolution or a full relativistic thin-disk flux model. See the
+[physics review](docs/physics-review.md) for validation and remaining limits.
 
 ### Event Horizon
 

@@ -1,20 +1,7 @@
 /**
- * Physics accuracy guard for the ray-marching integrator in
- * lib/shaders/chunks/raymarcher.glsl and the relativistic g-factor in
- * lib/shaders/chunks/disk.glsl.
- *
- * The shader integrates light deflection with the pseudo-Newtonian force
- * a = -1.5 * rs * v_perp^2 / r^2, which reproduces the Schwarzschild Binet
- * equation u'' + u = 1.5 * rs * u^2 when integrated on (pos, vel) without
- * renormalizing the reference velocity. shaderMarch() below ports the
- * shader's stepping rules verbatim; reference() is a high-precision RK4
- * integration of the equivalent conserved-angular-momentum force
- * a = -1.5 * rs * h_ang^2 * r_vec / r^5.
- *
- * Critically, the shader applies the velocity kick scaled by the SAME
- * stepSize the ray advances by. A mismatched kick (fixed baseStepSize
- * instead of stepSize) underdeflects rays by 5-10x and fails the
- * deflection tolerances here.
+ * Schwarzschild march accuracy against an independent fine-step RK4 reference.
+ * The production shader uses affine velocity Verlet with conserved angular
+ * momentum; bench/physics.ts separately checks the compiled GPU capture boundary.
  */
 import { describe, expect, test } from 'bun:test';
 
@@ -91,12 +78,31 @@ function reference(b: number, dt = 0.002): RayResult {
  * (single-BH path, jitter off, disk-classification stepMultiplier omitted:
  * it only inflates steps already capped by the 0.75 clamp / far-field rule).
  */
-function shaderMarch(b: number): RayResult {
+function shaderMarch(b: number, observerRadius?: number): RayResult {
   let p: V3 = [b, 0, START_DISTANCE];
   let v: V3 = [0, 0, -1];
+  if (observerRadius !== undefined) {
+    p = [0, 0, observerRadius];
+    const tangential = (b * Math.sqrt(1 - rs / observerRadius)) / observerRadius;
+    v = [tangential, 0, -Math.sqrt(1 - tangential * tangential)];
+  }
+  const radius = norm(p);
+  const radial = add([0, 0, 0], p, dot(p, v) / (radius * radius));
+  const transverse = add(v, radial, -1);
+  let velocity = add(radial, transverse, 1 / Math.sqrt(1 - rs / radius));
+  const momentum = [
+    p[1] * velocity[2] - p[2] * velocity[1],
+    p[2] * velocity[0] - p[0] * velocity[2],
+    p[0] * velocity[1] - p[1] * velocity[0],
+  ] as V3;
+  const momentumSq = dot(momentum, momentum);
+  const acceleration = (pos: V3): V3 => {
+    const rSq = Math.max(dot(pos, pos), rs * rs);
+    return add([0, 0, 0], pos, (-1.5 * rs * momentumSq) / (rSq * rSq * Math.sqrt(rSq)));
+  };
   const h = CONFIG.rayMarching.baseStepSize;
   const curvatureAdaptation = CONFIG.rayMarching.curvatureAdaptation;
-  const contentRadius = CONFIG.disk.outerRadius * 1.2;
+  const contentRadius = CONFIG.disk.outerRadius * 1.8 * 1.2;
   const escapeThreshold = Math.max(2 * START_DISTANCE, 100);
 
   for (let i = 0; i < 200_000; i++) {
@@ -110,8 +116,8 @@ function shaderMarch(b: number): RayResult {
       return { escaped: true, deflection: Math.acos(Math.min(1, -unit(v)[2])) };
     }
 
-    const vPerpSq = 1 - radialVel * radialVel;
-    const accel = (-1.5 * rs * vPerpSq) / rSq;
+    const accelVec = acceleration(p);
+    const accel = norm(accelVec) / dot(velocity, velocity);
 
     const baseStep = h * Math.max(1, (r - rs) / rs);
     const photonSphereCurvature = (1.5 * rs) / (2.25 * rs * rs);
@@ -127,8 +133,11 @@ function shaderMarch(b: number): RayResult {
     stepSize = Math.min(0.75, Math.max(0.01, stepSize));
     stepSize = Math.max(stepSize, (r - contentRadius) * 0.25);
 
-    v = unit(add(v, rHat, accel * stepSize));
-    p = add(p, v, stepSize);
+    const dt = stepSize / norm(velocity);
+    const halfVelocity = add(velocity, accelVec, dt / 2);
+    p = add(p, halfVelocity, dt);
+    velocity = add(halfVelocity, acceleration(p), dt / 2);
+    v = unit(velocity);
   }
   throw new Error(`shader integrator did not terminate for b=${b}`);
 }
@@ -149,18 +158,23 @@ function captureBoundary(captured: (b: number) => boolean, lo = 2.0, hi = 3.2): 
 const B_CRIT = ((3 * Math.sqrt(3)) / 2) * rs;
 
 describe('raymarcher.glsl integrator vs RK4 reference', () => {
-  test.each([4, 6, 10, 20])('deflection within 5%% of reference at b = %d rs', (b) => {
+  test.each([2.7, 3, 4, 6, 10, 20])('deflection within 1%% of reference at b = %d rs', (b) => {
     const ref = reference(b);
     const shader = shaderMarch(b);
     expect(ref.escaped).toBe(true);
     expect(shader.escaped).toBe(true);
     const relErr = Math.abs(shader.deflection - ref.deflection) / ref.deflection;
-    expect(relErr).toBeLessThan(0.05);
+    expect(relErr).toBeLessThan(0.01);
   });
 
-  test('shader capture boundary within 3% of exact b_crit = 2.598 rs', () => {
+  test('shader capture boundary within 0.5% of exact b_crit = 2.598 rs', () => {
     const bCapture = captureBoundary((b) => !shaderMarch(b).escaped);
-    expect(Math.abs(bCapture - B_CRIT) / B_CRIT).toBeLessThan(0.03);
+    expect(Math.abs(bCapture - B_CRIT) / B_CRIT).toBeLessThan(0.005);
+  });
+
+  test.each([3, 5, 10, 20])('finite camera at %d rs has the correct capture boundary', (radius) => {
+    const boundary = captureBoundary((b) => !shaderMarch(b, radius).escaped);
+    expect(Math.abs(boundary - B_CRIT) / B_CRIT).toBeLessThan(0.005);
   });
 
   test('reference capture boundary reproduces exact b_crit (self-check)', () => {
@@ -171,16 +185,21 @@ describe('raymarcher.glsl integrator vs RK4 reference', () => {
 });
 
 describe('disk.glsl relativistic g-factor', () => {
-  // Mirrors sampleDisk(): g = sqrt(1 - 1.5*rs/r) / (1 - Omega*bz) with
-  // Keplerian Omega = sqrt(0.5*rs/r^3) and the same 0.15 denominator floor.
-  const gFactor = (r: number, bz: number) => {
+  // Circular geodesic emission observed by a local static camera.
+  const gFactor = (r: number, bz: number, observerLapse = 1) => {
     const omega = Math.sqrt((0.5 * rs) / (r * r * r));
     const dopplerTerm = Math.max(0.15, 1 - omega * bz);
-    return Math.sqrt(Math.max(0, 1 - (1.5 * rs) / r)) / dopplerTerm;
+    return Math.sqrt(Math.max(0, 1 - (1.5 * rs) / r)) / (dopplerTerm * observerLapse);
   };
 
   test('g = sqrt(0.5) at the ISCO (r = 3rs) for bz = 0', () => {
     expect(gFactor(3 * rs, 0)).toBeCloseTo(Math.sqrt(0.5), 12);
+  });
+
+  test('finite observer receives the gravitational blueshift relative to infinity', () => {
+    const lapse = Math.sqrt(1 - rs / (3 * rs));
+    expect(gFactor(3 * rs, 0, lapse)).toBeCloseTo(Math.sqrt(3 / 4), 12);
+    expect(gFactor(5 * rs, 2, lapse) / gFactor(5 * rs, 2)).toBeCloseTo(1 / lapse, 12);
   });
 
   test('prograde photons (Omega*bz > 0) blueshift, retrograde redshift', () => {
@@ -196,13 +215,13 @@ describe('disk.glsl relativistic g-factor', () => {
   // Mirrors the m=1 eccentric extension in sampleDisk(): the azimuthal
   // Doppler term picks up (1 + 0.5*e*cos f) and a radial term
   // v_r * dot(rayDir, rHat) with v_r = sqrt(0.5*rs/r) * e*sin f, following
-  // the same dopplerTerm = 1 - v.rayDir convention as the circular case.
+  // backward tracing makes outward gas motion away from the camera redshift.
   const gFactorEcc = (r: number, bz: number, ecc: number, f: number, rayDotRhat: number) => {
     const eccCosF = ecc * Math.cos(f);
     const eccSinF = ecc * Math.sin(f);
     const omega = Math.sqrt((0.5 * rs) / (r * r * r));
     const radialDoppler = Math.sqrt((0.5 * rs) / r) * eccSinF * rayDotRhat;
-    const dopplerTerm = Math.max(0.15, 1 - omega * bz * (1 + 0.5 * eccCosF) - radialDoppler);
+    const dopplerTerm = Math.max(0.15, 1 - omega * bz * (1 + 0.5 * eccCosF) + radialDoppler);
     return Math.sqrt(Math.max(0, 1 - (1.5 * rs) / r)) / dopplerTerm;
   };
 
@@ -224,11 +243,11 @@ describe('disk.glsl relativistic g-factor', () => {
     const circular = gFactor(r, 1);
     // f = pi/2: pure radial motion (eccCosF = 0), so flipping either the
     // ray projection or the radial phase mirrors blueshift <-> redshift
-    const blue = gFactorEcc(r, 1, e, Math.PI / 2, 1);
-    const red = gFactorEcc(r, 1, e, Math.PI / 2, -1);
+    const blue = gFactorEcc(r, 1, e, Math.PI / 2, -1);
+    const red = gFactorEcc(r, 1, e, Math.PI / 2, 1);
     expect(blue).toBeGreaterThan(circular);
     expect(red).toBeLessThan(circular);
-    expect(gFactorEcc(r, 1, e, -Math.PI / 2, 1)).toBeCloseTo(red, 12);
+    expect(gFactorEcc(r, 1, e, -Math.PI / 2, -1)).toBeCloseTo(red, 12);
   });
 
   test('apsis phase modulates the azimuthal Doppler term', () => {

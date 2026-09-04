@@ -8,9 +8,9 @@
  * Run: bun bench/server.mjs, then open http://localhost:8123/?label=<name>
  */
 import * as THREE from 'three';
-import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { LensingPass, type LensingParams } from '../lib/passes/LensingPass';
 import { buildLensingParams } from '../lib/config';
+import { verifyBlackHoleShadow } from './physics';
 
 const W = 1280;
 const H = 720;
@@ -47,6 +47,7 @@ const SCENARIOS: Scenario[] = [
   },
   // Binary black hole system
   { name: 'binary', cam: [0, 7, 24], params: { binaryEnabled: 1 } },
+  { name: 'wormhole', cam: [0, 3.4, 9.4], params: { wormholeEnabled: 1 } },
   // 2x2 supersampling path
   { name: 'ss2', cam: [0, 3.4, 9.4], params: { supersampleLevel: 2 } },
   // Cost-isolation probes (uniform toggles only)
@@ -131,6 +132,7 @@ async function run() {
   });
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);
+  log(`Physics: ${verifyBlackHoleShadow(renderer)} GPU shadow checks passed`);
 
   const gl = renderer.getContext() as WebGL2RenderingContext;
   const dbg = gl.getExtension('WEBGL_debug_renderer_info');
@@ -144,14 +146,12 @@ async function run() {
   });
 
   const pass = new LensingPass(makeStarfield(), 64);
-  const quad = new FullScreenQuad(pass.material);
   const camera = new THREE.PerspectiveCamera(60, W / H, 0.1, 1000);
 
   const syncPixel = new Uint8Array(4);
   const frame = (time: number) => {
     pass.updateTime(time);
-    renderer.setRenderTarget(target);
-    quad.render(renderer);
+    pass.render(renderer, target, target, 0, false);
     // 1x1 readback forces a full GPU sync so the wall clock includes GPU time
     renderer.readRenderTargetPixels(target, 0, 0, 1, 1, syncPixel);
   };

@@ -100,7 +100,9 @@ Hold these constant unless you are deliberately changing the model, and update
 - Geometric units, `rs = 1.0` by default. `rs` is the Schwarzschild radius.
 - Event horizon at `r = rs`; rays that cross it are absorbed and render black.
 - Photon sphere at `r = 1.5 rs`. ISCO, the accretion disk inner edge, at `3 rs`.
-- Shader deflection: `a = -1.5 * rs * v_perp² / r²`, integrated along the march.
+- Single-hole deflection: `a_vec = -1.5 * rs * L² * position / r⁵`, with
+  conserved affine angular momentum and velocity Verlet. Do not normalize the
+  integrated velocity; convert it to a local direction for emission sampling.
 - Finite-camera impact parameters include the Schwarzschild lapse correction.
 - Disk kinematics are Keplerian, with Doppler shift and relativistic beaming.
 - Photon rings are physical, produced by traced disk-plane crossings. The

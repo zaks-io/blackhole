@@ -23,12 +23,19 @@ vec4 traceRay(vec2 uv) {
 
   float camDist = length(cameraPos);
 
-  // Photon angular momentum about the disk axis (y), conserved along the
-  // geodesic; drives the relativistic g-factor in disk sampling. rayDir is
-  // the direction measured by the static camera, whose local frame relates
-  // to coordinate time by sqrt(1 - rs/r_cam), so L_z/E picks up that factor.
-  float bz = cross(rayPos, rayDir).y / sqrt(max(1.0 - rs / camDist, 0.01));
+#ifndef BINARY_MODE
+  if (camDist <= rs) return vec4(0.0, 0.0, 0.0, 1.0);
+  vec3 rayVelocity = schwarzschildVelocity(rayPos, rayDir, rs);
+  vec3 angularMomentum = cross(rayPos, rayVelocity);
+  float angularMomentumSq = dot(angularMomentum, angularMomentum);
+  vec3 rayAcceleration = schwarzschildAcceleration(rayPos, angularMomentumSq, rs);
+  bool capturedRay = schwarzschildCaptured(camDist, dot(rayPos, rayDir), angularMomentumSq, rs);
+  float bz = angularMomentum.y;
+  float impactParam = sqrt(angularMomentumSq);
+  float observerLapse = sqrt(1.0 - rs / camDist);
+#else
   float impactParam = computeImpactParameter(rayPos, rayDir, rs);
+#endif
 
   float lod = calculateLOD(camDist);
 
@@ -36,7 +43,15 @@ vec4 traceRay(vec2 uv) {
   // This desynchronizes sampling shells between neighboring pixels
   if (stepJitter > 0.5) {
     float startOffset = interleavedGradientNoise(uv * resolution) * 0.2;
+#ifdef BINARY_MODE
     rayPos = rayPos + rayDir * startOffset;
+#else
+    rayPos = advanceSchwarzschild(rayPos, rayVelocity, rayAcceleration,
+      angularMomentumSq, rs, startOffset);
+    rayDir = dot(rayPos, rayPos) > rs * rs
+      ? schwarzschildLocalDirection(rayPos, rayVelocity, rs)
+      : normalize(rayVelocity);
+#endif
   }
 
   // Ray classification based on impact parameter (b = perpendicular distance to BH)
@@ -136,10 +151,8 @@ vec4 traceRay(vec2 uv) {
     }
 #else
     {
-      float vDotR = radialVel;
-      float vPerpSq = 1.0 - vDotR * vDotR;
-      accel = -1.5 * rs * vPerpSq / rSq;
-      accelVec = accel * rHat;
+      accelVec = rayAcceleration;
+      accel = -dot(rayAcceleration, rHat) / dot(rayVelocity, rayVelocity);
     }
 #endif
 
@@ -230,9 +243,16 @@ vec4 traceRay(vec2 uv) {
     // Deflect by the same path length the ray advances. A mismatched kick
     // (fixed h vs variable stepSize) scales the bending per unit length and
     // distorts the lensing field wherever the step deviates from h.
+#ifdef BINARY_MODE
     rayDir = normalize(rayDir + accelVec * stepSize);
-
     vec3 newPos = rayPos + rayDir * stepSize;
+#else
+    vec3 newPos = advanceSchwarzschild(rayPos, rayVelocity, rayAcceleration,
+      angularMomentumSq, rs, stepSize);
+    rayDir = dot(newPos, newPos) > rsSq
+      ? schwarzschildLocalDirection(newPos, rayVelocity, rs)
+      : normalize(rayVelocity);
+#endif
     float currY = newPos.y;
 
     // Disk plane crossing detection - track multiple crossings for photon rings
@@ -276,7 +296,7 @@ vec4 traceRay(vec2 uv) {
         // The material surface keeps the orbiting gas visible face-on. The
         // low-density volume below is only its atmosphere.
         if (remaining > 0.002) {
-          vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, bz, 0.0);
+          vec4 newDisk = sampleDisk(hitPos, rayDir, hitR, diskCrossings, lod, bz, 0.0, observerLapse);
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
         }
@@ -307,7 +327,7 @@ vec4 traceRay(vec2 uv) {
         if (remaining > 0.002) {
           // bz is conserved through the lensed path, so the g-factor stays
           // exact for photon-ring light; crossingIndex handles demagnification
-          vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, bz, 0.0);
+          vec4 newDisk = sampleDisk(virtualHitPos, rayDir, mappedR, diskCrossings, lod, bz, 0.0, observerLapse);
 
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
@@ -461,11 +481,13 @@ vec4 traceRay(vec2 uv) {
             vec4 vol2 = sampleMiniDisk(projectedPos, rayDir, bh2Pos, binaryMass2, diskCrossings, lod);
             vec4 volCB = sampleCircumbinaryDisk(projectedPos, rayDir, diskCrossings, lod);
 
-            // Additive blend
+            // Extinction and emissivity add. Recover the source color before
+            // Beer-Lambert integration, which applies opacity exactly once.
             volColor.rgb = vol1.rgb * vol1.a + vol2.rgb * vol2.a + volCB.rgb * volCB.a;
-            volColor.a = min(vol1.a + vol2.a + volCB.a, 0.95);
+            volColor.a = vol1.a + vol2.a + volCB.a;
+            if (volColor.a > 0.0) volColor.rgb /= volColor.a;
 #else
-            volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, bz, normalizedY);
+            volColor = sampleDisk(projectedPos, rayDir, hitR, diskCrossings, lod, bz, normalizedY, observerLapse);
 #endif
 
             float opticalDepth = max(
@@ -518,6 +540,11 @@ vec4 traceRay(vec2 uv) {
       diskAccum.a = max(diskAccum.a, jetSample.a * 0.3 * jetContrib);
     }
   }
+
+#ifndef BINARY_MODE
+  // A finite sampling budget must not expose sky through a captured geodesic.
+  hitHorizon = hitHorizon || capturedRay;
+#endif
 
   // Determine background color. Sampled here, after the march loop, so the
   // screen-space derivatives inside sampleStarfield see every pixel's final

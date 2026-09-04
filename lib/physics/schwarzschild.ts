@@ -19,7 +19,8 @@ export function schwarzschildCriticalAngularRadius(observerRadius: number, rs: n
 
   const criticalImpact = schwarzschildCriticalImpactParameter(rs);
   const sine = (criticalImpact * Math.sqrt(1 - rs / observerRadius)) / observerRadius;
-  return Math.asin(Math.min(1, sine));
+  const acuteAngle = Math.asin(Math.min(1, sine));
+  return observerRadius < schwarzschildPhotonSphereRadius(rs) ? Math.PI - acuteAngle : acuteAngle;
 }
 
 /** Impact parameter measured at infinity for a local static observer. */

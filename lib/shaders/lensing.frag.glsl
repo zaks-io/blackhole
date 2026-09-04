@@ -10,5 +10,6 @@ precision highp float;
 #include <lensing_jets>
 #include <lensing_overlays>
 #include <lensing_disk>
+#include <lensing_schwarzschild>
 #include <lensing_wormhole>
 #include <lensing_raymarcher>

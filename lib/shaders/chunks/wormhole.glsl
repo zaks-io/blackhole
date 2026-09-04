@@ -227,7 +227,7 @@ void traceThroatLeg(inout int stepsLeft, inout vec3 pos, inout vec3 dir, inout f
 }
 
 // Compact Schwarzschild march for the far-universe black hole: the same
-// deflection kick, adaptive stepping, thin/thick disk sampling, photon-ring
+// conserved null-geodesic state, adaptive stepping, thin/thick disk sampling, photon-ring
 // mapping, and photon-sphere glow as traceRay's single-BH path, minus the
 // overlays, corona, and jets (scenery, not the primary subject). Positions
 // are relative to the BH in the physical far frame; the disk lies in its
@@ -238,19 +238,29 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
   bool terminated = false;
   vec4 diskAccum = vec4(0.0);
 
-  // Photon angular momentum about the disk axis for the relativistic
-  // g-factor; the lapse correction matters little at sphere-entry distance.
-  float startDist = max(length(pos), 1.5 * rs);
-  float bz = cross(pos, dir).y / sqrt(max(1.0 - rs / startDist, 0.01));
-
   float rsSq = rs * rs;
+  if (dot(pos, pos) <= rsSq) {
+    captured = true;
+    endPos = pos;
+    endDir = dir;
+    return diskAccum;
+  }
+
+  float observerLapse = sqrt(1.0 - rs / length(pos));
+  vec3 velocity = schwarzschildVelocity(pos, dir, rs);
+  vec3 angularMomentum = cross(pos, velocity);
+  float angularMomentumSq = dot(angularMomentum, angularMomentum);
+  vec3 acceleration = schwarzschildAcceleration(pos, angularMomentumSq, rs);
+  // Backward-traced L_y/E for the disk redshift factor.
+  float bz = angularMomentum.y;
+
   float escapeR = FAR_BH_ESCAPE_RADII * rs;
   float contentRadius = diskOuterRadius * 1.2;
   float slabH = thickDiskEnabled > 0.5 ? thickDiskHalfThickness : diskHalfThickness;
   float minRadius = 1e3;
   int diskCrossings = 0;
 
-  bool canHitDisk = computeImpactParameter(pos, dir, rs) < contentRadius;
+  bool canHitDisk = sqrt(angularMomentumSq) < contentRadius;
 
   // The whole remaining pool, not min(stepsLeft, maxSteps): a disk-crossing
   // march to the 48rs escape radius needs more steps than low-end maxSteps
@@ -275,14 +285,11 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
     }
 
     vec3 rHat = pos / r;
-    float radialVel = dot(dir, rHat);
+    float radialVel = dot(velocity, rHat);
     if (r > escapeR && radialVel > 0.0) {
       terminated = true;
       break;
     }
-
-    float vPerpSq = 1.0 - radialVel * radialVel;
-    float accel = -1.5 * rs * vPerpSq / rSq;
 
     float prevY = pos.y;
     float stepSize = clamp(baseStepSize * max(1.0, (r - rs) / rs), 0.01, 0.75);
@@ -294,9 +301,11 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
     farDist = max(farDist, min(slabDist, r - 5.0 * rs));
     stepSize = max(stepSize, farDist * 0.25);
 
-    // Deflect by the same path length the ray advances (see traceRay)
-    dir = normalize(dir + (accel * stepSize) * rHat);
-    vec3 newPos = pos + dir * stepSize;
+    vec3 newPos = advanceSchwarzschild(pos, velocity, acceleration,
+      angularMomentumSq, rs, stepSize);
+    dir = dot(newPos, newPos) > rsSq
+      ? schwarzschildLocalDirection(newPos, velocity, rs)
+      : normalize(velocity);
     float currY = newPos.y;
 
     if (prevY * currY < 0.0 && canHitDisk) {
@@ -307,7 +316,7 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
       if (hitR > diskInnerRadius && hitR < diskOuterRadius) {
         float remaining = 1.0 - diskAccum.a;
         if (remaining > 0.002) {
-          vec4 newDisk = sampleDisk(hitPos, dir, hitR, diskCrossings, lod, bz, 0.0);
+          vec4 newDisk = sampleDisk(hitPos, dir, hitR, diskCrossings, lod, bz, 0.0, observerLapse);
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
         }
@@ -315,7 +324,8 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
           terminated = true;
           break;
         }
-      } else if (hitR > rs * 1.5 && hitR < diskInnerRadius && diskCrossings > 0) {
+      } else if (photonSphereIntensity > 0.0 &&
+                 hitR > rs * 1.5 && hitR < diskInnerRadius && diskCrossings > 0) {
         // Photon-ring images: log-map crossings near the photon sphere onto
         // the disk, exactly as the main march does
         float logHit = log(hitR);
@@ -325,7 +335,7 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
 
         float remaining = 1.0 - diskAccum.a;
         if (remaining > 0.002) {
-          vec4 newDisk = sampleDisk(virtualHitPos, dir, mappedR, diskCrossings, lod, bz, 0.0);
+          vec4 newDisk = sampleDisk(virtualHitPos, dir, mappedR, diskCrossings, lod, bz, 0.0, observerLapse);
           diskAccum.rgb += newDisk.rgb * newDisk.a * remaining;
           diskAccum.a += newDisk.a * remaining;
         }
@@ -354,8 +364,10 @@ vec4 marchFarBlackHole(vec3 pos, vec3 dir, float lod, inout int stepsLeft,
           float remaining = 1.0 - diskAccum.a;
           float weightEst = verticalDensity * diskVolumeDensity * stepSize * remaining;
           if (weightEst > 2e-4) {
-            vec4 volColor = sampleDisk(vec3(pos.x, 0.0, pos.z), dir, hitR, diskCrossings, lod, bz, normalizedY);
-            float volAlpha = volColor.a * verticalDensity * diskVolumeDensity * stepSize;
+            vec4 volColor = sampleDisk(vec3(pos.x, 0.0, pos.z), dir, hitR,
+              diskCrossings, lod, bz, normalizedY, observerLapse);
+            float opticalDepth = max(volColor.a * verticalDensity * diskVolumeDensity * stepSize, 0.0);
+            float volAlpha = 1.0 - exp(-opticalDepth);
             diskAccum.rgb += volColor.rgb * volAlpha * remaining;
             diskAccum.a += volAlpha * remaining;
           }

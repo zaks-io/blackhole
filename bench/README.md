@@ -1,7 +1,10 @@
 # Shader benchmark harness
 
-Measures real GPU frame time of `LensingPass` across camera/feature scenarios and
-verifies visual parity via pixel diffs of deterministic captures (fixed `time=10.0`).
+Measures real GPU frame time of `LensingPass`, including its turbulence bake,
+across camera/feature scenarios and compares deterministic captures (fixed `time=10.0`).
+Before timing, 40 one-pixel checks validate the compiled shader's capture/escape
+classification against the analytic Schwarzschild boundary at five camera radii,
+in both radial directions, with default and minimum step budgets.
 
 ## Run
 
@@ -25,7 +28,7 @@ pixels with max RGB channel delta > 2, max delta, MAE).
 ## Scenarios
 
 wide / closeup / edge-on / far (camera angles), allfx (jets + all overlays),
-binary (binary BH mode), ss2 (supersampleLevel 2), plus `p-*` probes that
+binary (binary BH mode), wormhole, ss2 (supersampleLevel 2), plus `p-*` probes that
 disable individual features to isolate their cost.
 
 Timing method: median of 40 frames x 3 reps, forced GPU sync per frame via a

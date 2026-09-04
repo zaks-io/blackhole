@@ -13,6 +13,12 @@ import {
 const RS = 1;
 
 describe('finite static observer', () => {
+  test('shadow fills more than a hemisphere inside the photon sphere', () => {
+    expect(schwarzschildCriticalAngularRadius(1.5, RS)).toBeCloseTo(Math.PI / 2, 14);
+    expect(schwarzschildCriticalAngularRadius(1.2, RS)).toBeGreaterThan(Math.PI / 2);
+    expect(schwarzschildCriticalAngularRadius(1.000001, RS)).toBeCloseTo(Math.PI, 2);
+  });
+
   test('critical curve angular radius shrinks with observer distance', () => {
     const near = schwarzschildCriticalAngularRadius(10, RS);
     const far = schwarzschildCriticalAngularRadius(20, RS);

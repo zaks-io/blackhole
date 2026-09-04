@@ -68,7 +68,8 @@ float getSingleDiskRenderOuterRadius() {
 // nY is normalized altitude |y|/H(r) in [0,1]: 0 for midplane crossings,
 // rising through the volumetric slab. It drives the vertical shear and the
 // midplane-to-atmosphere temperature gradient.
-vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod, float bz, float nY) {
+vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
+                float bz, float nY, float observerLapse) {
   // Get azimuthal angle for MHD effects
   float phi = atan(hitPos.z, hitPos.x);
 
@@ -95,16 +96,21 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   }
 
   // Frequency ratio for a disk orbit in Schwarzschild:
-  //   g = sqrt(1 - 1.5*rs/r) / dopplerTerm
+  //   g = sqrt(1 - 1.5*rs/r) / (observerLapse * (1 - Omega*bz + radial))
   // The numerator is 1/u^t for a circular geodesic, bundling gravitational
   // redshift with orbital time dilation. The Doppler term uses the photon's
   // conserved angular momentum bz about the disk axis, so it is exact for
   // circular orbits at every image order; eccentricity enters at first order
   // via the v_phi correction (1 + 0.5 e cos f) and a radial term e sin f.
   float omega = sqrt(0.5 * rs / (r * r * r));
+  // rayDir is traced from the camera toward the emitter, opposite the
+  // photon's physical propagation direction. The radial velocity therefore
+  // enters 1 - v.n_photon as 1 + v.rayDir.
   float radialDoppler = sqrt(0.5 * rs / r) * eccSinF * dot(rayDir, hitPos / max(r, 1e-4));
-  float dopplerTerm = max(0.15, 1.0 - omega * bz * (1.0 + 0.5 * eccCosF) - radialDoppler);
-  float g = sqrt(max(0.0, 1.0 - 1.5 * rs / r)) / dopplerTerm;
+  float dopplerTerm = max(0.15,
+    1.0 - omega * bz * (1.0 + 0.5 * eccCosF) + radialDoppler);
+  float g = sqrt(max(0.0, 1.0 - 1.5 * rs / r)) /
+    (dopplerTerm * observerLapse);
 
   // Get MHD modulations from the per-frame baked LUT (single fetch).
   // Vertical shear parallax: layers above the midplane orbit sub-Keplerian
@@ -114,7 +120,8 @@ vec4 sampleDisk(vec3 hitPos, vec3 rayDir, float r, int crossingIndex, float lod,
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
-  // Novikov-Thorne thin-disk profile: T ~ r^(-3/4) * (1 - sqrt(r_in/r))^(1/4).
+  // Newtonian zero-torque thin-disk profile:
+  // T ~ r^(-3/4) * (1 - sqrt(r_in/r))^(1/4).
   // Zero torque at the ISCO pulls T to zero at the inner edge; the peak sits
   // at r = (49/36)*r_in and is normalized to diskTemperatureInner (2.0487 = 1/peak).
   float x = a / diskInnerRadius;
@@ -238,14 +245,14 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
   // Outer radius: from Roche lobe / separation constraint
   float outerR = getRocheRadius(bhMass);
 
-  // Inner radius: ISCO at 3 * bhRs, but ensure disk has reasonable width
-  // Must stay outside photon sphere (1.5*bhRs) to avoid horizon clipping
-  float nominalISCO = 3.0 * bhRs;
-  float minInner = 2.0 * bhRs; // Stay well outside event horizon
-  float innerR = max(minInner, min(nominalISCO, outerR * 0.35));
+  // Stable circular gas orbits end at the Schwarzschild ISCO. When tidal
+  // truncation reaches it, no ordinary mini-disk remains to sample.
+  float innerR = 3.0 * bhRs;
+  if (outerR <= innerR) {
+    return vec4(0.0);
+  }
 
-  // Check disk bounds - use tighter inner check to avoid horizon clipping
-  if (r < innerR * 0.95 || r > outerR * 1.1) {
+  if (r < innerR || r > outerR * 1.1) {
     return vec4(0.0);
   }
 
@@ -284,7 +291,7 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
   float mhdDensity = mhd.density;
   float mhdTemp = mhd.temperature;
 
-  // Novikov-Thorne profile in BH-local coordinates. Peak temp scales as
+  // Newtonian zero-torque profile in BH-local coordinates. Peak temp scales as
   // M^(-1/4): a lighter BH runs a hotter disk at the same Eddington ratio.
   float x = r / innerR;
   float thermal = 2.0487 * pow(x, -0.75) * pow(max(0.0, 1.0 - inversesqrt(x)), 0.25);
@@ -331,9 +338,9 @@ vec4 sampleMiniDisk(vec3 hitPos, vec3 rayDir, vec2 bhPos, float bhMass,
   // Edge fading
   float diskRange = outerR - innerR;
   float innerEdgeWidth = diskRange * 0.08;
-  float innerFade = smoothstep(innerR * 0.9, innerR + innerEdgeWidth, r);
+  float innerFade = smoothstep(innerR, innerR + innerEdgeWidth, r);
   float outerEdgeWidth = diskRange * 0.2;
-  float outerFade = smoothstep(outerR * 1.1, outerR - outerEdgeWidth, r);
+  float outerFade = 1.0 - smoothstep(outerR - outerEdgeWidth, outerR * 1.1, r);
 
   float alpha = innerFade * outerFade * diskOpacity;
 
@@ -374,7 +381,7 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
 
   // Post-merger relaxation: as the viscous refill brings the cavity edge
   // down to the ISCO, accretion onto the remnant resumes and the disk
-  // relaxes to the ordinary single-BH profile (same Novikov-Thorne curve
+  // relaxes to the ordinary single-BH profile (same zero-torque curve
   // and peak as sampleDisk). 1 = fully relaxed, 0 = binary cavity regime.
   float ntBlend = 1.0 - smoothstep(diskInnerRadius, 2.0 * diskInnerRadius, innerR);
 
@@ -417,7 +424,7 @@ vec4 sampleCircumbinaryDisk(vec3 hitPos, vec3 rayDir, int crossingIndex, float l
   // No zero-torque cutoff here: the cavity truncates the disk, not an ISCO.
   float thermalFrac = pow(max(r / innerR, 1.0), -0.75);
 
-  // Relaxed profile: Novikov-Thorne anchored at the ISCO, peaking at
+  // Relaxed profile: Newtonian zero-torque curve anchored at the ISCO, peaking at
   // diskTemperatureInner exactly like the single-BH disk
   float x = max(r / diskInnerRadius, 1.0);
   float ntThermal = 2.0487 * pow(x, -0.75) * pow(max(0.0, 1.0 - inversesqrt(x)), 0.25);
