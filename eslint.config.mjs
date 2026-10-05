@@ -5,7 +5,15 @@ const eslintConfig = [
   ...eslintConfigNext,
   eslintConfigPrettier,
   {
-    ignores: ['.next/', 'node_modules/', 'public/', 'bench/dist/', 'bench/results/'],
+    ignores: [
+      '.agents/skills/ziw-*/**',
+      '.claude/skills/ziw-*/**',
+      '.next/',
+      'node_modules/',
+      'public/',
+      'bench/dist/',
+      'bench/results/',
+    ],
   },
 ];
 
