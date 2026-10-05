@@ -3,3 +3,7 @@ node_modules
 public
 *.glsl
 bun.lock
+
+# Generated workflow skills must match their upstream source.
+.agents/skills/ziw-*/
+.claude/skills/ziw-*/
